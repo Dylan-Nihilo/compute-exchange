@@ -1,33 +1,83 @@
-"use client";
+import Image from "next/image";
 
-import {Card, Chip} from "@heroui/react";
+const capabilities = ["算力撮合", "AI Token", "可信履约"];
 
 export default function HomePage() {
   return (
-    <main className="grid min-h-svh place-items-center px-5 py-12">
-      <section className="flex w-full max-w-xl flex-col gap-6">
-        <Chip className="w-fit" color="warning" variant="soft">
-          服务准备中
-        </Chip>
+    <main className="launch-page">
+      <div aria-hidden="true" className="launch-grid" />
+      <div aria-hidden="true" className="ambient ambient-left" />
+      <div aria-hidden="true" className="ambient ambient-right" />
 
-        <div className="space-y-3">
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-            算力撮合交易平台
+      <header className="launch-header">
+        <p className="wordmark">
+          <span aria-hidden="true" className="wordmark-mark" />
+          <span>Compute Exchange</span>
+        </p>
+
+        <p className="build-state">
+          <span aria-hidden="true" className="build-state-dot" />
+          平台构建中
+        </p>
+      </header>
+
+      <section aria-labelledby="launch-title" className="launch-hero">
+        <div className="hero-copy">
+          <p className="hero-kicker">正在构建未来</p>
+
+          <h1 id="launch-title">
+            <span className="hero-line">
+              <span>让算力，成为</span>
+            </span>
+            <span className="hero-line hero-line-accent">
+              <span>可验证的生产力</span>
+            </span>
           </h1>
-          <p className="max-w-lg text-base leading-7 text-muted sm:text-lg">
-            合规算力交易与 AI Token 服务即将开放。
+
+          <p className="hero-summary">
+            连接可信算力、AI Token 与数字履约，
+            <br className="summary-break" />
+            让每一份算力都有清晰去向。
           </p>
         </div>
 
-        <Card role="status">
-          <Card.Header>
-            <Card.Title>真实交易尚未开放</Card.Title>
-            <Card.Description>
-              平台将在资质、支付与安全条件齐备后分阶段开放服务。
-            </Card.Description>
-          </Card.Header>
-        </Card>
+        <figure aria-hidden="true" className="hero-visual">
+          <div className="visual-aura" />
+          <div className="visual-art">
+            <Image
+              alt=""
+              className="visual-image"
+              height={1402}
+              priority
+              sizes="(max-width: 767px) 86vw, 54vw"
+              src="/images/computational-dawn.avif"
+              width={1122}
+            />
+          </div>
+          <span className="orbit orbit-one">
+            <span />
+          </span>
+          <span className="orbit orbit-two">
+            <span />
+          </span>
+          <span className="orbit orbit-three">
+            <span />
+          </span>
+          <span className="light-sweep" />
+        </figure>
       </section>
+
+      <footer className="launch-footer">
+        <ul aria-label="核心能力">
+          {capabilities.map((capability, index) => (
+            <li key={capability}>
+              <span aria-hidden="true">0{index + 1}</span>
+              {capability}
+            </li>
+          ))}
+        </ul>
+        <p>AI Infrastructure · 2026</p>
+      </footer>
     </main>
   );
 }

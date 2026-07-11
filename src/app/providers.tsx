@@ -11,7 +11,12 @@ export function AppProviders({children}: Readonly<{children: ReactNode}>) {
   const [queryClient] = useState(createQueryClient);
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      forcedTheme="light"
+    >
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </ThemeProvider>
   );
