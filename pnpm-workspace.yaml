@@ -1,0 +1,6 @@
+allowBuilds:
+  "@heroui-pro/react": true
+  "@tailwindcss/oxide": true
+  sharp: true
+  unrs-resolver: true
+  "@zowe/secrets-for-zowe-sdk": true
