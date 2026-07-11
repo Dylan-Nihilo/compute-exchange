@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>算力撮合平台 · 前端原型设计总览</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #06111f;
+      --panel: #0b1728;
+      --line: #2a3e5c;
+      --text: #edf5ff;
+      --muted: #93a9c7;
+      --actor: #58a6ff;
+      --owned: #22d3ee;
+      --service: #34d399;
+      --data: #a78bfa;
+      --event: #f59e0b;
+      --external: #94a3b8;
+      --risk: #fb7185;
+      --b1: #34d399;
+      --b2: #22d3ee;
+      --b3: #f59e0b;
+      --b4: #a78bfa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
+        radial-gradient(circle at top left, rgba(34,211,238,.12), transparent 32rem),
+        var(--bg);
+      background-size: 32px 32px, 32px 32px, auto, auto;
+      color: var(--text);
+      font: 14px/1.6 -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      padding: 32px;
+    }
+    .page { max-width: 1240px; margin: 0 auto; }
+    header.top { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: end; margin-bottom: 8px; }
+    h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: .5px; }
+    .meta, .scope, footer { color: var(--muted); font-size: 12px; }
+    .scope b { color: var(--text); font-weight: 600; }
+    .badge {
+      border: 1px solid var(--line); background: rgba(16,31,52,.7); color: var(--text);
+      border-radius: 999px; padding: 6px 12px; white-space: nowrap; font-size: 12px;
+    }
+    .toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 22px; }
+    .toc a {
+      color: var(--muted); text-decoration: none; font-size: 12px;
+      border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px;
+      background: rgba(11,23,40,.6);
+    }
+    .toc a:hover { color: var(--text); border-color: var(--owned); }
+    section.block { margin-bottom: 34px; }
+    h2.sec {
+      font-size: 17px; margin: 0 0 4px; display: flex; align-items: baseline; gap: 10px;
+    }
+    h2.sec .no { color: var(--owned); font-family: ui-monospace, monospace; font-size: 13px; }
+    .sec-sub { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+    .diagram {
+      background: rgba(11,23,40,.82); border: 1px solid var(--line); border-radius: 12px;
+      padding: 18px; overflow-x: auto; box-shadow: 0 24px 80px rgba(0,0,0,.28);
+    }
+    svg { display: block; width: 100%; min-width: 980px; height: auto; }
+
+    /* ---- 模块分解 ---- */
+    .batch { border: 1px solid var(--line); border-radius: 12px; background: rgba(11,23,40,.82); padding: 16px 16px 6px; margin-bottom: 14px; }
+    .batch-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .batch-tag { font: 700 12px ui-monospace, monospace; border-radius: 6px; padding: 3px 8px; color: #06111f; }
+    .b1 .batch-tag { background: var(--b1); } .b2 .batch-tag { background: var(--b2); }
+    .b3 .batch-tag { background: var(--b3); } .b4 .batch-tag { background: var(--b4); }
+    .b1 { border-left: 3px solid var(--b1); } .b2 { border-left: 3px solid var(--b2); }
+    .b3 { border-left: 3px solid var(--b3); } .b4 { border-left: 3px solid var(--b4); }
+    .batch-title { font-size: 15px; font-weight: 700; }
+    .batch-route { font: 12px ui-monospace, monospace; color: var(--muted); }
+    .batch-accept { margin-left: auto; font-size: 11px; color: var(--muted); }
+    .mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(218px, 1fr)); gap: 10px; margin-bottom: 10px; }
+    .mod { background: rgba(16,31,52,.76); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+    .mod h4 { margin: 0 0 7px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+    .mod h4 .req { margin-left: auto; font: 400 10px ui-monospace, monospace; color: var(--muted); }
+    .mod ul { margin: 0; padding-left: 16px; color: var(--muted); font-size: 12px; }
+    .mod li { margin: 2px 0; }
+    .mod li b { color: var(--text); font-weight: 600; }
+    .pill { font-size: 10px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; color: var(--muted); }
+    .pill.hot { border-color: var(--risk); color: var(--risk); }
+    .pill.key { border-color: var(--event); color: var(--event); }
+
+    /* ---- 时间线 ---- */
+    .timeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+    .t-cell { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: rgba(16,31,52,.76); position: relative; }
+    .t-cell .t-bar { height: 6px; border-radius: 3px; margin-bottom: 10px; }
+    .t-cell h4 { margin: 0 0 6px; font-size: 13px; }
+    .t-cell p { margin: 0; font-size: 11px; color: var(--muted); }
+    .t-compliance { border: 1px dashed var(--event); border-radius: 10px; padding: 10px 14px; font-size: 12px; color: var(--muted); background: rgba(245,158,11,.05); }
+    .t-compliance b { color: var(--event); }
+
+    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 14px; }
+    .card { background: rgba(16,31,52,.76); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+    .card h3 { margin: 0 0 8px; font-size: 13px; }
+    .card p, .card li { margin: 0; color: var(--muted); font-size: 12px; }
+    .card ul { margin: 0; padding-left: 16px; }
+    footer { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 12px; }
+    @media (max-width: 900px) {
+      body { padding: 16px; }
+      header.top, .cards, .timeline { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main class="page">
+
+  <header class="top">
+    <div>
+      <h1>算力撮合平台 · 前端原型设计总览</h1>
+      <div class="scope">范围：<b>前端高保真原型 + Mock 数据层</b>（Next.js 15 + HeroUI Pro）。不含：真实后端 / 易宝对接 / newapi 对接 / BSN 上链（均为 mock）。图型：前端分层架构、模块地图、动态状态机。受众：Dylan（产品 + 前端）。</div>
+    </div>
+    <div class="badge">v1 设计 · 2026-07-11 · 决策已锁定</div>
+  </header>
+  <nav class="toc" aria-label="设计总览目录">
+    <a href="#arch">① 应用总体架构</a>
+    <a href="#modules">② 四端模块分解（B1→B4）</a>
+    <a href="#states">③ 核心状态机</a>
+    <a href="#plan">④ 交付批次与合规时间线</a>
+  </nav>
+
+  <!-- ═══════════════ ① 应用总体架构 ═══════════════ -->
+  <section class="block" id="arch">
+    <h2 class="sec"><span class="no">01</span>应用总体架构 <span class="pill">分层图 · 单应用边界</span></h2>
+    <p class="sec-sub">单 Next.js 应用 + 路由分区；页面只通过 hooks 访问数据，services 接口层隔离 mock 与未来真实 API——这是"原型即地基"的结构保证。</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1160 815" role="img" aria-labelledby="a-title a-desc">
+        <title id="a-title">前端应用分层架构图</title>
+        <desc id="a-desc">展示平台角色、Next.js 单应用路由分区、共享组件与数据访问层、Mock 引擎，以及未来后端 API 边界。</desc>
+        <defs>
+          <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+            <path d="M2,2 L10,6 L2,10 Z" fill="#8fb7e8"></path>
+          </marker>
+          <marker id="arrowAmber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+            <path d="M2,2 L10,6 L2,10 Z" fill="#f59e0b"></path>
+          </marker>
+          <marker id="arrowRose" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+            <path d="M2,2 L10,6 L2,10 Z" fill="#fb7185"></path>
+          </marker>
+          <style>
+            .boundary { fill: rgba(245,158,11,.04); stroke: #f59e0b; stroke-width: 1.5; stroke-dasharray: 8 6; }
+            .edge { fill: none; stroke: #8fb7e8; stroke-width: 1.7; marker-end: url(#arrow); }
+            .edge-amber { fill: none; stroke: #f59e0b; stroke-width: 1.4; stroke-dasharray: 5 4; marker-end: url(#arrowAmber); }
+            .edge-rose { fill: none; stroke: #fb7185; stroke-width: 1.6; stroke-dasharray: 5 5; marker-end: url(#arrowRose); }
+            .node-bg { fill: #0b1728; }
+            .node { stroke-width: 1.6; }
+            .actor { fill: rgba(88,166,255,.14); stroke: #58a6ff; }
+            .owned { fill: rgba(34,211,238,.13); stroke: #22d3ee; }
+            .service { fill: rgba(52,211,153,.13); stroke: #34d399; }
+            .data { fill: rgba(167,139,250,.14); stroke: #a78bfa; }
+            .event { fill: rgba(245,158,11,.13); stroke: #f59e0b; }
+            .external { fill: rgba(148,163,184,.12); stroke: #94a3b8; }
+            .risknode { fill: rgba(251,113,133,.12); stroke: #fb7185; }
+            .label { fill: #edf5ff; font: 600 13px -apple-system, "PingFang SC", sans-serif; }
+            .sub { fill: #93a9c7; font: 11px -apple-system, "PingFang SC", sans-serif; }
+            .edge-label { fill: #bfd7f6; font: 11px -apple-system, "PingFang SC", sans-serif; }
+            .legend { fill: #93a9c7; font: 11px -apple-system, "PingFang SC", sans-serif; }
+            .btag { font: 700 10px ui-monospace, monospace; }
+          </style>
+        </defs>
+
+        <!-- ── 边（先画，保证节点盖住） ── -->
+        <path d="M300 80 C240 110, 190 130, 165 170" class="edge"></path>
+        <path d="M340 80 C350 110, 365 140, 372 170" class="edge"></path>
+        <path d="M400 80 C460 110, 540 135, 578 170" class="edge"></path>
+        <path d="M430 80 C620 105, 880 120, 1000 170" class="edge"></path>
+        <text x="205" y="122" class="edge-label">浏览/下单</text>
+        <text x="700" y="112" class="edge-label">注册 / KYC</text>
+        <path d="M820 80 L810 170" class="edge"></path>
+        <text x="826" y="128" class="edge-label">审核/风控/配置</text>
+        <path d="M760 170 C725 158, 705 152, 692 146" class="edge-amber"></path>
+
+        <path d="M580 252 L580 336" class="edge"></path>
+        <text x="596" y="300" class="edge-label">页面仅经 hooks 取数（不直连数据源）</text>
+        <path d="M580 408 L580 444" class="edge"></path>
+        <text x="596" y="432" class="edge-label">TS 接口契约 = 未来 API 契约草稿</text>
+        <path d="M305 512 L305 548" class="edge"></path>
+        <path d="M580 512 L580 548" class="edge"></path>
+        <path d="M855 512 L855 548" class="edge"></path>
+        <path d="M980 500 C1090 545, 1050 655, 905 700" class="edge-rose"></path>
+        <text x="962" y="608" class="edge-label">未来切换 http 实现</text>
+        <text x="962" y="624" class="edge-label">（本期不做）</text>
+
+        <!-- ── 角色层 ── -->
+        <rect x="120" y="24" width="480" height="56" class="node-bg" rx="10"></rect>
+        <rect x="120" y="24" width="480" height="56" class="node actor" rx="10"></rect>
+        <text x="142" y="48" class="label">外部角色</text>
+        <text x="142" y="66" class="sub">访客 · 买家 buyer · 供给方 supplier · 厂商 vendor · 资方 funder（一账户多身份）</text>
+        <rect x="700" y="24" width="240" height="56" class="node-bg" rx="10"></rect>
+        <rect x="700" y="24" width="240" height="56" class="node actor" rx="10"></rect>
+        <text x="722" y="48" class="label">内部角色</text>
+        <text x="722" y="66" class="sub">运营 operator · 管理员 admin</text>
+
+        <!-- ── 应用边界 ── -->
+        <rect x="30" y="120" width="1100" height="520" class="boundary" rx="16"></rect>
+        <text x="50" y="142" class="legend">应用边界：compute-exchange-web · Next.js 15（App Router）+ HeroUI Pro + Tailwind v4 · 单应用路由分区</text>
+
+        <!-- 合规开关横切条 -->
+        <rect x="60" y="148" width="628" height="8" fill="rgba(245,158,11,.35)" rx="4"></rect>
+
+        <!-- 路由分区行 -->
+        <rect x="60" y="170" width="196" height="74" class="node-bg" rx="10"></rect>
+        <rect x="60" y="170" width="196" height="74" class="node owned" rx="10"></rect>
+        <text x="76" y="196" class="label">(portal) 门户</text>
+        <text x="76" y="214" class="sub">五大板块 · SSR/SEO</text>
+        <text x="76" y="232" class="btag" fill="#a78bfa">批次 B4</text>
+
+        <rect x="276" y="170" width="196" height="74" class="node-bg" rx="10"></rect>
+        <rect x="276" y="170" width="196" height="74" class="node owned" rx="10"></rect>
+        <text x="292" y="196" class="label">market 交易所</text>
+        <text x="292" y="214" class="sub">检索/比价/下单/支付</text>
+        <text x="292" y="232" class="btag" fill="#f59e0b">批次 B3</text>
+
+        <rect x="492" y="170" width="196" height="74" class="node-bg" rx="10"></rect>
+        <rect x="492" y="170" width="196" height="74" class="node owned" rx="10"></rect>
+        <text x="508" y="196" class="label">console 工作台</text>
+        <text x="508" y="214" class="sub">四身份动态菜单</text>
+        <text x="508" y="232" class="btag" fill="#22d3ee">批次 B2</text>
+
+        <rect x="708" y="170" width="196" height="74" class="node-bg" rx="10"></rect>
+        <rect x="708" y="170" width="196" height="74" class="node owned" rx="10"></rect>
+        <text x="724" y="196" class="label">admin 运营后台</text>
+        <text x="724" y="214" class="sub">审核/资金/风控/CMS</text>
+        <text x="724" y="232" class="btag" fill="#34d399">批次 B1</text>
+
+        <rect x="924" y="170" width="196" height="74" class="node-bg" rx="10"></rect>
+        <rect x="924" y="170" width="196" height="74" class="node owned" rx="10"></rect>
+        <text x="940" y="196" class="label">auth 认证</text>
+        <text x="940" y="214" class="sub">登录注册 · KYC 向导</text>
+        <text x="940" y="232" class="btag" fill="#34d399">批次 B1</text>
+
+        <text x="60" y="278" class="sub">⚑ 合规开关三态（admin/settings 控制）：仅展示 → 限额灰度 → 全量 —— 横切门户/交易所的下单支付入口</text>
+
+        <!-- 共享层 -->
+        <rect x="60" y="344" width="300" height="64" class="node-bg" rx="10"></rect>
+        <rect x="60" y="344" width="300" height="64" class="node owned" rx="10"></rect>
+        <text x="78" y="370" class="label">业务组件库 components/</text>
+        <text x="78" y="388" class="sub">状态徽章 · 金额拆解 · 凭证 · ⛓ 存证徽章</text>
+
+        <rect x="400" y="344" width="360" height="64" class="node-bg" rx="10"></rect>
+        <rect x="400" y="344" width="360" height="64" class="node owned" rx="10"></rect>
+        <text x="418" y="370" class="label">hooks 层（TanStack Query + Zustand）</text>
+        <text x="418" y="388" class="sub">useOrders · useProducts · usePermission（权限矩阵）…</text>
+
+        <rect x="800" y="344" width="300" height="64" class="node-bg" rx="10"></rect>
+        <rect x="800" y="344" width="300" height="64" class="node owned" rx="10"></rect>
+        <text x="818" y="370" class="label">theme/ HeroUI 主题</text>
+        <text x="818" y="388" class="sub">品牌占位 token · 明暗双主题 · tabular-nums</text>
+
+        <!-- services -->
+        <rect x="180" y="452" width="800" height="60" class="node-bg" rx="10"></rect>
+        <rect x="180" y="452" width="800" height="60" class="node service" rx="10"></rect>
+        <text x="204" y="478" class="label">lib/services 接口层</text>
+        <text x="204" y="496" class="sub">Order · Product · Token · Lead · Risk · Attestation · ComplianceGate —— 实现可插拔（mock ↔ http）</text>
+
+        <!-- mock 行 -->
+        <rect x="180" y="548" width="250" height="70" class="node-bg" rx="10"></rect>
+        <rect x="180" y="548" width="250" height="70" class="node data" rx="10"></rect>
+        <text x="198" y="574" class="label">Mock 引擎</text>
+        <text x="198" y="592" class="sub">种子数据（30机房/80商品/200单）</text>
+        <text x="198" y="608" class="sub">动作驱动状态机流转 · 跨端联动</text>
+
+        <rect x="455" y="548" width="250" height="70" class="node-bg" rx="10"></rect>
+        <rect x="455" y="548" width="250" height="70" class="node data" rx="10"></rect>
+        <text x="473" y="574" class="label">演示时钟</text>
+        <text x="473" y="592" class="sub">可加速订单生命周期</text>
+        <text x="473" y="608" class="sub">延迟/失败注入（验收三态）</text>
+
+        <rect x="730" y="548" width="250" height="70" class="node-bg" rx="10"></rect>
+        <rect x="730" y="548" width="250" height="70" class="node data" rx="10"></rect>
+        <text x="748" y="574" class="label">localStorage 持久化</text>
+        <text x="748" y="592" class="sub">刷新不丢 · 一键重置</text>
+        <text x="748" y="608" class="sub">演示场景预设（快照）</text>
+
+        <!-- 未来外部 -->
+        <rect x="180" y="700" width="700" height="64" class="node-bg" rx="10"></rect>
+        <rect x="180" y="700" width="700" height="64" class="node external" rx="10" stroke-dasharray="6 4"></rect>
+        <text x="204" y="726" class="label">真实后端 API（未来阶段 · 本期不存在）</text>
+        <text x="204" y="744" class="sub">易宝支付（进件/合单/分账） · newapi Admin API（额度/Key/用量） · BSN-DDC 存证 —— 均经由后端网关，前端不直连</text>
+
+        <!-- 图例（边界外） -->
+        <g transform="translate(56 788)">
+          <rect width="12" height="12" class="actor" rx="2"></rect><text x="20" y="10" class="legend">角色</text>
+          <rect x="90" width="12" height="12" class="owned" rx="2"></rect><text x="110" y="10" class="legend">自有前端模块</text>
+          <rect x="230" width="12" height="12" class="service" rx="2"></rect><text x="250" y="10" class="legend">接口契约层</text>
+          <rect x="370" width="12" height="12" class="data" rx="2"></rect><text x="390" y="10" class="legend">Mock 数据层</text>
+          <rect x="510" width="12" height="12" class="event" rx="2"></rect><text x="530" y="10" class="legend">合规开关横切</text>
+          <rect x="660" width="12" height="12" class="external" rx="2"></rect><text x="680" y="10" class="legend">外部/未来系统</text>
+          <text x="810" y="10" class="legend">虚线红 = 本期不实现的未来链路</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ═══════════════ ② 模块分解 ═══════════════ -->
+  <section class="block" id="modules">
+    <h2 class="sec"><span class="no">02</span>四端模块分解 <span class="pill">按交付批次 B1→B4 · 精细到子模块</span></h2>
+    <p class="sec-sub">标注 <span class="pill hot">红线</span> = 合规红线相关模块；<span class="pill key">核心</span> = 演示闭环关键路径。REQ 编号对应 docs/03-09。</p>
+
+    <!-- B1 -->
+    <div class="batch b1">
+      <div class="batch-head">
+        <span class="batch-tag">B1 首批</span>
+        <span class="batch-title">运营后台 + 认证 + 应用骨架</span>
+        <span class="batch-route">/admin · /auth · lib/mocks</span>
+        <span class="batch-accept">验收：审核→风控→合规开关→分账规则全流程可操作</span>
+      </div>
+      <div class="mods">
+        <div class="mod"><h4>📊 总览看板 <span class="req">REQ-F-080~081</span></h4>
+          <ul><li>GMV / 订单 / 用户 / 佣金卡片</li><li>Token 毛利 · 线索转化漏斗</li><li>供给规模（机房/在售卡数）</li><li>异常订单 / 冻结 / 挖矿告警</li></ul></div>
+        <div class="mod"><h4>✅ 审核中心 <span class="pill key">核心</span><span class="req">REQ-F-001~004</span></h4>
+          <ul><li><b>机房资质队列</b>（证照/有效期/台账）</li><li>商品上架审核（价格异常/合规承诺）</li><li>内容审核（公告/案例）</li><li>通过 / 驳回原因 / 要求补件</li></ul></div>
+        <div class="mod"><h4>🗄 算力商品与供给 <span class="req">REQ-F-010/012</span></h4>
+          <ul><li>全平台商品查看 / 强制下架 / 改价干预</li><li>平台集采 / 包销商品上架</li><li>合作机房与可供算力台账</li></ul></div>
+        <div class="mod"><h4>📦 订单管理 <span class="req">REQ-F-020~022</span></h4>
+          <ul><li>全平台订单检索（算力/Token/居间）</li><li>干预：协助开通 / 关闭 / 发起退款</li><li>大额询价单人工转订单</li></ul></div>
+        <div class="mod"><h4>💰 资金财务 <span class="pill hot">红线</span><span class="req">REQ-F-030~033</span></h4>
+          <ul><li><b>分账规则</b>：费率默认 5% 按品类/供给方可配</li><li>三方账目台账（机房/佣金/通道费）</li><li>对账中心 · 差异报表</li><li>结算单 · 退款与资金归还审批</li></ul></div>
+        <div class="mod"><h4>🎯 CRM 线索池 <span class="req">REQ-F-040~042</span></h4>
+          <ul><li>设备 / 施工 / 融资三类线索统一池</li><li>分配 → 认领 → 跟进 → 成交登记</li><li>客户档案与标签</li><li>居间佣金台账</li></ul></div>
+        <div class="mod"><h4>🛡 风控工作台 <span class="pill hot">红线</span><span class="req">REQ-G-001~007</span></h4>
+          <ul><li><b>挖矿疑似告警</b>列表与规则命中详情</li><li>冻结 / 解冻 / 强制终止（暂停分账联动）</li><li>黑名单管理 · 申诉处理</li><li>审计日志检索导出</li></ul></div>
+        <div class="mod"><h4>🤖 Token 管理 <span class="req">REQ-F-011 / C-001~003</span></h4>
+          <ul><li>模型上架（倍率/场景/<b>备案号</b>）</li><li>套餐定价（额度/阶梯）</li><li>未备案模型禁止对公开放标记</li></ul></div>
+        <div class="mod"><h4>📰 CMS 内容 <span class="req">REQ-F-050~052</span></h4>
+          <ul><li>五大板块页 / 案例 / 合作伙伴编辑</li><li>公告管理 · Banner 活动位</li><li>SEO 元信息维护</li></ul></div>
+        <div class="mod"><h4>👥 用户与权限 <span class="req">REQ-F-060~062</span></h4>
+          <ul><li>用户检索 / 身份 / 冻结解冻</li><li>RBAC：运营子角色分权</li><li>操作审计（前后值留痕）</li></ul></div>
+        <div class="mod"><h4>⚙️ 系统设置 <span class="pill hot">红线</span><span class="req">REQ-F-070~073</span></h4>
+          <ul><li><b>合规开关三态</b>（仅展示/限额/全量）</li><li>费率默认值 · 通知模板</li><li>字典枚举（GPU 型号/地域/模型）</li><li>数据备份与导出策略</li></ul></div>
+        <div class="mod"><h4>🔐 auth 认证 <span class="req">REQ-D-001~013</span></h4>
+          <ul><li>手机号/邮箱注册登录 · 滑块验证</li><li>KYC 向导：个人实名 / 企业认证</li><li>身份申请（供给方/厂商/资方）</li></ul></div>
+        <div class="mod"><h4>🧱 应用骨架 + Mock 引擎</h4>
+          <ul><li>路由分区 · 权限守卫 · 三态规范</li><li>种子数据 + 状态机 + 演示时钟</li><li>HeroUI 主题 token（品牌占位）</li></ul></div>
+      </div>
+    </div>
+
+    <!-- B2 -->
+    <div class="batch b2">
+      <div class="batch-head">
+        <span class="batch-tag">B2</span>
+        <span class="batch-title">买家 + 供给方工作台（厂商/资方轻量）</span>
+        <span class="batch-route">/console</span>
+        <span class="batch-accept">验收：身份切换权限正确；审核→上架→接单履约跨端联动</span>
+      </div>
+      <div class="mods">
+        <div class="mod"><h4>🧭 通用外壳 <span class="req">REQ-D-060~063</span></h4>
+          <ul><li><b>身份切换器</b>（顶栏，一账户多身份）</li><li>待办聚合首页（待支付/待接单/补件）</li><li>消息中心 · 个人/企业信息 · 收票信息</li></ul></div>
+        <div class="mod"><h4>🛒 买家 · 算力订单 <span class="pill key">核心</span><span class="req">REQ-D-020</span></h4>
+          <ul><li>订单列表/详情（全状态机展示）</li><li>交付凭证查看（脱敏）· <b>确认签收</b></li><li>续费 · 退款申请 · 工单</li></ul></div>
+        <div class="mod"><h4>🎫 买家 · 我的 Token <span class="req">REQ-D-021</span></h4>
+          <ul><li>套餐购买 / 模拟支付 / 额度到账</li><li>额度/已用量（mock newapi 数据）</li><li>API Key 打码展示 / 重置 / 禁用</li><li>用量明细（按模型/时间）· 低额预警</li></ul></div>
+        <div class="mod"><h4>🧾 买家 · 账单发票 <span class="req">REQ-D-022</span></h4>
+          <ul><li>消费流水（算力/Token 科目分离）</li><li>发票申请（普票/专票）与记录</li></ul></div>
+        <div class="mod"><h4>🏢 供给方 · 资质管理 <span class="req">REQ-D-030</span></h4>
+          <ul><li>证照上传 · 审核状态跟踪</li><li><b>有效期进度条</b> · 30 天到期预警</li></ul></div>
+        <div class="mod"><h4>🖥 供给方 · 商品管理 <span class="pill key">核心</span><span class="req">REQ-D-031</span></h4>
+          <ul><li>上架向导（GPU/规格/交付形态/计费）</li><li><b>可售时段</b>（余量算力 22:00-08:00）</li><li>余量与价格调整 · 上下架</li></ul></div>
+        <div class="mod"><h4>📬 供给方 · 接单履约 <span class="pill key">核心</span><span class="req">REQ-D-032</span></h4>
+          <ul><li>新订单接单 → 标记开通中</li><li><b>回填交付凭证</b>（IP/账号/控制台）</li><li>到期处理 · 售后工单</li></ul></div>
+        <div class="mod"><h4>💳 供给方 · 结算中心 <span class="req">REQ-D-033</span></h4>
+          <ul><li>结算单（待结/已结）· 分账流水</li><li>延迟分账状态可视 · 对账导出</li></ul></div>
+        <div class="mod"><h4>🔧 厂商端（轻量） <span class="req">REQ-D-040~044</span></h4>
+          <ul><li>设备/服务发布</li><li>居间线索认领 · 报价 · 成交登记</li><li>佣金台账</li></ul></div>
+        <div class="mod"><h4>🏦 资方端（轻量） <span class="req">REQ-D-050~052</span></h4>
+          <ul><li>融资线索查看（分配后可见）</li><li>认领 / 跟进状态登记</li></ul></div>
+      </div>
+    </div>
+
+    <!-- B3 -->
+    <div class="batch b3">
+      <div class="batch-head">
+        <span class="batch-tag">B3</span>
+        <span class="batch-title">交易所核心</span>
+        <span class="batch-route">/market</span>
+        <span class="batch-accept">验收：检索→详情→试算→模拟支付→订单落台 闭环可演示</span>
+      </div>
+      <div class="mods">
+        <div class="mod"><h4>🔍 商品检索 <span class="req">REQ-A-020</span></h4>
+          <ul><li>筛选：GPU 型号/地域/计费/价格/卡数</li><li>排序：价格/余量/上新</li><li>万级商品分页流畅（虚拟列表）</li></ul></div>
+        <div class="mod"><h4>⚖️ 比价视图 <span class="req">REQ-A-021</span></h4>
+          <ul><li>同型号跨供给方横向对比</li><li>单价/规格/地域/<b>信用与 SLA</b></li><li>⛓ 存证徽章（履约率链上可查）</li></ul></div>
+        <div class="mod"><h4>📄 商品详情 <span class="req">REQ-A-022</span></h4>
+          <ul><li>规格/网络/独享/可售时段日历</li><li>供给方信用档案入口</li><li>合规承诺展示（禁挖矿声明）</li></ul></div>
+        <div class="mod"><h4>🧮 下单试算 <span class="pill key">核心</span><span class="req">REQ-A-022/034</span></h4>
+          <ul><li>租期/数量/计费模式实时算价</li><li><b>平台费 5% 透明展示</b>（含税说明）</li><li>用途声明 + 合规承诺勾选<span class="pill hot">红线</span></li></ul></div>
+        <div class="mod"><h4>💳 模拟支付 <span class="pill key">核心</span><span class="req">REQ-B-011~014</span></h4>
+          <ul><li>聚合支付页占位（微信/支付宝/网银）</li><li>15 分钟<b>余量锁定</b>倒计时 · 超时释放</li><li>支付成功 → 订单落买家工作台</li></ul></div>
+        <div class="mod"><h4>🚧 门槛拦截</h4>
+          <ul><li>未登录/未 KYC → 引导认证</li><li><b>合规开关</b>=仅展示时隐藏下单入口</li><li>限额灰度时金额封顶提示</li></ul></div>
+      </div>
+    </div>
+
+    <!-- B4 -->
+    <div class="batch b4">
+      <div class="batch-head">
+        <span class="batch-tag">B4</span>
+        <span class="batch-title">门户官网（SSR）</span>
+        <span class="batch-route">(portal)</span>
+        <span class="batch-accept">验收：五大板块 + 留资进 CRM + 存证验证 + SEO 基础项</span>
+      </div>
+      <div class="mods">
+        <div class="mod"><h4>🏠 首页</h4>
+          <ul><li>五大板块导航 + 价值主张</li><li>平台数据亮点（GMV/机房数）</li><li>合规资质展示位（ICP/EDI/备案占位）</li></ul></div>
+        <div class="mod"><h4>⚡ 算力交易板块页</h4>
+          <ul><li>热门型号行情速览 → 引流 /market</li><li>供给方入驻引导</li></ul></div>
+        <div class="mod"><h4>🤖 Token 工厂板块页</h4>
+          <ul><li>模型/套餐橱窗 · <b>备案号展示</b></li><li>部署服务介绍（一次性+年费）</li></ul></div>
+        <div class="mod"><h4>🤝 居间板块页 ×2</h4>
+          <ul><li>设备销售 / 机电施工总包介绍</li><li>需求登记表单 → CRM</li></ul></div>
+        <div class="mod"><h4>🏦 融资租赁板块页 <span class="pill hot">红线</span></h4>
+          <ul><li>业务介绍 + 资方品牌墙</li><li>留资表单（金额/期限/联系人）</li><li><b>合规声明</b>：持牌资方提供，平台仅居间</li></ul></div>
+        <div class="mod"><h4>⛓ 区块链验证入口 <span class="req">REQ-H-030/031</span></h4>
+          <ul><li>输入订单号 → mock txId 验证结果</li><li>机房信用档案"链上可查"面板</li></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ ③ 状态机 ═══════════════ -->
+  <section class="block" id="states">
+    <h2 class="sec"><span class="no">03</span>核心状态机 <span class="pill">Mock 引擎按此流转 · 未来即后端状态机</span></h2>
+    <p class="sec-sub">订单与分账是双状态机联动：支付成功即生成分账单但<b>延迟执行</b>，买家确认交付（或超时策略放行）后才分账给机房——这是 Q-03 决策的履约保证结构。</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1160 600" role="img" aria-labelledby="s-title s-desc">
+        <title id="s-title">订单与分账状态机</title>
+        <desc id="s-desc">展示算力订单从待支付到完成、退款或冻结的状态变化，以及延迟分账、失败重试和对账流程。</desc>
+
+        <!-- 边先画 -->
+        <path d="M210 90 L256 90" class="edge"></path>
+        <path d="M426 90 L472 90" class="edge"></path>
+        <path d="M642 90 L688 90" class="edge"></path>
+        <path d="M858 90 L904 90" class="edge"></path>
+        <text x="216" y="78" class="edge-label">支付成功</text>
+        <text x="430" y="78" class="edge-label">供给方接单</text>
+        <text x="646" y="78" class="edge-label">回填凭证</text>
+        <text x="860" y="78" class="edge-label">到期/确认</text>
+
+        <path d="M125 120 L125 210" class="edge"></path>
+        <text x="136" y="170" class="edge-label">15min 超时/取消 · 释放余量</text>
+        <path d="M700 120 C660 160, 610 185, 570 210" class="edge"></path>
+        <text x="580" y="168" class="edge-label">申请退款（先归还分账资金）</text>
+        <path d="M642 238 L688 238" class="edge"></path>
+        <text x="644" y="226" class="edge-label">原路退款</text>
+        <path d="M830 120 C880 150, 930 175, 962 210" class="edge-rose"></path>
+        <text x="878" y="162" class="edge-label">风控命中 · 暂停分账</text>
+        <path d="M920 210 C880 180, 830 155, 795 122" class="edge-rose"></path>
+        <text x="770" y="196" class="edge-label">申诉解冻</text>
+
+        <path d="M341 120 C300 220, 230 290, 185 350" class="edge-amber"></path>
+        <text x="160" y="262" class="edge-label">支付成功 → 生成分账单（延迟中）</text>
+
+        <path d="M260 380 L340 380" class="edge"></path>
+        <path d="M520 380 L600 380" class="edge"></path>
+        <path d="M780 380 L860 380" class="edge"></path>
+        <text x="238" y="345" class="edge-label">买家确认签收 / 超时策略放行</text>
+        <text x="524" y="368" class="edge-label">易宝回执</text>
+        <text x="782" y="368" class="edge-label">日终对账勾对</text>
+        <path d="M455 410 L455 470" class="edge"></path>
+        <text x="464" y="446" class="edge-label">失败</text>
+        <path d="M405 470 L405 410" class="edge"></path>
+        <text x="290" y="446" class="edge-label">重试×3 / 人工复核</text>
+
+        <!-- 订单状态机节点 -->
+        <text x="40" y="42" class="label">算力订单状态机</text>
+        <text x="180" y="42" class="sub">（docs/02 §2.6 · Q-01 手动交付 · Q-03 延迟分账）</text>
+
+        <rect x="40" y="60" width="170" height="60" class="node-bg" rx="10"></rect>
+        <rect x="40" y="60" width="170" height="60" class="node owned" rx="10"></rect>
+        <text x="58" y="86" class="label">待支付</text>
+        <text x="58" y="104" class="sub">余量已锁定</text>
+
+        <rect x="256" y="60" width="170" height="60" class="node-bg" rx="10"></rect>
+        <rect x="256" y="60" width="170" height="60" class="node owned" rx="10"></rect>
+        <text x="274" y="86" class="label">已支付·待开通</text>
+        <text x="274" y="104" class="sub">资金入易宝待分账</text>
+
+        <rect x="472" y="60" width="170" height="60" class="node-bg" rx="10"></rect>
+        <rect x="472" y="60" width="170" height="60" class="node owned" rx="10"></rect>
+        <text x="490" y="86" class="label">开通中</text>
+        <text x="490" y="104" class="sub">供给方控制台操作</text>
+
+        <rect x="688" y="60" width="170" height="60" class="node-bg" rx="10"></rect>
+        <rect x="688" y="60" width="170" height="60" class="node owned" rx="10"></rect>
+        <text x="706" y="86" class="label">履约中</text>
+        <text x="706" y="104" class="sub">凭证已交付 · SLA 监测</text>
+
+        <rect x="904" y="60" width="170" height="60" class="node-bg" rx="10"></rect>
+        <rect x="904" y="60" width="170" height="60" class="node service" rx="10"></rect>
+        <text x="922" y="86" class="label">已完成</text>
+        <text x="922" y="104" class="sub">释放余量 · 可开票</text>
+
+        <rect x="40" y="210" width="170" height="56" class="node-bg" rx="10"></rect>
+        <rect x="40" y="210" width="170" height="56" class="node external" rx="10"></rect>
+        <text x="58" y="234" class="label">已取消</text>
+        <text x="58" y="252" class="sub">未付款关单</text>
+
+        <rect x="472" y="210" width="170" height="56" class="node-bg" rx="10"></rect>
+        <rect x="472" y="210" width="170" height="56" class="node event" rx="10"></rect>
+        <text x="490" y="234" class="label">退款中</text>
+        <text x="490" y="252" class="sub">分账资金归还流程</text>
+
+        <rect x="688" y="210" width="170" height="56" class="node-bg" rx="10"></rect>
+        <rect x="688" y="210" width="170" height="56" class="node external" rx="10"></rect>
+        <text x="706" y="234" class="label">已退款</text>
+        <text x="706" y="252" class="sub">三方账目更新</text>
+
+        <rect x="904" y="210" width="170" height="56" class="node-bg" rx="10"></rect>
+        <rect x="904" y="210" width="170" height="56" class="node risknode" rx="10"></rect>
+        <text x="922" y="234" class="label">已冻结</text>
+        <text x="922" y="252" class="sub">挖矿疑似/违规处置</text>
+
+        <!-- 分账泳道 -->
+        <rect x="30" y="300" width="1100" height="230" class="boundary" rx="14"></rect>
+        <text x="50" y="326" class="legend">分账状态机（Q-03 延迟分账 · 资金全程在易宝持牌账户，平台零触碰 —— 二清红线）</text>
+
+        <rect x="80" y="350" width="180" height="60" class="node-bg" rx="10"></rect>
+        <rect x="80" y="350" width="180" height="60" class="node event" rx="10"></rect>
+        <text x="98" y="376" class="label">待分账·延迟中</text>
+        <text x="98" y="394" class="sub">履约保证期</text>
+
+        <rect x="340" y="350" width="180" height="60" class="node-bg" rx="10"></rect>
+        <rect x="340" y="350" width="180" height="60" class="node event" rx="10"></rect>
+        <text x="358" y="376" class="label">分账中</text>
+        <text x="358" y="394" class="sub">机房应得+平台佣金 5%</text>
+
+        <rect x="600" y="350" width="180" height="60" class="node-bg" rx="10"></rect>
+        <rect x="600" y="350" width="180" height="60" class="node service" rx="10"></rect>
+        <text x="618" y="376" class="label">分账成功</text>
+        <text x="618" y="394" class="sub">流水记录</text>
+
+        <rect x="860" y="350" width="180" height="60" class="node-bg" rx="10"></rect>
+        <rect x="860" y="350" width="180" height="60" class="node service" rx="10"></rect>
+        <text x="878" y="376" class="label">已对账</text>
+        <text x="878" y="394" class="sub">三方账目平</text>
+
+        <rect x="340" y="470" width="180" height="50" class="node-bg" rx="10"></rect>
+        <rect x="340" y="470" width="180" height="50" class="node risknode" rx="10"></rect>
+        <text x="358" y="492" class="label">分账失败</text>
+        <text x="358" y="508" class="sub">告警 · 死信</text>
+
+        <g transform="translate(56 572)">
+          <rect width="12" height="12" class="owned" rx="2"></rect><text x="20" y="10" class="legend">进行中状态</text>
+          <rect x="130" width="12" height="12" class="service" rx="2"></rect><text x="150" y="10" class="legend">成功终态</text>
+          <rect x="260" width="12" height="12" class="external" rx="2"></rect><text x="280" y="10" class="legend">关闭终态</text>
+          <rect x="390" width="12" height="12" class="event" rx="2"></rect><text x="410" y="10" class="legend">资金相关过渡态</text>
+          <rect x="560" width="12" height="12" class="risknode" rx="2"></rect><text x="580" y="10" class="legend">风控/异常态</text>
+          <text x="710" y="10" class="legend">虚线红 = 风控路径 · 虚线橙 = 跨状态机事件</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ═══════════════ ④ 批次时间线 ═══════════════ -->
+  <section class="block" id="plan">
+    <h2 class="sec"><span class="no">04</span>交付批次与合规时间线 <span class="pill">上线目标 2026-12</span></h2>
+    <p class="sec-sub">前端批次与合规办证并行，互不等待；真实收款开闸只取决于证照齐备（合规开关控制）。</p>
+    <div class="timeline">
+      <div class="t-cell"><div class="t-bar" style="background:var(--b1)"></div>
+        <h4>B1 · 运营后台 + 骨架</h4>
+        <p>应用骨架 · mock 引擎 · 主题<br>admin 全模块 · auth/KYC<br><b>≈ 2026-07 → 08</b></p></div>
+      <div class="t-cell"><div class="t-bar" style="background:var(--b2)"></div>
+        <h4>B2 · 双边工作台</h4>
+        <p>买家/供给方全功能<br>厂商/资方轻量 · 身份切换<br><b>≈ 2026-08 → 09</b></p></div>
+      <div class="t-cell"><div class="t-bar" style="background:var(--b3)"></div>
+        <h4>B3 · 交易所核心</h4>
+        <p>检索/比价/详情/试算<br>模拟支付 · 全链路闭环<br><b>≈ 2026-09 → 10</b></p></div>
+      <div class="t-cell"><div class="t-bar" style="background:var(--b4)"></div>
+        <h4>B4 · 门户（SSR）</h4>
+        <p>五大板块 · 留资 · 存证验证<br>SEO 基础项<br><b>≈ 2026-10 → 11</b></p></div>
+    </div>
+    <div class="t-compliance">
+      <b>合规并行线（docs/11 §11.10）：</b>
+      T0 2026-07 经营范围核对 + ICP/EDI 申报 + 易宝商务 → T1 08-09 等保定级 + 支付沙箱 → T2 10-11 取证推进 + 限额灰度 → <b>T3 2026-12 证照齐备 · 合规开关全量开闸</b>。前端 mock 原型不受办证进度阻塞。
+    </div>
+
+    <div class="cards">
+      <article class="card">
+        <h3>🔒 已锁定的关键决策</h3>
+        <ul>
+          <li>纯订单直付，无余额（Q-02，避资金池）</li>
+          <li>延迟分账作履约保证（Q-03）</li>
+          <li>手动开通 + 回填凭证（Q-01）</li>
+          <li>合规开关三段灰度（Q-04）</li>
+          <li>newapi 由主平台封装，用户无感（Q-07）</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>📌 假设与挂起项</h3>
+        <ul>
+          <li>品牌未命名 → 中性占位色板（Q-15）</li>
+          <li>首批模型清单待定 → mock 占位（Q-06）</li>
+          <li>newapi 版本/许可证架构期核对（Q-17）</li>
+          <li>签收超时阈值与争议策略待统一</li>
+          <li>时间线为规划推断，非承诺排期</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>🧪 验收路径（Playwright 冒烟）</h3>
+        <ul>
+          <li>① 审核→上架→下单→签收→分账展示</li>
+          <li>② 身份切换 · 权限矩阵正确</li>
+          <li>③ 合规开关三态对前台的影响</li>
+          <li>④ Token 购买→Key→用量账单</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>➡️ 下一步</h3>
+        <ul>
+          <li>生成 B1 实施计划（writing-plans）</li>
+          <li>初始化 Next.js + HeroUI Pro 工程</li>
+          <li>B1 开工前过 heroui-pro-design-taste</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <footer>
+    来源：docs/01-14 需求文档 + docs/superpowers/specs/2026-07-11-frontend-prototype-design.md ·
+    方法：前端分层架构 + 模块地图 + 状态机 · 单文件 HTML/SVG · 生成于 2026-07-11
+  </footer>
+</main>
+</body>
+</html>
