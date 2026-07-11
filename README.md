@@ -5,24 +5,31 @@
 ## 技术基线
 
 - Next.js 15 App Router + React 19 + TypeScript strict
-- Tailwind CSS v4 + HeroUI v3 / HeroUI Pro
+- Tailwind CSS v4 + HeroUI v3
 - TanStack Query 管理服务端状态
 - Zustand 管理后续模块的客户端状态
 - Zod 校验环境配置与后续 API 边界
 
 ## 本地启动
 
-HeroUI Pro 使用本地授权密钥，密钥不得提交到 Git。
-
 ```bash
-pnpm install --ignore-scripts
-cp .env.example .env.local
-# Fill HEROUI_KEY in .env.local
-pnpm heroui:setup
+pnpm install
 pnpm dev
 ```
 
 开发服务默认运行在 <http://localhost:3000>。
+
+### 可选：HeroUI Pro
+
+基础层不依赖商业组件。需要 Pro 组件时，先配置有效授权密钥：
+
+```bash
+cp .env.example .env.local
+# Fill HEROUI_KEY in .env.local
+pnpm heroui:setup
+```
+
+脚本会安装 Pro 依赖并启用对应 CSS；密钥不得提交到 Git。
 
 ## 质量检查
 

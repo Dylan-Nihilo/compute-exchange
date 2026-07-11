@@ -52,4 +52,18 @@ if (!existsSync(proCss)) {
   process.exit(1);
 }
 
+const cssImport = '@import "@heroui-pro/react/css";';
+const globalsPath = join(root, "src", "app", "globals.css");
+const globals = readFileSync(globalsPath, "utf8");
+
+if (!globals.includes(cssImport)) {
+  writeFileSync(
+    globalsPath,
+    globals.replace(
+      '@import "@heroui/styles";',
+      `@import "@heroui/styles";\n${cssImport}`,
+    ),
+  );
+}
+
 console.log("HeroUI Pro installation verified.");
