@@ -30,6 +30,7 @@
 | — | 框架：Next.js（App Router）全包 | 门户 SSR 满足 SEO |
 | — | 结构：单应用 + 路由分区 | §4 |
 | — | 设计顺序：运营后台 → 工作台 → 交易所 → 门户 | §7 批次 |
+| — | 品牌未定前使用中性主题，颜色全部通过 semantic design tokens 定义 | 业务组件不得写死品牌色，后续只替换主题 token |
 
 **挂起问题**（清单/商务类，不阻塞前端）：Q-06 首批模型清单、Q-15 品牌命名、Q-16 经营范围核对、Q-17 newapi 版本与许可证、Q-18 模型权重授权、Q-19 代销授权、Q-21 商标。品牌未定期间用中性占位色板，命名后一键换主题 token。
 
@@ -87,7 +88,7 @@ Mock 引擎：
 ## 6. 视觉方向
 
 - 基调：B2B 交易基础设施——专业、可信、数据密度高（Stripe/Linear 式克制）；门户批次 4 单独定调
-- 主题：HeroUI Pro token 定制，中性蓝+石墨灰占位（品牌命名后换 token），明暗双主题
+- 主题：HeroUI Pro semantic design tokens；品牌未定前使用中性主题，按 background / surface / text / border / action / status 定义颜色角色，业务组件不写死品牌色，明暗双主题
 - 字体：思源黑体/系统栈（可商用）；金额/余量 tabular-nums
 - 组件模式：四套状态徽章色板（订单/审核/分账/风控语义统一）、分账三方拆解可视化、资质有效期进度条、⛓ 存证徽章
 - 实现前置：每批次开工先过 `heroui-pro-design-taste` 与 `heroui-react-pro` skill
