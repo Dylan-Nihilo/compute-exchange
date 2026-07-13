@@ -1,7 +1,10 @@
 "use client";
 
-import {Button} from "@heroui/react";
-import Link from "next/link";
+import {AppLayout} from "@heroui-pro/react/app-layout";
+import {InlineSelect} from "@heroui-pro/react/inline-select";
+import {Navbar} from "@heroui-pro/react/navbar";
+import {Sidebar} from "@heroui-pro/react/sidebar";
+import {Avatar, Button, Dropdown, Label, ListBox} from "@heroui/react";
 import {usePathname, useRouter} from "next/navigation";
 
 import {useCurrentAccount} from "@/lib/auth/queries";
@@ -54,89 +57,128 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
     router.replace("/auth/login");
   }
 
-  const navigationList = (
-    <nav aria-label="工作台导航" className="space-y-1">
-      {navigation.map((item) => {
-        const selected = pathname === item.href;
-        return (
-          <Link
-            aria-current={selected ? "page" : undefined}
-            className={`flex min-h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-              selected
-                ? "bg-surface-tertiary text-foreground"
-                : "text-muted hover:bg-surface-secondary hover:text-foreground"
-            }`}
-            href={item.href}
-            key={item.href}
+  const sidebarContent = (
+    <>
+      <Sidebar.Header>
+        <Button
+          className="justify-start px-2 font-semibold tracking-[0.12em]"
+          fullWidth
+          onPress={() => router.push("/")}
+          variant="ghost"
+        >
+          算力交易平台
+        </Button>
+      </Sidebar.Header>
+      <Sidebar.Content>
+        <Sidebar.Group>
+          <Sidebar.GroupLabel>{roleLabels[activeRole]}</Sidebar.GroupLabel>
+          <Sidebar.Menu aria-label="工作台导航" showGuideLines={false}>
+            {navigation.map((item) => (
+              <Sidebar.MenuItem
+                href={item.href}
+                id={item.href}
+                isCurrent={pathname === item.href}
+                key={item.href}
+                textValue={item.label}
+              >
+                <Sidebar.MenuItemContent>
+                  <Sidebar.MenuLabel>{item.label}</Sidebar.MenuLabel>
+                </Sidebar.MenuItemContent>
+              </Sidebar.MenuItem>
+            ))}
+          </Sidebar.Menu>
+        </Sidebar.Group>
+      </Sidebar.Content>
+      <Sidebar.Footer>
+        <Dropdown>
+          <Button
+            className="h-auto justify-start px-2 py-2 text-left"
+            fullWidth
+            variant="ghost"
           >
-            {item.label}
-          </Link>
-        );
-      })}
-    </nav>
+            <Avatar size="sm">
+              <Avatar.Fallback>{account.displayName.slice(0, 1)}</Avatar.Fallback>
+            </Avatar>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">
+                {account.displayName}
+              </span>
+              <span className="block truncate text-xs text-muted">{account.email}</span>
+            </span>
+          </Button>
+          <Dropdown.Popover className="min-w-48" placement="top start">
+            <Dropdown.Menu
+              aria-label="账户操作"
+              onAction={(key) => {
+                if (key === "logout") logout();
+              }}
+            >
+              <Dropdown.Item id="logout" textValue="退出登录">
+                <Label>退出登录</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+      </Sidebar.Footer>
+    </>
+  );
+
+  const navbar = (
+    <Navbar maxWidth="full">
+      <Navbar.Header>
+        <AppLayout.MenuToggle aria-label="打开导航" />
+        <Sidebar.Trigger aria-label="切换侧栏" />
+        <Navbar.Content>
+          <Navbar.Label>工作台 / {roleLabels[activeRole]}</Navbar.Label>
+        </Navbar.Content>
+        <Navbar.Spacer />
+        {account.roles.length > 1 ? (
+          <InlineSelect
+            aria-label="当前身份"
+            value={activeRole}
+            onChange={(value) => {
+              if (value) changeRole(value as Role);
+            }}
+          >
+            <InlineSelect.Trigger id="workspace-role">
+              <InlineSelect.Value />
+              <InlineSelect.Indicator />
+            </InlineSelect.Trigger>
+            <InlineSelect.Popover className="min-w-40">
+              <ListBox>
+                {account.roles.map((role) => (
+                  <ListBox.Item id={role} key={role} textValue={roleLabels[role]}>
+                    {roleLabels[role]}
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                ))}
+              </ListBox>
+            </InlineSelect.Popover>
+          </InlineSelect>
+        ) : null}
+      </Navbar.Header>
+    </Navbar>
   );
 
   return (
-    <div className="min-h-svh bg-background lg:grid lg:grid-cols-[15.5rem_1fr]">
-      <aside className="hidden border-r border-border bg-surface px-4 py-5 lg:flex lg:min-h-svh lg:flex-col">
-        <Link className="px-3 text-xs font-semibold tracking-[0.16em]" href="/">
-          COMPUTE EXCHANGE
-        </Link>
-        <div className="mt-10">{navigationList}</div>
-        <div className="mt-auto border-t border-border px-3 pt-5">
-          <p className="truncate text-sm font-medium text-foreground">
-            {account.displayName}
-          </p>
-          <p className="mt-1 text-xs text-muted">{account.email}</p>
-        </div>
-      </aside>
-
-      <div className="min-w-0">
-        <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur-sm">
-          <div className="flex min-h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
-            <details className="relative lg:hidden">
-              <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-lg border border-border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
-                导航
-              </summary>
-              <div className="absolute left-0 top-12 w-64 rounded-xl border border-border bg-surface p-2 shadow-lg">
-                {navigationList}
-              </div>
-            </details>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs text-muted">
-                工作台 / {roleLabels[activeRole]}
-              </p>
-            </div>
-            {account.roles.length > 1 ? (
-              <label className="sr-only" htmlFor="workspace-role">
-                当前身份
-              </label>
-            ) : null}
-            {account.roles.length > 1 ? (
-              <select
-                className="min-h-10 max-w-32 rounded-lg border border-border bg-surface px-3 text-sm text-foreground outline-none focus:border-focus focus:ring-2 focus:ring-focus/20"
-                id="workspace-role"
-                onChange={(event) => changeRole(event.target.value as Role)}
-                value={activeRole}
-              >
-                {account.roles.map((role) => (
-                  <option key={role} value={role}>
-                    {roleLabels[role]}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="hidden text-sm text-muted sm:inline">
-                {roleLabels[activeRole]}
-              </span>
-            )}
-            <Button onPress={logout} size="sm" variant="ghost">
-              退出
-            </Button>
-          </div>
-        </header>
-        <main className="px-4 py-7 sm:px-6 lg:px-8 lg:py-9">{children}</main>
-      </div>
-    </div>
+    <AppLayout
+      navigate={router.push}
+      navbar={navbar}
+      scrollMode="page"
+      sidebar={
+        <>
+          <Sidebar>
+            {sidebarContent}
+            <Sidebar.Rail aria-label="折叠侧栏" />
+          </Sidebar>
+          <Sidebar.Mobile>
+            <div className="flex h-full flex-col">{sidebarContent}</div>
+          </Sidebar.Mobile>
+        </>
+      }
+      sidebarCollapsible="offcanvas"
+    >
+      {children}
+    </AppLayout>
   );
 }

@@ -1,7 +1,8 @@
-import {Alert} from "@heroui/react";
+"use client";
 
-export const fieldClassName =
-  "min-h-12 w-full rounded-lg border border-border-secondary bg-surface px-3.5 text-base text-foreground outline-none placeholder:text-muted focus:border-focus focus:ring-2 focus:ring-focus/20";
+import {Alert, Label, Slider, Typography} from "@heroui/react";
+import {DropZone} from "@heroui-pro/react/drop-zone";
+import {useEffect, useRef} from "react";
 
 export function SliderVerification({
   disabled = false,
@@ -15,33 +16,83 @@ export function SliderVerification({
   value: number;
 }) {
   const verified = value === 100;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.id = id;
+  }, [id]);
 
   return (
-    <div className="rounded-lg border border-border-secondary bg-surface px-4 py-3">
+    <Slider
+      className="w-full"
+      isDisabled={disabled || verified}
+      maxValue={100}
+      minValue={0}
+      onChange={(nextValue) => {
+        if (!verified) onValueChange(Number(nextValue));
+      }}
+      step={10}
+      value={value}
+    >
       <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-        <label className="font-medium" htmlFor={id}>
-          安全验证
-        </label>
-        <span className={verified ? "text-success" : "text-muted"}>
+        <Label>安全验证</Label>
+        <Slider.Output className={verified ? "text-success" : "text-muted"}>
           {verified ? "验证已完成" : "向右拖动滑块"}
-        </span>
+        </Slider.Output>
       </div>
-      <input
-        aria-readonly={verified}
-        aria-valuetext={verified ? "验证已完成" : `验证进度 ${value}%`}
-        className={`h-8 w-full accent-current disabled:cursor-not-allowed disabled:opacity-50 ${verified ? "cursor-default" : "cursor-pointer"}`}
-        disabled={disabled}
+      <Slider.Track>
+        <Slider.Fill />
+        <Slider.Thumb
+          aria-valuetext={verified ? "验证已完成" : `验证进度 ${value}%`}
+          inputRef={inputRef}
+        />
+      </Slider.Track>
+    </Slider>
+  );
+}
+
+export function LicenseDropZone({
+  fileName,
+  id,
+  label = "营业执照",
+  name = "businessLicense",
+  onSelect,
+}: {
+  fileName: string;
+  id: string;
+  label?: string;
+  name?: string;
+  onSelect: (files: FileList) => void;
+}) {
+  const extension = fileName.split(".").pop()?.toUpperCase() || "FILE";
+
+  return (
+    <DropZone className="w-full">
+      <DropZone.Area>
+        <DropZone.Icon />
+        <DropZone.Label>{label}</DropZone.Label>
+        <DropZone.Description>支持 JPG、PNG 或 PDF 文件</DropZone.Description>
+        <DropZone.Trigger>选择文件</DropZone.Trigger>
+      </DropZone.Area>
+      <DropZone.Input
+        accept=".jpg,.jpeg,.png,.pdf"
+        aria-required="true"
         id={id}
-        max={100}
-        min={0}
-        onChange={(event) => {
-          if (!verified) onValueChange(Number(event.currentTarget.value));
-        }}
-        step={10}
-        type="range"
-        value={value}
+        name={name}
+        onSelect={onSelect}
       />
-    </div>
+      {fileName ? (
+        <DropZone.FileList>
+          <DropZone.FileItem status="complete">
+            <DropZone.FileFormatIcon format={extension} />
+            <DropZone.FileInfo>
+              <DropZone.FileName>{fileName}</DropZone.FileName>
+              <DropZone.FileMeta>已选择</DropZone.FileMeta>
+            </DropZone.FileInfo>
+          </DropZone.FileItem>
+        </DropZone.FileList>
+      ) : null}
+    </DropZone>
   );
 }
 
@@ -71,14 +122,21 @@ export function FormHeading({
   return (
     <header className="mb-8">
       {eyebrow ? (
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+        <Typography
+          className="tracking-[0.12em]"
+          color="muted"
+          type="body-xs"
+          weight="semibold"
+        >
           {eyebrow}
-        </p>
+        </Typography>
       ) : null}
-      <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-foreground">
+      <Typography className="mt-2 tracking-[-0.035em]" type="h1">
         {title}
-      </h1>
-      <p className="mt-3 text-sm leading-6 text-muted">{description}</p>
+      </Typography>
+      <Typography className="mt-3 leading-6" color="muted" type="body-sm">
+        {description}
+      </Typography>
     </header>
   );
 }

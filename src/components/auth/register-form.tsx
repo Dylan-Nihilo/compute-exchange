@@ -1,17 +1,21 @@
 "use client";
 
-import {Button, toast} from "@heroui/react";
-import Link from "next/link";
+import {
+  Button,
+  FieldError,
+  Form,
+  Input,
+  Label,
+  Link,
+  TextField,
+  toast,
+  Typography,
+} from "@heroui/react";
 import {useRouter} from "next/navigation";
 import {useState} from "react";
 
 import {useRegister} from "@/lib/auth/queries";
-import {
-  fieldClassName,
-  FormError,
-  FormHeading,
-  SliderVerification,
-} from "./form-parts";
+import {FormError, FormHeading, SliderVerification} from "./form-parts";
 
 export function RegisterForm() {
   const router = useRouter();
@@ -48,94 +52,93 @@ export function RegisterForm() {
     <>
       <FormHeading
         description="注册后获得买家身份，完成认证后可申请其他业务身份。"
-        eyebrow="Create account"
+        eyebrow="新建账户"
         title="创建账户"
       />
-      <form className="space-y-5" onSubmit={submit}>
+      <Form className="space-y-5" onSubmit={submit}>
         <FormError error={validationError ?? mutation.error} />
-        <div>
-          <label className="mb-2 block text-sm font-medium" htmlFor="register-name">
-            账户名称
-          </label>
-          <input
+        <TextField
+          fullWidth
+          isRequired
+          maxLength={40}
+          minLength={2}
+          name="displayName"
+          variant="secondary"
+        >
+          <Label>账户名称</Label>
+          <Input
             autoComplete="organization"
-            className={fieldClassName}
             id="register-name"
-            maxLength={40}
-            minLength={2}
-            name="displayName"
             placeholder="企业或个人名称"
-            required
           />
-        </div>
+          <FieldError />
+        </TextField>
         <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <label
-              className="mb-2 block text-sm font-medium"
-              htmlFor="register-phone"
-            >
-              手机号
-            </label>
-            <input
+          <TextField
+            fullWidth
+            inputMode="numeric"
+            isRequired
+            maxLength={11}
+            name="phoneNumber"
+            pattern="1[0-9]{10}"
+            type="tel"
+            variant="secondary"
+          >
+            <Label>手机号</Label>
+            <Input
               autoComplete="tel"
-              className={fieldClassName}
               id="register-phone"
-              inputMode="numeric"
-              maxLength={11}
-              name="phoneNumber"
-              pattern="1[0-9]{10}"
               placeholder="11 位手机号"
-              required
-              type="tel"
             />
-          </div>
-          <div>
-            <label
-              className="mb-2 block text-sm font-medium"
-              htmlFor="register-email"
-            >
-              邮箱
-            </label>
-            <input
+            <FieldError />
+          </TextField>
+          <TextField
+            fullWidth
+            isRequired
+            name="email"
+            type="email"
+            variant="secondary"
+          >
+            <Label>邮箱</Label>
+            <Input
               autoComplete="email"
-              className={fieldClassName}
               id="register-email"
-              name="email"
               placeholder="name@company.com"
-              required
-              type="email"
             />
-          </div>
+            <FieldError />
+          </TextField>
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-medium" htmlFor="register-password">
-              设置密码
-            </label>
-            <input
+          <TextField
+            fullWidth
+            isRequired
+            minLength={8}
+            name="password"
+            type="password"
+            variant="secondary"
+          >
+            <Label>设置密码</Label>
+            <Input
               autoComplete="new-password"
-              className={fieldClassName}
               id="register-password"
-              minLength={8}
-              name="password"
-              required
-              type="password"
             />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium" htmlFor="register-confirm">
-              确认密码
-            </label>
-            <input
+            <FieldError />
+          </TextField>
+          <TextField
+            fullWidth
+            isRequired
+            minLength={8}
+            name="confirmPassword"
+            type="password"
+            variant="secondary"
+          >
+            <Label>确认密码</Label>
+            <Input
               autoComplete="new-password"
-              className={fieldClassName}
               id="register-confirm"
-              minLength={8}
-              name="confirmPassword"
-              required
-              type="password"
             />
-          </div>
+            <FieldError />
+          </TextField>
         </div>
         <SliderVerification
           disabled={mutation.isPending}
@@ -143,9 +146,9 @@ export function RegisterForm() {
           onValueChange={setSliderValue}
           value={sliderValue}
         />
-        <p className="text-xs leading-5 text-muted">
+        <Typography className="leading-5" color="muted" type="body-xs">
           创建账户即表示你同意平台服务条款与隐私规则。
-        </p>
+        </Typography>
         <Button
           fullWidth
           isDisabled={mutation.isPending || sliderValue !== 100}
@@ -155,7 +158,7 @@ export function RegisterForm() {
         >
           {mutation.isPending ? "正在创建" : "创建账户"}
         </Button>
-      </form>
+      </Form>
       <p className="mt-8 text-center text-sm text-muted">
         已有账户？{" "}
         <Link className="font-medium text-foreground underline underline-offset-4" href="/auth/login">

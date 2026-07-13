@@ -1,11 +1,24 @@
 "use client";
 
-import {Button, toast} from "@heroui/react";
-import Link from "next/link";
+import {
+  AlertDialog,
+  Button,
+  Description,
+  FieldError,
+  Form,
+  Input,
+  InputOTP,
+  Label,
+  Link,
+  Separator,
+  TextField,
+  toast,
+  Typography,
+} from "@heroui/react";
+import {Segment} from "@heroui-pro/react/segment";
 import {useRouter, useSearchParams} from "next/navigation";
 import {useEffect, useState} from "react";
 
-import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {
   useDemoAccounts,
   useLogin,
@@ -17,12 +30,7 @@ import {useAuthStore} from "@/lib/auth/store";
 import type {Role} from "@/lib/domain/contracts";
 import {homeForRole, matchRoute} from "@/lib/domain/routes";
 import type {LoginInput, SessionAccount} from "@/lib/auth/service";
-import {
-  fieldClassName,
-  FormError,
-  FormHeading,
-  SliderVerification,
-} from "./form-parts";
+import {FormError, FormHeading, SliderVerification} from "./form-parts";
 
 const roleLabels: Partial<Record<Role, string>> = {
   buyer: "买家",
@@ -126,70 +134,54 @@ export function LoginForm() {
     <>
       <FormHeading
         description="登录后进入当前身份对应的工作台。"
-        eyebrow="Account"
+        eyebrow="账户"
         title="登录账户"
       />
-      <div
+      <Segment
         aria-label="登录方式"
-        className="mb-6 grid grid-cols-2 gap-2"
-        role="group"
+        className="mb-6 w-full"
+        onSelectionChange={(key) => switchMethod(key as "password" | "sms")}
+        selectedKey={method}
       >
-        <Button
-          aria-pressed={method === "password"}
-          onPress={() => switchMethod("password")}
-          type="button"
-          variant={method === "password" ? "primary" : "outline"}
-        >
-          密码登录
-        </Button>
-        <Button
-          aria-pressed={method === "sms"}
-          onPress={() => switchMethod("sms")}
-          type="button"
-          variant={method === "sms" ? "primary" : "outline"}
-        >
-          验证码登录
-        </Button>
-      </div>
-      <form className="space-y-5" onSubmit={submit}>
+        <Segment.Item id="password">密码登录</Segment.Item>
+        <Segment.Item id="sms">验证码登录</Segment.Item>
+      </Segment>
+      <Form className="space-y-5" onSubmit={submit}>
         <FormError
           error={mutation.error ?? smsMutation.error ?? resetMutation.error}
         />
         {method === "password" ? (
           <>
-            <div>
-              <label
-                className="mb-2 block text-sm font-medium"
-                htmlFor="login-identifier"
-              >
-                邮箱或手机号
-              </label>
-              <input
+            <TextField
+              fullWidth
+              isRequired
+              name="identifier"
+              variant="secondary"
+            >
+              <Label>邮箱或手机号</Label>
+              <Input
                 autoComplete="username"
-                className={fieldClassName}
                 id="login-identifier"
-                name="identifier"
                 placeholder="邮箱或手机号"
-                required
               />
-            </div>
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label className="text-sm font-medium" htmlFor="login-password">
-                  密码
-                </label>
-                <span className="text-xs text-muted">至少 8 位</span>
-              </div>
-              <input
+              <FieldError />
+            </TextField>
+            <TextField
+              fullWidth
+              isRequired
+              minLength={8}
+              name="password"
+              type="password"
+              variant="secondary"
+            >
+              <Label>密码</Label>
+              <Input
                 autoComplete="current-password"
-                className={fieldClassName}
                 id="login-password"
-                minLength={8}
-                name="password"
-                required
-                type="password"
               />
-            </div>
+              <Description>至少 8 位</Description>
+              <FieldError />
+            </TextField>
             <SliderVerification
               disabled={mutation.isPending}
               id="login-password-slider"
@@ -199,28 +191,26 @@ export function LoginForm() {
           </>
         ) : (
           <>
-            <div>
-              <label
-                className="mb-2 block text-sm font-medium"
-                htmlFor="login-phone"
-              >
-                手机号
-              </label>
-              <input
+            <TextField
+              fullWidth
+              inputMode="numeric"
+              isRequired
+              maxLength={11}
+              name="phoneNumber"
+              onChange={setPhoneNumber}
+              pattern="1[0-9]{10}"
+              type="tel"
+              value={phoneNumber}
+              variant="secondary"
+            >
+              <Label>手机号</Label>
+              <Input
                 autoComplete="tel"
-                className={fieldClassName}
                 id="login-phone"
-                inputMode="numeric"
-                maxLength={11}
-                name="phoneNumber"
-                onChange={(event) => setPhoneNumber(event.currentTarget.value)}
-                pattern="1[0-9]{10}"
                 placeholder="11 位手机号"
-                required
-                type="tel"
-                value={phoneNumber}
               />
-            </div>
+              <FieldError />
+            </TextField>
             <SliderVerification
               disabled={smsMutation.isPending || resendSeconds > 0}
               id="login-sms-slider"
@@ -245,24 +235,25 @@ export function LoginForm() {
                   ? `${resendSeconds} 秒后重新获取`
                   : "获取验证码"}
             </Button>
-            <div>
-              <label
-                className="mb-2 block text-sm font-medium"
-                htmlFor="login-code"
-              >
-                短信验证码
-              </label>
-              <input
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="login-code">短信验证码</Label>
+              <InputOTP
                 autoComplete="one-time-code"
-                className={fieldClassName}
                 id="login-code"
                 inputMode="numeric"
                 maxLength={6}
+                minLength={6}
                 name="code"
-                pattern="[0-9]{6}"
-                placeholder="6 位验证码"
+                pattern="^\d+$"
                 required
-              />
+                variant="secondary"
+              >
+                <InputOTP.Group>
+                  {Array.from({length: 6}, (_, index) => (
+                    <InputOTP.Slot index={index} key={index} />
+                  ))}
+                </InputOTP.Group>
+              </InputOTP>
             </div>
           </>
         )}
@@ -281,12 +272,14 @@ export function LoginForm() {
               ? "验证码登录"
               : "登录"}
         </Button>
-      </form>
+      </Form>
 
       <div className="my-8 flex items-center gap-3" aria-hidden="true">
-        <span className="h-px flex-1 bg-border" />
-        <span className="text-xs text-muted">快速进入</span>
-        <span className="h-px flex-1 bg-border" />
+        <Separator className="flex-1" />
+        <Typography color="muted" type="body-xs">
+          快速进入
+        </Typography>
+        <Separator className="flex-1" />
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -311,9 +304,48 @@ export function LoginForm() {
         <p className="mt-3 text-sm text-muted">快捷账户暂时无法加载，可使用账号登录。</p>
       ) : null}
       <div className="mt-4 text-center">
-        <Button onPress={() => setResetOpen(true)} size="sm" variant="ghost">
-          恢复体验数据
-        </Button>
+        <AlertDialog isOpen={resetOpen} onOpenChange={setResetOpen}>
+          <Button size="sm" variant="ghost">
+            恢复体验数据
+          </Button>
+          <AlertDialog.Backdrop>
+            <AlertDialog.Container>
+              <AlertDialog.Dialog>
+                <AlertDialog.Header>
+                  <AlertDialog.Icon status="danger" />
+                  <AlertDialog.Heading>恢复体验数据？</AlertDialog.Heading>
+                </AlertDialog.Header>
+                <AlertDialog.Body>
+                  已创建的体验账户和身份申请会被清除，快捷账户将恢复到初始状态。
+                </AlertDialog.Body>
+                <AlertDialog.Footer>
+                  <Button
+                    isDisabled={resetMutation.isPending}
+                    onPress={() => setResetOpen(false)}
+                    variant="tertiary"
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    isPending={resetMutation.isPending}
+                    onPress={() => {
+                      void resetMutation
+                        .mutateAsync()
+                        .then(() => {
+                          setResetOpen(false);
+                          toast.success("体验数据已恢复");
+                        })
+                        .catch(() => undefined);
+                    }}
+                    variant="danger"
+                  >
+                    恢复数据
+                  </Button>
+                </AlertDialog.Footer>
+              </AlertDialog.Dialog>
+            </AlertDialog.Container>
+          </AlertDialog.Backdrop>
+        </AlertDialog>
       </div>
 
       <p className="mt-8 text-center text-sm text-muted">
@@ -322,24 +354,6 @@ export function LoginForm() {
           注册
         </Link>
       </p>
-      <ConfirmDialog
-        confirmLabel="恢复数据"
-        description="已创建的体验账户和身份申请会被清除，快捷账户将恢复到初始状态。"
-        isDestructive
-        isPending={resetMutation.isPending}
-        onCancel={() => setResetOpen(false)}
-        onConfirm={() => {
-          void resetMutation
-            .mutateAsync()
-            .then(() => {
-              setResetOpen(false);
-              toast.success("体验数据已恢复");
-            })
-            .catch(() => undefined);
-        }}
-        open={resetOpen}
-        title="恢复体验数据？"
-      />
     </>
   );
 }

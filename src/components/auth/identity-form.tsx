@@ -1,7 +1,22 @@
 "use client";
 
-import {Alert, Button, toast} from "@heroui/react";
-import Link from "next/link";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Chip,
+  Description,
+  FieldError,
+  Form,
+  Input,
+  Label,
+  TextArea,
+  TextField,
+  toast,
+  Typography,
+} from "@heroui/react";
+import {RadioButtonGroup} from "@heroui-pro/react/radio-button-group";
+import {useRouter} from "next/navigation";
 import {useState} from "react";
 
 import {
@@ -16,7 +31,7 @@ import {
 import {resolveActiveRole} from "@/lib/auth/session";
 import {useAuthStore} from "@/lib/auth/store";
 import {homeForRole} from "@/lib/domain/routes";
-import {fieldClassName, FormError, FormHeading} from "./form-parts";
+import {FormError, FormHeading, LicenseDropZone} from "./form-parts";
 
 const identityOptions: Array<{
   role: IdentityRole;
@@ -29,6 +44,7 @@ const identityOptions: Array<{
 ];
 
 export function IdentityForm() {
+  const router = useRouter();
   const {data: account} = useCurrentAccount();
   const applications = useIdentityApplications();
   const mutation = useApplyForIdentity();
@@ -48,14 +64,13 @@ export function IdentityForm() {
   async function apply(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const license = form.get("businessLicense");
+    if (!licenseFileName) return;
     const common = {
       companyName: String(form.get("companyName")),
       creditCode: String(form.get("creditCode")),
       representative: String(form.get("representative")),
       representativeIdNumber: String(form.get("representativeIdNumber")),
-      businessLicenseFileName:
-        license instanceof File ? license.name : String(license ?? ""),
+      businessLicenseFileName: licenseFileName,
       contactMethod: String(form.get("contactMethod")),
       bankName: String(form.get("bankName")),
       accountName: String(form.get("accountName")),
@@ -86,7 +101,7 @@ export function IdentityForm() {
     <>
       <FormHeading
         description="通过对应资质审核后，新身份会出现在工作台切换器中。"
-        eyebrow="Identity"
+        eyebrow="业务身份"
         title="身份管理"
       />
       {account.verificationStatus !== "verified" ? (
@@ -98,10 +113,16 @@ export function IdentityForm() {
         </Alert>
       ) : null}
       <FormError error={mutation.error ?? applications.error} />
-      <div
+      <RadioButtonGroup
         aria-label="选择申请身份"
-        className="mt-5 divide-y divide-border border-y border-border"
-        role="group"
+        className="mt-5 w-full"
+        isDisabled={
+          account.verificationStatus !== "verified" || mutation.isPending
+        }
+        name="identityRole"
+        onChange={(value) => setSelectedRole(value as IdentityRole)}
+        value={selectedRole}
+        variant="secondary"
       >
         {identityOptions.map((option) => {
           const unlocked = account.roles.includes(option.role);
@@ -109,243 +130,213 @@ export function IdentityForm() {
             ({requestedRole}) => requestedRole === option.role,
           );
           return (
-            <div className="flex items-center gap-4 py-5" key={option.role}>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-semibold text-foreground">{option.title}</h2>
-                <p className="mt-1 text-sm leading-6 text-muted">{option.description}</p>
-              </div>
-              {unlocked ? (
-                <span className="rounded-full bg-surface-tertiary px-3 py-1 text-xs font-medium">
-                  已开通
-                </span>
-              ) : pending ? (
-                <span className="rounded-full bg-surface-tertiary px-3 py-1 text-xs font-medium">
-                  审核中
-                </span>
-              ) : (
-                <Button
-                  aria-label={`填写${option.title}申请资料`}
-                  aria-pressed={selectedRole === option.role}
-                  isDisabled={
-                    account.verificationStatus !== "verified" || mutation.isPending
-                  }
-                  onPress={() => setSelectedRole(option.role)}
-                  size="sm"
-                  variant={selectedRole === option.role ? "primary" : "outline"}
-                >
-                  填写资料
-                </Button>
-              )}
-            </div>
+            <RadioButtonGroup.Item
+              aria-label={
+                unlocked
+                  ? `${option.title}已开通`
+                  : pending
+                    ? `${option.title}审核中`
+                    : `申请${option.title}身份`
+              }
+              isDisabled={unlocked || pending}
+              key={option.role}
+              value={option.role}
+            >
+              <RadioButtonGroup.Indicator />
+              <RadioButtonGroup.ItemContent>
+                <div className="flex items-center justify-between gap-3">
+                  <Label>{option.title}</Label>
+                  {unlocked ? (
+                    <Chip color="success" size="sm" variant="soft">
+                      <Chip.Label>已开通</Chip.Label>
+                    </Chip>
+                  ) : pending ? (
+                    <Chip color="warning" size="sm" variant="soft">
+                      <Chip.Label>审核中</Chip.Label>
+                    </Chip>
+                  ) : null}
+                </div>
+                <Description>{option.description}</Description>
+              </RadioButtonGroup.ItemContent>
+            </RadioButtonGroup.Item>
           );
         })}
-      </div>
+      </RadioButtonGroup>
 
       {account.verificationStatus === "verified" &&
       !selectedPending &&
       !selectedUnlocked ? (
-        <form className="mt-8 space-y-5" onSubmit={apply}>
-          <h2 className="text-lg font-semibold text-foreground">
+        <Form className="mt-8 space-y-5" onSubmit={apply}>
+          <Typography type="h4">
             {selectedOption.title}资质
-          </h2>
-          <div>
-            <label className="mb-2 block text-sm font-medium" htmlFor="identity-company-name">
-              企业名称
-            </label>
-            <input
-              className={fieldClassName}
-              id="identity-company-name"
-              name="companyName"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium" htmlFor="identity-credit-code">
-              统一社会信用代码
-            </label>
-            <input
-              className={fieldClassName}
-              id="identity-credit-code"
-              maxLength={18}
-              minLength={18}
-              name="creditCode"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium" htmlFor="identity-representative">
-              法定代表人
-            </label>
-            <input
-              className={fieldClassName}
-              id="identity-representative"
-              name="representative"
-              required
-            />
-          </div>
-          <div>
-            <label
-              className="mb-2 block text-sm font-medium"
-              htmlFor="identity-representative-id-number"
-            >
-              法定代表人证件号
-            </label>
-            <input
+          </Typography>
+          <TextField
+            fullWidth
+            isRequired
+            name="companyName"
+            variant="secondary"
+          >
+            <Label>企业名称</Label>
+            <Input id="identity-company-name" />
+            <FieldError />
+          </TextField>
+          <TextField
+            fullWidth
+            isRequired
+            maxLength={18}
+            minLength={18}
+            name="creditCode"
+            variant="secondary"
+          >
+            <Label>统一社会信用代码</Label>
+            <Input id="identity-credit-code" />
+            <FieldError />
+          </TextField>
+          <TextField
+            fullWidth
+            isRequired
+            name="representative"
+            variant="secondary"
+          >
+            <Label>法定代表人</Label>
+            <Input id="identity-representative" />
+            <FieldError />
+          </TextField>
+          <TextField
+            autoComplete="off"
+            fullWidth
+            isRequired
+            maxLength={18}
+            minLength={15}
+            name="representativeIdNumber"
+            variant="secondary"
+          >
+            <Label>法定代表人证件号</Label>
+            <Input
               autoComplete="off"
-              className={fieldClassName}
               id="identity-representative-id-number"
-              maxLength={18}
-              minLength={15}
-              name="representativeIdNumber"
-              required
             />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium" htmlFor="identity-contact">
-              业务联系人手机或邮箱
-            </label>
-            <input
-              className={fieldClassName}
-              id="identity-contact"
-              name="contactMethod"
-              required
-            />
-          </div>
-          <div>
-            <span className="mb-2 block text-sm font-medium" id="identity-license-label">
-              营业执照
-            </span>
-            <label className="flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-lg border border-border-secondary bg-surface px-3.5 text-sm transition-colors hover:border-border focus-within:border-foreground focus-within:ring-2 focus-within:ring-foreground/15">
-              <input
-                accept=".jpg,.jpeg,.png,.pdf"
-                aria-labelledby="identity-license-label"
-                className="sr-only"
-                id="identity-license"
-                name="businessLicense"
-                onChange={(event) =>
-                  setLicenseFileName(event.currentTarget.files?.[0]?.name ?? "")
-                }
-                required
-                type="file"
-              />
-              <span className="font-medium text-foreground">选择文件</span>
-              <span className="truncate text-muted">
-                {licenseFileName || "未选择文件"}
-              </span>
-            </label>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium" htmlFor="identity-bank-name">
-              开户行
-            </label>
-            <input
-              className={fieldClassName}
-              id="identity-bank-name"
-              name="bankName"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium" htmlFor="identity-account-name">
-              账户名称
-            </label>
-            <input
-              className={fieldClassName}
-              id="identity-account-name"
-              name="accountName"
-              required
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium" htmlFor="identity-account-number">
-              银行账号
-            </label>
-            <input
-              autoComplete="off"
-              className={fieldClassName}
-              id="identity-account-number"
-              inputMode="numeric"
-              name="accountNumber"
-              pattern="[0-9]{8,32}"
-              required
-            />
-          </div>
+            <FieldError />
+          </TextField>
+          <TextField
+            fullWidth
+            isRequired
+            name="contactMethod"
+            variant="secondary"
+          >
+            <Label>业务联系人手机或邮箱</Label>
+            <Input id="identity-contact" />
+            <FieldError />
+          </TextField>
+          <LicenseDropZone
+            fileName={licenseFileName}
+            id="identity-license"
+            onSelect={(files) => setLicenseFileName(files[0]?.name ?? "")}
+          />
+          <TextField
+            fullWidth
+            isRequired
+            name="bankName"
+            variant="secondary"
+          >
+            <Label>开户行</Label>
+            <Input id="identity-bank-name" />
+            <FieldError />
+          </TextField>
+          <TextField
+            fullWidth
+            isRequired
+            name="accountName"
+            variant="secondary"
+          >
+            <Label>账户名称</Label>
+            <Input id="identity-account-name" />
+            <FieldError />
+          </TextField>
+          <TextField
+            autoComplete="off"
+            fullWidth
+            inputMode="numeric"
+            isRequired
+            name="accountNumber"
+            pattern="[0-9]{8,32}"
+            variant="secondary"
+          >
+            <Label>银行账号</Label>
+            <Input autoComplete="off" id="identity-account-number" />
+            <FieldError />
+          </TextField>
 
           {selectedRole === "supplier" ? (
             <>
-              <div>
-                <label className="mb-2 block text-sm font-medium" htmlFor="facility-address">
-                  机房地址
-                </label>
-                <input
-                  className={fieldClassName}
-                  id="facility-address"
-                  name="facilityAddress"
-                  required
-                />
-              </div>
-              <label className="flex min-h-12 items-center gap-3 rounded-lg border border-border-secondary px-3.5 text-sm">
-                <input name="hasIdcLicense" required type="checkbox" />
-                已具备 IDC 经营资质
-              </label>
-              <div>
-                <label className="mb-2 block text-sm font-medium" htmlFor="power-description">
-                  供配电说明
-                </label>
-                <textarea
-                  className={fieldClassName}
-                  id="power-description"
-                  name="powerDescription"
-                  required
-                  rows={3}
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium" htmlFor="cooling-description">
-                  制冷说明
-                </label>
-                <textarea
-                  className={fieldClassName}
-                  id="cooling-description"
-                  name="coolingDescription"
-                  required
-                  rows={3}
-                />
-              </div>
+              <TextField
+                fullWidth
+                isRequired
+                name="facilityAddress"
+                variant="secondary"
+              >
+                <Label>机房地址</Label>
+                <Input id="facility-address" />
+                <FieldError />
+              </TextField>
+              <Checkbox isRequired name="hasIdcLicense" variant="secondary">
+                <Checkbox.Content>
+                  <Checkbox.Control>
+                    <Checkbox.Indicator />
+                  </Checkbox.Control>
+                  已具备 IDC 经营资质
+                </Checkbox.Content>
+                <FieldError />
+              </Checkbox>
+              <TextField
+                fullWidth
+                isRequired
+                name="powerDescription"
+                variant="secondary"
+              >
+                <Label>供配电说明</Label>
+                <TextArea id="power-description" rows={3} />
+                <FieldError />
+              </TextField>
+              <TextField
+                fullWidth
+                isRequired
+                name="coolingDescription"
+                variant="secondary"
+              >
+                <Label>制冷说明</Label>
+                <TextArea id="cooling-description" rows={3} />
+                <FieldError />
+              </TextField>
             </>
           ) : null}
 
           <Button
             fullWidth
-            isDisabled={mutation.isPending}
+            isDisabled={mutation.isPending || !licenseFileName}
             size="lg"
             type="submit"
             variant="primary"
           >
             {mutation.isPending ? "正在提交" : "提交资质审核"}
           </Button>
-        </form>
+        </Form>
       ) : null}
 
       <div className="mt-7 flex gap-3">
         {account.verificationStatus !== "verified" ? (
-          <Link
-            className="inline-flex min-h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-medium text-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-            href="/auth/verify"
-          >
+          <Button onPress={() => router.push("/auth/verify")} variant="primary">
             完成认证
-          </Link>
+          </Button>
         ) : null}
-        <Link
-          className={`inline-flex min-h-10 items-center justify-center rounded-lg px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-            account.verificationStatus === "verified"
-              ? "bg-accent text-accent-foreground"
-              : "border border-border text-foreground"
-          }`}
-          href={homeForRole(currentRole)}
+        <Button
+          onPress={() => router.push(homeForRole(currentRole))}
+          variant={
+            account.verificationStatus === "verified" ? "primary" : "outline"
+          }
         >
           返回工作台
-        </Link>
+        </Button>
       </div>
     </>
   );

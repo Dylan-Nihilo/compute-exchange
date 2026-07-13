@@ -1,7 +1,6 @@
 "use client";
 
-import {Button} from "@heroui/react";
-import {useEffect, useRef} from "react";
+import {AlertDialog, Button} from "@heroui/react";
 
 export function ConfirmDialog({
   cancelLabel = "取消",
@@ -24,46 +23,36 @@ export function ConfirmDialog({
   open: boolean;
   title: string;
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
-
   return (
-    <dialog
-      aria-labelledby="confirm-dialog-title"
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-border bg-surface p-0 text-foreground shadow-xl backdrop:bg-foreground/20"
-      onCancel={(event) => {
-        event.preventDefault();
-        if (!isPending) onCancel();
+    <AlertDialog.Backdrop
+      isKeyboardDismissDisabled={isPending}
+      isOpen={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen && !isPending) onCancel();
       }}
-      onClose={() => {
-        if (open && !isPending) onCancel();
-      }}
-      ref={dialogRef}
     >
-      <div className="p-6">
-        <h2 className="text-lg font-semibold" id="confirm-dialog-title">
-          {title}
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-muted">{description}</p>
-        <div className="mt-6 flex justify-end gap-3">
-          <Button isDisabled={isPending} onPress={onCancel} variant="ghost">
-            {cancelLabel}
-          </Button>
-          <Button
-            isDisabled={isPending}
-            onPress={onConfirm}
-            variant={isDestructive ? "danger" : "primary"}
-          >
-            {isPending ? "正在处理" : confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </dialog>
+      <AlertDialog.Container>
+        <AlertDialog.Dialog className="sm:max-w-md">
+          <AlertDialog.Header>
+            <AlertDialog.Icon status={isDestructive ? "danger" : "accent"} />
+            <AlertDialog.Heading>{title}</AlertDialog.Heading>
+          </AlertDialog.Header>
+          <AlertDialog.Body>{description}</AlertDialog.Body>
+          <AlertDialog.Footer>
+            <Button isDisabled={isPending} onPress={onCancel} variant="tertiary">
+              {cancelLabel}
+            </Button>
+            <Button
+              isDisabled={isPending}
+              isPending={isPending}
+              onPress={onConfirm}
+              variant={isDestructive ? "danger-soft" : "primary"}
+            >
+              {isPending ? "正在处理" : confirmLabel}
+            </Button>
+          </AlertDialog.Footer>
+        </AlertDialog.Dialog>
+      </AlertDialog.Container>
+    </AlertDialog.Backdrop>
   );
 }

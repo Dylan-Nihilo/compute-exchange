@@ -1,19 +1,27 @@
 "use client";
 
-import {Alert, Button} from "@heroui/react";
+import {EmptyState as ProEmptyState} from "@heroui-pro/react/empty-state";
+import {Alert, Button, ProgressCircle} from "@heroui/react";
 
 export function LoadingState({label = "正在加载"}: {label?: string}) {
   return (
     <div
-      className="grid min-h-64 place-items-center gap-3 px-6 py-12 text-center"
+      aria-live="polite"
+      className="grid min-h-64 place-items-center px-6 py-12 text-center"
       role="status"
     >
-      <div>
-        <span
-          aria-hidden="true"
-          className="mx-auto block size-5 animate-spin rounded-full border-2 border-border border-t-foreground"
-        />
-        <p className="mt-3 text-sm text-muted">{label}</p>
+      <div className="flex flex-col items-center gap-3">
+        <ProgressCircle
+          isIndeterminate
+          aria-label={label}
+          id="operation-loading-progress"
+        >
+          <ProgressCircle.Track>
+            <ProgressCircle.TrackCircle />
+            <ProgressCircle.FillCircle />
+          </ProgressCircle.Track>
+        </ProgressCircle>
+        <p className="text-sm text-muted">{label}</p>
       </div>
     </div>
   );
@@ -55,12 +63,12 @@ export function EmptyState({
   title: string;
 }) {
   return (
-    <div className="border-y border-border bg-surface px-6 py-10 text-center">
-      <h3 className="text-base font-semibold text-foreground">{title}</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-        {description}
-      </p>
-      {action ? <div className="mt-5">{action}</div> : null}
-    </div>
+    <ProEmptyState>
+      <ProEmptyState.Header>
+        <ProEmptyState.Title>{title}</ProEmptyState.Title>
+        <ProEmptyState.Description>{description}</ProEmptyState.Description>
+      </ProEmptyState.Header>
+      {action ? <ProEmptyState.Content>{action}</ProEmptyState.Content> : null}
+    </ProEmptyState>
   );
 }
