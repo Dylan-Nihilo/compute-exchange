@@ -12,7 +12,13 @@ import {
   tokenModelSchema,
 } from "./contracts.ts";
 import {accessFor} from "./permissions.ts";
-import {canAccessRoute, homeForRole, matchRoute, routes} from "./routes.ts";
+import {
+  accessLevelForRoute,
+  canAccessRoute,
+  homeForRole,
+  matchRoute,
+  routes,
+} from "./routes.ts";
 import {
   applyOrderEvent,
   canApplyOrderTransition,
@@ -164,6 +170,13 @@ describe("role permissions", () => {
     assert.equal(accessFor({role: "admin", verificationStatus: "verified"}, "manageCompliance"), "allow");
   });
 
+  it("does not apply business verification gates to administrators", () => {
+    const administrator = {role: "admin", verificationStatus: "unverified"} as const;
+    assert.equal(accessFor(administrator, "publishCompute"), "allow");
+    assert.equal(accessFor(administrator, "publishEquipment"), "allow");
+    assert.equal(accessFor(administrator, "viewFinanceLeads"), "allow");
+  });
+
   it("requires approved qualification before publishing", () => {
     assert.equal(accessFor({role: "supplier", verificationStatus: "verified", qualificationStatus: "pending"}, "publishCompute"), "conditional");
     assert.equal(accessFor({role: "supplier", verificationStatus: "verified", qualificationStatus: "approved"}, "publishCompute"), "allow");
@@ -195,6 +208,16 @@ describe("route contract", () => {
         grants: ["manageRisk"],
       }),
       true,
+    );
+  });
+
+  it("preserves conditional route access for verification redirects", () => {
+    assert.equal(
+      accessLevelForRoute("/checkout", {
+        role: "buyer",
+        verificationStatus: "unverified",
+      }),
+      "conditional",
     );
   });
 });

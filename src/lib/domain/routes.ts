@@ -2,6 +2,7 @@ import type {Role} from "./contracts.ts";
 import {
   accessFor,
   type AccessContext,
+  type AccessLevel,
   type Capability,
 } from "./permissions.ts";
 
@@ -98,10 +99,17 @@ export function homeForRole(role: Role) {
 }
 
 export function canAccessRoute(pathname: string, context: AccessContext) {
+  return accessLevelForRoute(pathname, context) === "allow";
+}
+
+export function accessLevelForRoute(
+  pathname: string,
+  context: AccessContext,
+): AccessLevel {
   const route = matchRoute(pathname);
-  if (!route || !route.roles.includes(context.role)) return false;
-  if (!route.capability) return true;
-  return accessFor(context, route.capability) === "allow";
+  if (!route || !route.roles.includes(context.role)) return "deny";
+  if (!route.capability) return "allow";
+  return accessFor(context, route.capability);
 }
 
 function normalizePath(pathname: string) {

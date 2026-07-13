@@ -6,29 +6,31 @@ import type {
 
 export type {Role} from "./contracts.ts";
 
-export type Capability =
-  | "browse"
-  | "authenticate"
-  | "kyc"
-  | "orderCompute"
-  | "publishCompute"
-  | "buyToken"
-  | "publishEquipment"
-  | "submitFinanceLead"
-  | "viewFinanceLeads"
-  | "reviewQualification"
-  | "manageProducts"
-  | "interveneOrder"
-  | "viewFinance"
-  | "configureSplit"
-  | "manageCrm"
-  | "manageRisk"
-  | "manageTokens"
-  | "manageCms"
-  | "manageUsers"
-  | "manageAccess"
-  | "viewAudit"
-  | "manageCompliance";
+export const capabilities = [
+  "browse",
+  "authenticate",
+  "kyc",
+  "orderCompute",
+  "publishCompute",
+  "buyToken",
+  "publishEquipment",
+  "submitFinanceLead",
+  "viewFinanceLeads",
+  "reviewQualification",
+  "manageProducts",
+  "interveneOrder",
+  "viewFinance",
+  "configureSplit",
+  "manageCrm",
+  "manageRisk",
+  "manageTokens",
+  "manageCms",
+  "manageUsers",
+  "manageAccess",
+  "viewAudit",
+  "manageCompliance",
+] as const;
+export type Capability = (typeof capabilities)[number];
 
 export type AccessLevel = "allow" | "conditional" | "deny";
 
@@ -86,6 +88,7 @@ export function accessFor(
   const baseAccess = allowedRoles[capability].includes(role) ? "allow" : "deny";
 
   if (baseAccess === "deny") return "deny";
+  if (role === "admin") return "allow";
   if (role === "operator" && capability !== "browse") {
     return grants.includes(capability) ? "allow" : "deny";
   }

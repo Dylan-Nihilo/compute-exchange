@@ -1,5 +1,6 @@
 "use client";
 
+import {ToastProvider} from "@heroui/react";
 import {QueryClientProvider} from "@tanstack/react-query";
 import {ThemeProvider} from "next-themes";
 import {useState} from "react";
@@ -13,11 +14,15 @@ export function AppProviders({children}: Readonly<{children: ReactNode}>) {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="light"
-      enableSystem={false}
-      forcedTheme="light"
+      defaultTheme="system"
+      disableTransitionOnChange
+      enableSystem
+      storageKey="compute-exchange:theme"
     >
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        {children}
+        <ToastProvider placement="top end" />
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }
