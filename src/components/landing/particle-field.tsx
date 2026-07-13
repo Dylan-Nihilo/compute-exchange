@@ -17,11 +17,43 @@ type Particle = {
   y: number;
 };
 
-const palettes = {
-  far: ["#71869e", "#92a2b4", "#b4bec9"],
-  mid: ["#244b74", "#3567ee", "#5d82dd"],
-  near: ["#12335e", "#2457f5", "#4774ef"],
+type FieldPalette = {
+  bandSoft: string;
+  bandStrong: string;
+  contourSoft: string;
+  contourStrong: string;
+  far: string[];
+  mid: string[];
+  near: string[];
 };
+
+function readFieldPalette(element: Element): FieldPalette {
+  const styles = getComputedStyle(element);
+  const token = (name: string) =>
+    styles.getPropertyValue(name).trim() || styles.color;
+
+  return {
+    bandSoft: token("--launch-band-soft"),
+    bandStrong: token("--launch-band-strong"),
+    contourSoft: token("--launch-contour-soft"),
+    contourStrong: token("--launch-contour-strong"),
+    far: [
+      token("--launch-particle-far-1"),
+      token("--launch-particle-far-2"),
+      token("--launch-particle-far-3"),
+    ],
+    mid: [
+      token("--launch-particle-mid-1"),
+      token("--launch-particle-mid-2"),
+      token("--launch-particle-mid-3"),
+    ],
+    near: [
+      token("--launch-particle-near-1"),
+      token("--launch-particle-near-2"),
+      token("--launch-particle-near-3"),
+    ],
+  };
+}
 
 function streamCurve(t: number, height: number, stream: 0 | 1) {
   const phase = stream === 0 ? -0.08 : 0.66;
@@ -33,7 +65,11 @@ function streamCurve(t: number, height: number, stream: 0 | 1) {
   );
 }
 
-function createParticles(width: number, height: number): Particle[] {
+function createParticles(
+  width: number,
+  height: number,
+  palettes: FieldPalette,
+): Particle[] {
   const mobile = width < 768;
   const count = mobile
     ? Math.min(760, Math.round((width * height) / 430))
@@ -95,6 +131,7 @@ function drawFieldStructure(
   height: number,
   time: number,
   reduceMotion: boolean,
+  palette: FieldPalette,
 ) {
   const mobile = width < 768;
   const centerX = width * 0.52;
@@ -134,8 +171,8 @@ function drawFieldStructure(
 
   context.save();
   context.globalCompositeOperation = "multiply";
-  drawBand(0, height * 0.115, "rgba(52, 88, 150, 0.038)");
-  drawBand(1, height * 0.07, "rgba(52, 88, 150, 0.024)");
+  drawBand(0, height * 0.115, palette.bandStrong);
+  drawBand(1, height * 0.07, palette.bandSoft);
 
   const contours = [-0.2, -0.12, -0.055, 0, 0.065, 0.14, 0.22];
   for (const contour of contours) {
@@ -147,7 +184,7 @@ function drawFieldStructure(
     }
     context.globalAlpha = contour === 0 ? 0.26 : 0.12;
     context.lineWidth = contour === 0 ? 1.15 : 0.8;
-    context.strokeStyle = "#315785";
+    context.strokeStyle = palette.contourStrong;
     context.stroke();
   }
 
@@ -160,7 +197,7 @@ function drawFieldStructure(
     }
     context.globalAlpha = contour === 0 ? 0.18 : 0.08;
     context.lineWidth = 0.75;
-    context.strokeStyle = "#486989";
+    context.strokeStyle = palette.contourSoft;
     context.stroke();
   }
   context.restore();
@@ -181,6 +218,7 @@ export const ParticleField = memo(function ParticleField() {
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const page = backCanvas.parentElement;
+    const palette = readFieldPalette(page ?? document.documentElement);
     const pointer = {active: false, x: 0, y: 0};
     let particles: Particle[] = [];
     let width = 0;
@@ -192,7 +230,14 @@ export const ParticleField = memo(function ParticleField() {
     const draw = (time: number) => {
       backContext.clearRect(0, 0, width, height);
       frontContext.clearRect(0, 0, width, height);
-      drawFieldStructure(backContext, width, height, time, reduceMotion);
+      drawFieldStructure(
+        backContext,
+        width,
+        height,
+        time,
+        reduceMotion,
+        palette,
+      );
 
       const radius = Math.min(155, Math.max(86, width * 0.085));
       const radiusSquared = radius * radius;
@@ -295,7 +340,7 @@ export const ParticleField = memo(function ParticleField() {
         context.setTransform(ratio, 0, 0, ratio, 0, 0);
       }
 
-      particles = createParticles(width, height);
+      particles = createParticles(width, height, palette);
       if (reduceMotion) draw(0);
     };
 

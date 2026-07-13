@@ -9,6 +9,24 @@
     sans-serif;
 }
 
+:root,
+.light {
+  color-scheme: light;
+  --background: oklch(0.972 0.004 250);
+  --foreground: oklch(0.205 0.018 250);
+  --surface: oklch(0.995 0.002 250);
+  --surface-secondary: oklch(0.948 0.006 250);
+  --surface-tertiary: oklch(0.92 0.008 250);
+  --muted: oklch(0.505 0.014 250);
+  --border: oklch(0.875 0.009 250);
+  --border-secondary: oklch(0.79 0.012 250);
+  --border-tertiary: oklch(0.67 0.016 250);
+  --accent: oklch(0.29 0.025 250);
+  --accent-foreground: oklch(0.985 0.003 250);
+  --focus: oklch(0.43 0.035 250);
+  --link: var(--foreground);
+}
+
 html {
   min-width: 320px;
   background: var(--background);
@@ -24,6 +42,19 @@ body {
   --build-y: 0px;
   --future-x: 0px;
   --future-y: 0px;
+  --launch-particle-far-1: oklch(0.68 0.011 250);
+  --launch-particle-far-2: oklch(0.76 0.009 250);
+  --launch-particle-far-3: oklch(0.84 0.007 250);
+  --launch-particle-mid-1: oklch(0.42 0.018 250);
+  --launch-particle-mid-2: oklch(0.5 0.022 250);
+  --launch-particle-mid-3: oklch(0.59 0.018 250);
+  --launch-particle-near-1: oklch(0.28 0.022 250);
+  --launch-particle-near-2: oklch(0.36 0.028 250);
+  --launch-particle-near-3: oklch(0.47 0.024 250);
+  --launch-band-strong: oklch(0.36 0.018 250 / 4%);
+  --launch-band-soft: oklch(0.36 0.018 250 / 2.5%);
+  --launch-contour-strong: oklch(0.38 0.02 250);
+  --launch-contour-soft: oklch(0.47 0.016 250);
 
   position: relative;
   isolation: isolate;
@@ -31,8 +62,8 @@ body {
   height: 100dvh;
   overflow: hidden;
   overflow: clip;
-  color: #0d1626;
-  background: #edf0f2;
+  color: var(--foreground);
+  background: var(--background);
 }
 
 .launch-title {
@@ -65,7 +96,7 @@ body {
 .launch-title__future {
   right: clamp(1rem, 4vw, 4.5rem);
   bottom: clamp(4.5rem, 10vh, 8rem);
-  color: rgb(13 22 38 / 46%);
+  color: var(--muted);
   font-size: clamp(8.5rem, 18vw, 18.5rem);
   font-weight: 540;
   letter-spacing: -0.13em;
