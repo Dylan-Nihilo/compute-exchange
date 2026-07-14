@@ -28,6 +28,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install HeroUI Pro
+        env:
+          HEROUI_KEY: ${{ secrets.HEROUI_KEY }}
+        run: pnpm heroui:setup
+
       - name: Typecheck
         run: pnpm typecheck
 
