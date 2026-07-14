@@ -6,7 +6,7 @@
 
 - Next.js 15 App Router + React 19 + TypeScript strict
 - Tailwind CSS v4 + HeroUI v3 + HeroUI Pro
-- Number Flow 负责数字动效，`Intl` 负责金额、数字与日期格式化
+- 已预置 Number Flow 供后续数字动效使用，`Intl` 负责金额、数字与日期格式化
 - TanStack Query 管理服务端状态
 - Zustand 管理后续模块的客户端状态
 - 原生 Fetch API client + Zod 校验环境配置和响应边界
@@ -35,14 +35,13 @@ pnpm heroui:setup
 
 ### 数据源
 
-默认使用 Mock 数据。接入真实 HTTP 服务时，需要同时设置：
+当前业务 service 使用 Mock 数据。后端 endpoint contract 确定后，设置 API 地址供对应 service 接入：
 
 ```bash
-NEXT_PUBLIC_DATA_SOURCE=http
 NEXT_PUBLIC_API_BASE_URL=https://api.example.com
 ```
 
-API client 统一处理 JSON、Cookie 凭证、超时、结构化错误和 Zod 响应校验；具体业务 endpoint 由对应模块的 service 接入。
+通用 API client 已统一处理 JSON、Cookie 凭证、超时、结构化错误和 Zod 响应校验；当前不虚构业务 endpoint，具体 adapter 由对应模块在后端 contract 确定后接入。
 
 ## 质量检查
 

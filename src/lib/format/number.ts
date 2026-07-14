@@ -1,6 +1,7 @@
 import type {Money} from "../domain/contracts";
+import {DEFAULT_LOCALE} from "./locale.ts";
 
-export const DEFAULT_LOCALE = "zh-CN";
+export {DEFAULT_LOCALE} from "./locale.ts";
 
 export function formatNumber(
   value: number,

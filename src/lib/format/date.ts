@@ -1,18 +1,20 @@
-import {DEFAULT_LOCALE} from "./number.ts";
+import {timestampSchema, type Timestamp} from "../domain/contracts.ts";
+import {DEFAULT_LOCALE, DEFAULT_TIME_ZONE} from "./locale.ts";
 
-export const DEFAULT_TIME_ZONE = "Asia/Shanghai";
+export {DEFAULT_TIME_ZONE} from "./locale.ts";
 
-export type DateInput = Date | number | string;
+export type DateInput = Date | number | Timestamp;
 
 export function formatDate(
   input: DateInput,
   options?: Intl.DateTimeFormatOptions,
   locales: Intl.LocalesArgument = DEFAULT_LOCALE,
 ): string {
-  return new Intl.DateTimeFormat(locales, {
-    timeZone: options?.timeZone ?? DEFAULT_TIME_ZONE,
-    ...(options ?? {dateStyle: "medium"}),
-  }).format(toDate(input));
+  return formatDateInput(
+    input,
+    options ?? {dateStyle: "medium"},
+    locales,
+  );
 }
 
 export function formatDateTime(
@@ -20,14 +22,15 @@ export function formatDateTime(
   options?: Intl.DateTimeFormatOptions,
   locales: Intl.LocalesArgument = DEFAULT_LOCALE,
 ): string {
-  return new Intl.DateTimeFormat(locales, {
-    timeZone: options?.timeZone ?? DEFAULT_TIME_ZONE,
-    ...(options ?? {
+  return formatDateInput(
+    input,
+    options ?? {
       dateStyle: "medium",
       hourCycle: "h23",
       timeStyle: "short",
-    }),
-  }).format(toDate(input));
+    },
+    locales,
+  );
 }
 
 export function toIsoTimestamp(input: DateInput = new Date()): string {
@@ -35,16 +38,30 @@ export function toIsoTimestamp(input: DateInput = new Date()): string {
 }
 
 function toDate(input: DateInput): Date {
-  const date =
-    input instanceof Date
-      ? new Date(input.getTime())
-      : typeof input === "number"
-        ? new Date(input)
-        : new Date(input);
+  if (typeof input === "string") {
+    const timestamp = timestampSchema.safeParse(input);
+    if (!timestamp.success) {
+      throw new RangeError("Expected a valid ISO timestamp");
+    }
+    return new Date(timestamp.data);
+  }
+
+  const date = input instanceof Date ? new Date(input.getTime()) : new Date(input);
 
   if (!Number.isFinite(date.getTime())) {
     throw new RangeError("Expected a valid date");
   }
 
   return date;
+}
+
+function formatDateInput(
+  input: DateInput,
+  options: Intl.DateTimeFormatOptions,
+  locales: Intl.LocalesArgument,
+): string {
+  return new Intl.DateTimeFormat(locales, {
+    ...options,
+    timeZone: options.timeZone ?? DEFAULT_TIME_ZONE,
+  }).format(toDate(input));
 }

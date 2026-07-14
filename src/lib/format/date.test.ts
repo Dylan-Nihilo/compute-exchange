@@ -19,7 +19,8 @@ describe("date formatting", () => {
   });
 
   it("rejects invalid date values", () => {
-    assert.throws(() => formatDate("not-a-date"), /valid date/);
+    assert.throws(() => formatDate("not-a-date"), /valid ISO timestamp/);
+    assert.throws(() => formatDate("07\/14\/2026"), /valid ISO timestamp/);
     assert.throws(() => toIsoTimestamp(Number.NaN), /valid date/);
   });
 });

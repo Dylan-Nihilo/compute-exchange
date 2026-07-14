@@ -1,7 +1,8 @@
 import {z} from "zod";
 
 const idSchema = z.string().min(1);
-const timestampSchema = z.string().datetime({offset: true});
+export const timestampSchema = z.string().datetime({offset: true});
+export type Timestamp = z.infer<typeof timestampSchema>;
 
 export const roles = [
   "guest",

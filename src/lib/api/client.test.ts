@@ -114,17 +114,13 @@ describe("API client", () => {
     assert.equal(fetchCalled, false);
   });
 
-  it("activates the HTTP transport only for the HTTP data source", async () => {
-    assert.equal(
-      createApiClientForEnvironment({NEXT_PUBLIC_DATA_SOURCE: "mock"}),
-      null,
-    );
+  it("creates the shared transport only when an API URL is configured", async () => {
+    assert.equal(createApiClientForEnvironment({}), null);
 
     let capturedInput: RequestInfo | URL | undefined;
     const client = createApiClientForEnvironment(
       {
         NEXT_PUBLIC_API_BASE_URL: "https://api.example.com/v1",
-        NEXT_PUBLIC_DATA_SOURCE: "http",
       },
       async (input) => {
         capturedInput = input;
@@ -138,6 +134,7 @@ describe("API client", () => {
   });
 
   it("aborts requests that exceed the configured timeout", async () => {
+    const keepEventLoopAlive = setTimeout(() => undefined, 100);
     const client = createApiClient({
       baseUrl: "https://api.example.com",
       fetchImplementation: async (_input, init) =>
@@ -151,9 +148,14 @@ describe("API client", () => {
       timeoutMs: 5,
     });
 
-    await assert.rejects(
-      client.request("/slow", z.unknown()),
-      (error: unknown) => error instanceof DOMException && error.name === "TimeoutError",
-    );
+    try {
+      await assert.rejects(
+        client.request("/slow", z.unknown()),
+        (error: unknown) =>
+          error instanceof DOMException && error.name === "TimeoutError",
+      );
+    } finally {
+      clearTimeout(keepEventLoopAlive);
+    }
   });
 });
