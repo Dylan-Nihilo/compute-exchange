@@ -6,9 +6,10 @@
 
 - Next.js 15 App Router + React 19 + TypeScript strict
 - Tailwind CSS v4 + HeroUI v3 + HeroUI Pro
+- Number Flow 负责数字动效，`Intl` 负责金额、数字与日期格式化
 - TanStack Query 管理服务端状态
 - Zustand 管理后续模块的客户端状态
-- Zod 校验环境配置与后续 API 边界
+- 原生 Fetch API client + Zod 校验环境配置和响应边界
 
 ## 本地启动
 
@@ -32,18 +33,31 @@ pnpm heroui:setup
 
 脚本从 `.env.local` 读取 `HEROUI_KEY`，安装 Pro 依赖并验证对应 CSS。密钥不得提交到 Git。CI 使用同一命令，并要求仓库 Secret `HEROUI_KEY` 有效；缺失或失效时构建会直接失败。HeroUI Pro MCP 只提供组件文档与 API，不参与 npm 包安装。
 
+### 数据源
+
+默认使用 Mock 数据。接入真实 HTTP 服务时，需要同时设置：
+
+```bash
+NEXT_PUBLIC_DATA_SOURCE=http
+NEXT_PUBLIC_API_BASE_URL=https://api.example.com
+```
+
+API client 统一处理 JSON、Cookie 凭证、超时、结构化错误和 Zod 响应校验；具体业务 endpoint 由对应模块的 service 接入。
+
 ## 质量检查
 
 ```bash
 pnpm check
 ```
 
-该命令依次执行 TypeScript、ESLint 和生产构建。GitHub Actions 使用同一组串行检查。
+该命令依次执行 TypeScript、ESLint、Node 测试和生产构建。GitHub Actions 使用同一组串行检查。
 
 ## 目录边界
 
 - `src/app`：路由、全局加载/错误状态与运行时 Provider
+- `src/lib/api`：数据源配置和通用 HTTP client
 - `src/lib/config`：经过校验的环境配置
+- `src/lib/format`：数字、金额和日期格式化
 - `src/lib/query`：TanStack Query 客户端策略
 - `scripts/heroui`：不含密钥的 HeroUI Pro 可重复安装脚本
 

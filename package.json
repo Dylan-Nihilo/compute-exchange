@@ -12,10 +12,10 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "test": "node --experimental-strip-types --test src/lib/domain/domain.test.ts src/lib/mock/mock.test.ts",
+    "test": "node --experimental-strip-types --test",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm lint && pnpm build",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "heroui:setup": "node scripts/heroui/setup-pro.mjs"
   },
   "dependencies": {
