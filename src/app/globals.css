@@ -33,7 +33,7 @@
   --color-cs-accent: #d9f72c;
   --color-cs-accent-ink: #111111;
   --color-cs-proof-title: #06253b;
-  --color-cs-proof-text: #6e8290;
+  --color-cs-proof-text: #4f6977;
   --color-cs-divider: #dce4e8;
   --color-cs-footer-start: #05223d;
   --color-cs-footer-end: #26377f;
@@ -84,14 +84,4 @@ html {
 body {
   min-height: 100svh;
   margin: 0;
-}
-
-@keyframes cs-hero-drift {
-  from {
-    transform: scale(1.025) translate3d(-0.45%, 0, 0);
-  }
-
-  to {
-    transform: scale(1.045) translate3d(0.45%, -0.35%, 0);
-  }
 }

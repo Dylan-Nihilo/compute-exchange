@@ -9,6 +9,19 @@ const nextConfig = {
   outputFileTracingRoot: root,
   poweredByHeader: false,
   reactStrictMode: true,
+  async headers() {
+    return [
+      {
+        source: "/compute-spot/:asset(hero-motion-.*)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+    ];
+  },
   turbopack: {
     root,
   },

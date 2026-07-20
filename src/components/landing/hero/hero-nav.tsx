@@ -18,19 +18,25 @@ import {heroContent} from "./content";
 const {nav} = heroContent;
 
 const NAV_GLASS_OPTICS = {
-  strength: 0.04,
-  scaleX: 0.018,
-  scaleY: 0.06,
-  depth: 0.55,
-  curvature: 0.2,
-  dispersion: 0.22,
-  bend: 0.48,
-  bendWidth: 0.12,
-  frost: 1.5,
-  brightness: 0.07,
-  specular: 1,
-  sheen: 0.62,
-  glow: 0.2,
+  strength: 0.05,
+  scaleX: 0.022,
+  scaleY: 0.075,
+  depth: 0.68,
+  curvature: 0.26,
+  dispersion: 0.32,
+  bend: 0.58,
+  bendWidth: 0.085,
+  frost: 0.18,
+  saturate: 1.22,
+  brightness: 0.015,
+  specular: 1.3,
+  sheen: 0.8,
+  sheenWidth: 1.4,
+  sheenFalloff: 2.2,
+  sheenAngle: 315,
+  glow: 0.24,
+  glowSpread: 0.34,
+  glowFalloff: 2.2,
 } satisfies Partial<GlassOptics>;
 
 /**
@@ -98,7 +104,7 @@ export function HeroNav() {
       style={{pointerEvents: navVisible ? "auto" : "none"}}
     >
       <Glass
-        className="relative h-16 w-full rounded-full border border-white/65 bg-white/12 shadow-[0_18px_48px_-18px_rgba(15,23,42,0.26)]"
+        className="relative h-16 w-full rounded-full border border-white/80 bg-white/[0.07] shadow-[0_18px_48px_-20px_rgba(15,23,42,0.22),inset_0_1px_0_rgba(255,255,255,0.92),inset_0_-1px_0_rgba(255,255,255,0.32)]"
         optics={NAV_GLASS_OPTICS}
       >
         <nav
@@ -134,7 +140,7 @@ export function HeroNav() {
               size="sm"
               variant="ghost"
               onPress={() => router.push(nav.login.href)}
-              className="h-[2.0625rem] w-[4.375rem] min-w-0 rounded-full border border-cs-ink/20 bg-white/45 p-0 text-[11px] text-black hover:bg-white/70"
+              className="h-[2.0625rem] w-[4.375rem] min-w-0 rounded-full border border-white/75 bg-white/35 p-0 text-[11px] text-black shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] hover:bg-white/60"
             >
               {nav.login.label}
             </Button>
