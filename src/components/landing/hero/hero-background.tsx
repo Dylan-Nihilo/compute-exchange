@@ -2,8 +2,9 @@
 
 import {useEffect, useRef} from "react";
 
-const STILL = "/compute-spot/hero-motion-still.png";
-const VIDEO = "/compute-spot/hero-motion.mp4";
+const STILL = "/compute-spot/hero-motion-still.webp";
+const VIDEO_DESKTOP = "/compute-spot/hero-motion.mp4";
+const VIDEO_MOBILE = "/compute-spot/hero-motion-mobile.mp4";
 
 /**
  * Hero backdrop: looping motion video lifted from Figma node 373:759,
@@ -33,7 +34,8 @@ export function HeroBackground() {
         preload="auto"
         poster={STILL}
       >
-        <source src={VIDEO} type="video/mp4" />
+        <source media="(max-width: 767px)" src={VIDEO_MOBILE} type="video/mp4" />
+        <source src={VIDEO_DESKTOP} type="video/mp4" />
       </video>
     </div>
   );
