@@ -35,6 +35,10 @@
   --color-cs-proof-title: #06253b;
   --color-cs-proof-text: #6e8290;
   --color-cs-divider: #dce4e8;
+  --color-cs-footer-start: #05223d;
+  --color-cs-footer-end: #26377f;
+  --color-cs-footer-action: #f7f9ff;
+  --color-cs-footer-action-ink: #06253b;
 }
 
 :root,

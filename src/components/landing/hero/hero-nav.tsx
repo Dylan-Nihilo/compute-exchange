@@ -83,16 +83,15 @@ export function HeroNav() {
       data-nav-visible={navVisible}
       initial={false}
       animate={{
-        y: navVisible ? 0 : -112,
+        y: navVisible ? 0 : -40,
         opacity: navVisible ? 1 : 0,
       }}
       transition={
         prefersReducedMotion
           ? {duration: 0}
-          : {
-              duration: navVisible ? 0.3 : 0.2,
-              ease: [0.22, 1, 0.36, 1],
-            }
+          : navVisible
+            ? {duration: 0.42, ease: [0.16, 1, 0.3, 1]}
+            : {duration: 0.32, ease: [0.7, 0, 0.84, 0]}
       }
       onFocusCapture={() => setIsVisible(true)}
       className="fixed inset-x-4 top-[1.875rem] z-50 sm:inset-x-10"
