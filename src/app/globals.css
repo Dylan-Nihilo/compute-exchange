@@ -85,3 +85,13 @@ body {
   min-height: 100svh;
   margin: 0;
 }
+
+@keyframes cs-hero-drift {
+  from {
+    transform: scale(1.025) translate3d(-0.45%, 0, 0);
+  }
+
+  to {
+    transform: scale(1.045) translate3d(0.45%, -0.35%, 0);
+  }
+}
