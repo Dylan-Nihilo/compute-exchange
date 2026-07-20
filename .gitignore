@@ -8,6 +8,7 @@
 # build output
 /dist/
 /coverage/
+/tmp/
 
 # local environment
 .env*
