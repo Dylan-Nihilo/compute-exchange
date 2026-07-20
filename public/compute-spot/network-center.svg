@@ -1,0 +1,9 @@
+<svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M30 15L47.5 25V45L30 55L12.5 45V25L30 15Z" stroke="#07385E" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M30 7.5V15" stroke="#07385E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12.5 25L30 35L47.5 25" stroke="#07385E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M47.5 45L55 48.75" stroke="#07385E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M5 48.75L12.5 45" stroke="#07385E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 35V55" stroke="#07385E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M38.75 20L47.5 25V35M21.25 20L12.5 25V35M21.25 50L30 55L38.75 50" stroke="#07385E" stroke-width="3" stroke-linejoin="round"/>
+</svg>

@@ -4,10 +4,37 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: "Alibaba PuHuiTi 2.0";
+  src: url("/fonts/AlibabaPuHuiTi-2-65-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   --font-sans: "SF Pro Display", "SF Pro Text", -apple-system,
     BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei",
     sans-serif;
+}
+
+/* ComputeSpot landing — tokens lifted from the Figma 交付稿 (file 9XnsITgb7ak7CMT9fDLLVd) */
+@theme {
+  --font-display: "Alibaba PuHuiTi 2.0", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", sans-serif;
+
+  --color-cs-canvas: #f0f0f0;
+  --color-cs-ink: #121417;
+  --color-cs-ink-deep: #17201f;
+  --color-cs-nav: #495156;
+  --color-cs-body: #66706d;
+  --color-cs-faint: #8b928d;
+  --color-cs-placeholder: #757575;
+  --color-cs-accent: #d9f72c;
+  --color-cs-accent-ink: #111111;
+  --color-cs-proof-title: #06253b;
+  --color-cs-proof-text: #6e8290;
+  --color-cs-divider: #dce4e8;
 }
 
 :root,
