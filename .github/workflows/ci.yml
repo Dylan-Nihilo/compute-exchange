@@ -119,4 +119,4 @@ jobs:
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
             compute-deploy@47.82.146.14 \
-            "docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin >/dev/null && cd /data/compute-exchange && IMAGE_TAG='$GITHUB_SHA' docker compose pull && IMAGE_TAG='$GITHUB_SHA' docker compose up -d --remove-orphans --wait --wait-timeout 120"
+            "set -e; trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT; docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin >/dev/null; cd /data/compute-exchange; IMAGE_TAG='$GITHUB_SHA' docker compose pull; IMAGE_TAG='$GITHUB_SHA' docker compose up -d --remove-orphans --wait --wait-timeout 120"
