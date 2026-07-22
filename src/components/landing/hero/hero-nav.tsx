@@ -165,7 +165,7 @@ export function HeroNav() {
 
           <ul
             onMouseLeave={() => setHoveredLink(null)}
-            className="absolute left-[calc(50%+3.25rem)] hidden -translate-x-1/2 items-center gap-[2.18rem] text-xs text-cs-nav lg:flex"
+            className="absolute left-[calc(50%+3.25rem)] hidden -translate-x-1/2 items-center gap-[3.5rem] text-xs text-cs-nav lg:flex"
           >
             {nav.links.map((link) => {
               const anchorId = link.href.startsWith("#")

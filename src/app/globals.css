@@ -112,3 +112,15 @@ body {
   min-height: 100svh;
   margin: 0;
 }
+
+/* Capability card action link: per-character rise on card hover */
+@keyframes cs-char-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

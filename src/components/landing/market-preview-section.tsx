@@ -1,3 +1,11 @@
+"use client";
+
+import {
+  motion,
+  useReducedMotion,
+  type Transition,
+  type Variants,
+} from "motion/react";
 import Link from "next/link";
 
 const marketTabs = [
@@ -68,7 +76,39 @@ const supplies = [
   },
 ] as const;
 
+const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
+
+const titleMask: Variants = {hidden: {}, show: {}};
+const titleReveal: Variants = {hidden: {y: "110%"}, show: {y: "0%"}};
+
+const panelReveal: Variants = {
+  hidden: {opacity: 0, y: 40},
+  show: {opacity: 1, y: 0},
+};
+
+const rowCascade: Variants = {
+  hidden: {},
+  show: {transition: {staggerChildren: 0.06, delayChildren: 0.25}},
+};
+
+const rowReveal: Variants = {
+  hidden: {opacity: 0, y: 12},
+  show: {opacity: 1, y: 0},
+};
+
+/**
+ * Market preview panel (Figma frame "找到适合你的算力").
+ * Title rises out of a mask, the panel lifts in, and table rows cascade
+ * one by one. Row hover gets a quiet surface tint — the only always-on
+ * interaction this data-dense block needs. One-shot reveals; all motion
+ * is instant under reduced motion.
+ */
 export function MarketPreviewSection() {
+  const prefersReducedMotion = useReducedMotion();
+  const revealTransition: Transition = prefersReducedMotion
+    ? {duration: 0}
+    : {duration: 0.7, ease: EASE_OUT_EXPO};
+
   return (
     <section
       id="market-preview"
@@ -76,14 +116,31 @@ export function MarketPreviewSection() {
       className="scroll-mt-28 bg-background text-foreground"
     >
       <div className="mx-auto w-[calc(100%-3rem)] max-w-[81rem] py-20 lg:py-[6.875rem]">
-        <h2
+        <motion.h2
           id="market-preview-title"
-          className="font-display text-[2.375rem] leading-[1.15] tracking-[-0.04em] sm:text-[2.875rem]"
+          variants={titleMask}
+          initial="hidden"
+          whileInView="show"
+          viewport={{once: true, margin: "0px 0px -12% 0px"}}
+          className="overflow-hidden font-display text-[2.375rem] leading-[1.15] tracking-[-0.04em] sm:text-[2.875rem]"
         >
-          找到适合你的算力
-        </h2>
+          <motion.span
+            variants={titleReveal}
+            transition={revealTransition}
+            className="block"
+          >
+            找到适合你的算力
+          </motion.span>
+        </motion.h2>
 
-        <div className="mt-12 rounded-[1.75rem] border border-border bg-surface p-4 sm:mt-16 sm:p-6">
+        <motion.div
+          variants={panelReveal}
+          initial="hidden"
+          whileInView="show"
+          viewport={{once: true, margin: "0px 0px -8% 0px"}}
+          transition={revealTransition}
+          className="mt-12 rounded-[1.75rem] border border-border bg-surface p-4 sm:mt-16 sm:p-6"
+        >
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <nav aria-label="算力资源类型" className="overflow-x-auto pb-1 lg:pb-0">
               <ul className="flex min-w-max gap-2.5">
@@ -166,11 +223,18 @@ export function MarketPreviewSection() {
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <motion.tbody
+                  variants={rowCascade}
+                  initial="hidden"
+                  whileInView="show"
+                  viewport={{once: true, margin: "0px 0px -10% 0px"}}
+                >
                   {supplies.map((supply) => (
-                    <tr
+                    <motion.tr
                       key={supply.name}
-                      className="border-b border-separator last:border-b-0"
+                      variants={rowReveal}
+                      transition={revealTransition}
+                      className="border-b border-separator transition-colors duration-200 last:border-b-0 hover:bg-surface-secondary"
                     >
                       <td className="px-5 py-[1.35rem]">
                         <p className="font-semibold tracking-[-0.01em]">
@@ -202,13 +266,13 @@ export function MarketPreviewSection() {
                           查看详情
                         </Link>
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))}
-                </tbody>
+                </motion.tbody>
               </table>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </section>
   );
