@@ -15,7 +15,7 @@ const PRIMARY_CAPABILITIES = [
     title: "AI Token 工厂",
     description: "为大模型部署、Token 智能服务与推理业务提供稳定算力。",
     action: "查看 Token 服务 →",
-    href: "/#network",
+    href: "#network",
     image: "/compute-spot/business-token.png",
   },
 ] as const;

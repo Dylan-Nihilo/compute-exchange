@@ -6,9 +6,9 @@ export const heroContent = {
   nav: {
     links: [
       {label: "算力市场", href: "/market"},
-      {label: "业务模块", href: "/#modules"},
-      {label: "平台网络", href: "/#network"},
-      {label: "合作伙伴", href: "/#partners"},
+      {label: "业务模块", href: "#modules"},
+      {label: "平台网络", href: "#network"},
+      {label: "合作伙伴", href: "#partners"},
     ],
     login: {label: "登录", href: "/auth/login"},
     register: {label: "注册", href: "/auth/register"},
@@ -17,12 +17,14 @@ export const heroContent = {
   body: "连接合规机构与企业需求，支持 GPU 算力分时租赁、包月与灵活订单交付。",
   search: {
     placeholder: "搜索 GPU 型号，如 H100 / A100 / 现货 90B",
+    placeholderPrefix: "搜索 GPU 型号，如 ",
+    examples: ["H100 训练集群", "A100 现货", "L40S 推理集群", "现货 90B"],
     submitLabel: "搜索算力",
     target: "/market",
   },
   ctas: {
-    primary: {label: "进入算力市场 ↗", href: "/market"},
-    secondary: {label: "成为合作方 ↗", href: "/auth/register"},
+    primary: {label: "进入算力市场", href: "/market"},
+    secondary: {label: "成为合作方", href: "/auth/register"},
   },
   support: "支持 H100 / H200 / A100 / L40S 等 98+ GPU 规格",
   proof: [

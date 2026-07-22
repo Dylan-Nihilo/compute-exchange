@@ -12,6 +12,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Alibaba PuHuiTi 2.0";
+  src: url("/fonts/AlibabaPuHuiTi-2-75-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   --font-sans: "SF Pro Display", "SF Pro Text", -apple-system,
     BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei",
@@ -39,6 +47,18 @@
   --color-cs-footer-end: #26377f;
   --color-cs-footer-action: #f7f9ff;
   --color-cs-footer-action-ink: #06253b;
+
+  /* Hero search button: soft light band sweeping like a wave on hover */
+  --animate-sheen-sweep: sheen-sweep 1.8s ease-in-out infinite;
+
+  @keyframes sheen-sweep {
+    from {
+      transform: translateX(-160%) skewX(-12deg);
+    }
+    to {
+      transform: translateX(340%) skewX(-12deg);
+    }
+  }
 }
 
 :root,
@@ -79,6 +99,13 @@
 html {
   min-width: 320px;
   background: var(--background);
+}
+
+/* Smooth anchor navigation (nav links point at #modules, #network, #partners) */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {

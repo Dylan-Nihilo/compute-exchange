@@ -1,6 +1,7 @@
 "use client";
 
 import {Button} from "@heroui/react";
+import {motion, useReducedMotion, type Variants} from "motion/react";
 import {useRouter} from "next/navigation";
 
 import {heroContent} from "./content";
@@ -8,31 +9,60 @@ import {HeroSearch} from "./hero-search";
 
 const {title, body, ctas, support} = heroContent;
 
+const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
+
 /**
  * Left-aligned hero copy column (Figma node 373:501):
  * display title, sub copy, compute search, CTA pair and spec footnote.
+ * The copy column enters as one choreographed stagger on load; CTAs carry
+ * an arrow-nudge + lift hover and a press-down feedback.
  */
 export function HeroContent() {
   const router = useRouter();
+  const prefersReducedMotion = useReducedMotion();
+
+  const container: Variants = {
+    hidden: {},
+    show: {
+      transition: {staggerChildren: 0.09, delayChildren: 0.12},
+    },
+  };
+
+  const rise: Variants = {
+    hidden: {opacity: 0, y: 18},
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: prefersReducedMotion
+        ? {duration: 0}
+        : {duration: 0.55, ease: EASE_OUT_EXPO},
+    },
+  };
 
   return (
-    <div
+    <motion.div
       data-hero="content"
-      className="w-full max-w-[35.5rem] pt-[10.75rem] pb-[8rem]"
+      variants={container}
+      initial="hidden"
+      animate="show"
+      className="w-full max-w-[35.5rem] pt-[clamp(10.75rem,21.25svh,28rem)] pb-[8rem]"
     >
-      <h1 className="font-display text-[clamp(2.25rem,4.31vw,3.875rem)] leading-[1.4] font-medium text-cs-ink">
+      <h1 className="font-display text-[clamp(2.25rem,4.31vw,3.875rem)] leading-[1.28] font-semibold tracking-[-0.01em] text-cs-ink">
         {title.map((line) => (
-          <span key={line} className="block">
+          <motion.span key={line} variants={rise} className="block">
             {line}
-          </span>
+          </motion.span>
         ))}
       </h1>
 
-      <p className="mt-3 max-w-[35.5rem] text-base leading-[1.575] text-cs-body">
+      <motion.p
+        variants={rise}
+        className="mt-4 max-w-[35.5rem] text-base leading-[1.575] text-cs-body"
+      >
         {body}
-      </p>
+      </motion.p>
 
-      <div className="mt-8 flex flex-col gap-3">
+      <motion.div variants={rise} className="mt-8 flex flex-col gap-3">
         <HeroSearch />
 
         <div className="flex items-center gap-3">
@@ -40,22 +70,34 @@ export function HeroContent() {
             size="sm"
             variant="ghost"
             onPress={() => router.push(ctas.primary.href)}
-            className="h-[2.66rem] min-w-0 rounded-full bg-cs-accent px-[1.1rem] text-xs text-cs-accent-ink hover:brightness-95"
+            className="group h-[2.66rem] min-w-0 rounded-full bg-cs-accent px-[1.1rem] text-xs text-cs-accent-ink transition-[box-shadow,transform,filter] duration-200 hover:shadow-[0_10px_24px_-10px_rgba(90,110,10,0.55)] hover:brightness-105 active:scale-[0.97]"
           >
-            {ctas.primary.label}
+            <span>{ctas.primary.label}</span>
+            <span
+              aria-hidden
+              className="transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            >
+              ↗
+            </span>
           </Button>
           <Button
             size="sm"
             variant="ghost"
             onPress={() => router.push(ctas.secondary.href)}
-            className="h-[2.66rem] min-w-0 rounded-full border border-cs-ink/20 bg-white/45 px-[1.1rem] text-xs text-cs-ink hover:bg-white/70"
+            className="group h-[2.66rem] min-w-0 rounded-full border border-cs-ink/20 bg-white/45 px-[1.1rem] text-xs text-cs-ink transition-[background-color,border-color,box-shadow,transform] duration-200 hover:border-cs-ink/35 hover:bg-white/80 hover:shadow-[0_10px_24px_-12px_rgba(15,23,42,0.35)] active:scale-[0.97]"
           >
-            {ctas.secondary.label}
+            <span>{ctas.secondary.label}</span>
+            <span
+              aria-hidden
+              className="transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            >
+              ↗
+            </span>
           </Button>
         </div>
 
         <p className="text-[0.625rem] text-cs-faint">{support}</p>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

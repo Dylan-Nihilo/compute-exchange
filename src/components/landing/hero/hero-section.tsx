@@ -12,7 +12,7 @@ export function HeroSection() {
     <section
       id="hero"
       data-section="hero"
-      className="relative isolate flex min-h-[42.5rem] flex-col overflow-hidden bg-cs-canvas text-cs-ink lg:min-h-[min(50.5rem,100svh)]"
+      className="relative isolate flex min-h-svh flex-col overflow-hidden bg-cs-canvas text-cs-ink"
     >
       <HeroBackground />
       <div className="relative z-10 mx-auto flex w-full max-w-[77.5rem] flex-1 items-start px-6 xl:px-0">

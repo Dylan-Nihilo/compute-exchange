@@ -5,7 +5,7 @@ const footerGroups = [
     label: "平台",
     links: [
       ["算力市场", "/market"],
-      ["业务模块", "/#modules"],
+      ["业务模块", "#modules"],
     ],
   },
   {
@@ -18,8 +18,8 @@ const footerGroups = [
   {
     label: "支持",
     links: [
-      ["平台网络", "/#network"],
-      ["合规说明", "/#network"],
+      ["平台网络", "#network"],
+      ["合规说明", "#network"],
     ],
   },
   {

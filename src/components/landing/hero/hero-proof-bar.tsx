@@ -1,10 +1,13 @@
 "use client";
 
 import {Glass, type GlassOptics} from "@samasante/liquid-glass";
+import {motion, useReducedMotion, type Variants} from "motion/react";
 
 import {heroContent} from "./content";
 
 const {proof} = heroContent;
+
+const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 
 const PROOF_GLASS_OPTICS = {
   strength: 0.015,
@@ -31,32 +34,83 @@ const PROOF_GLASS_OPTICS = {
 /**
  * Frosted proof strip pinned to the hero's bottom edge (Figma node 373:520).
  * Four trust items separated by hairline dividers on desktop.
+ *
+ * Interaction layers: the strip enters last in the hero choreography (glass
+ * fades up, items rise in a stagger), each item reveals a small accent tick
+ * under its title on hover with a faint wash, and the hairline divider next
+ * to the hovered item brightens. All motion is instant under reduced motion.
  */
 export function HeroProofBar() {
+  const prefersReducedMotion = useReducedMotion();
+
+  const strip: Variants = {
+    hidden: {opacity: 0, y: 14},
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: prefersReducedMotion
+        ? {duration: 0}
+        : {delay: 0.75, duration: 0.5, ease: EASE_OUT_EXPO},
+    },
+  };
+
+  const list: Variants = {
+    hidden: {},
+    show: {
+      transition: prefersReducedMotion
+        ? {}
+        : {staggerChildren: 0.06, delayChildren: 0.95},
+    },
+  };
+
+  const item: Variants = {
+    hidden: {opacity: 0, y: 10},
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: prefersReducedMotion
+        ? {duration: 0}
+        : {duration: 0.45, ease: EASE_OUT_EXPO},
+    },
+  };
+
   return (
-    <div className="absolute inset-x-0 bottom-0 z-10">
+    <motion.div
+      variants={strip}
+      initial="hidden"
+      animate="show"
+      className="absolute inset-x-0 bottom-0 z-10"
+    >
       <Glass
         className="relative w-full border-y border-white/75 bg-white/[0.24] shadow-[inset_0_1px_0_rgba(255,255,255,0.78),inset_0_-1px_0_rgba(255,255,255,0.38)]"
         optics={PROOF_GLASS_OPTICS}
       >
-        <ul className="mx-auto grid w-full max-w-[77.5rem] grid-cols-2 gap-y-5 px-6 py-4 lg:grid-cols-4 lg:gap-y-0 lg:py-3.5">
-          {proof.map((item) => (
-            <li
-              key={item.title}
-              className="flex flex-col justify-center lg:h-[4.875rem] lg:border-l lg:border-white/55 lg:first:border-l-0"
+        <motion.ul
+          variants={list}
+          className="mx-auto grid w-full max-w-[77.5rem] grid-cols-2 gap-y-5 px-6 py-4 lg:grid-cols-4 lg:gap-y-0 lg:py-3.5"
+        >
+          {proof.map((entry) => (
+            <motion.li
+              key={entry.title}
+              variants={item}
+              className="group flex flex-col justify-center transition-colors duration-200 hover:bg-white/15 lg:h-[4.875rem] lg:border-l lg:border-white/55 lg:first:border-l-0 lg:[li:hover+&]:border-white/85"
             >
               <div className="w-full text-center lg:mx-auto lg:w-[11.25rem]">
                 <p className="font-display text-[0.9375rem] font-medium leading-[1.32] text-cs-proof-title">
-                  {item.title}
+                  {entry.title}
                 </p>
-                <p className="mt-[0.7rem] text-[0.8125rem] leading-[1.32] text-cs-proof-text">
-                  {item.description}
+                <span
+                  aria-hidden
+                  className="mx-auto mt-[0.25rem] block h-[2px] w-4 origin-center scale-x-0 rounded-full bg-cs-accent transition-transform duration-200 ease-out group-hover:scale-x-100"
+                />
+                <p className="mt-[0.32rem] text-[0.8125rem] leading-[1.32] text-cs-proof-text">
+                  {entry.description}
                 </p>
               </div>
-            </li>
+            </motion.li>
           ))}
-        </ul>
+        </motion.ul>
       </Glass>
-    </div>
+    </motion.div>
   );
 }
