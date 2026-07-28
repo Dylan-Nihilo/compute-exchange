@@ -145,13 +145,7 @@ function CapabilityCard({
           capability.featured ? "bg-[#f7fafd]/34" : "bg-[#f7fafd]/20"
         }`}
       />
-      <div
-        className={`absolute inset-0 ${
-          capability.featured
-            ? "bg-[linear-gradient(90deg,rgba(247,250,253,0.98)_0%,rgba(247,250,253,0.9)_34%,rgba(247,250,253,0.38)_55%,rgba(247,250,253,0)_72%)]"
-            : "bg-[linear-gradient(90deg,rgba(247,250,253,0.96)_0%,rgba(247,250,253,0.84)_34%,rgba(247,250,253,0.22)_58%,rgba(247,250,253,0)_76%)]"
-        }`}
-      />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,#f7fafd_0%,#f7fafd_48%,rgba(247,250,253,0.72)_62%,rgba(247,250,253,0)_78%)]" />
 
       <div
         className={`absolute inset-0 z-10 flex flex-col items-start px-8 ${
