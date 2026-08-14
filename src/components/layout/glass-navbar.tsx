@@ -55,7 +55,7 @@ export function GlassNavbarBrand() {
       <Navbar.Item aria-label="万象硅芯首页" className="px-0" href="/">
         <Image
           alt="万象硅芯 OmniS"
-          className="h-10 w-auto"
+          className="h-12 w-auto"
           height={55}
           priority
           src="/brand/omnis/OmniS-logo-horizontal-blue.svg"

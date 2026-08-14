@@ -10,7 +10,7 @@ import {PublicHeader} from "@/components/layout/public-header";
 import {RouteTransition} from "@/components/layout/route-transition";
 
 export const metadata: Metadata = {
-  title: {absolute: "ComputeSpot · 合规算力，一站式撮合与交付"},
+  title: {absolute: "万象硅芯 OmniS · 合规算力，一站式撮合与交付"},
   description:
     "连接合规机构与企业需求，支持 GPU 算力分时租赁、包月与灵活订单交付。",
 };
