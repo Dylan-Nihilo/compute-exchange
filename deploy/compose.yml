@@ -14,7 +14,7 @@ services:
       - "3000"
 
   cap:
-    image: tiago2/cap:3.1.8@sha256:56d402dc15e536b4c20e341a81bb9e78a0082b833e4337b9b05b242d96e0ffe5
+    image: wanxiang-cap:3.1.8
     container_name: wanxiang-cap
     restart: unless-stopped
     environment:
@@ -34,7 +34,7 @@ services:
       retries: 6
 
   cap-init:
-    image: tiago2/cap:3.1.8@sha256:56d402dc15e536b4c20e341a81bb9e78a0082b833e4337b9b05b242d96e0ffe5
+    image: wanxiang-cap:3.1.8
     container_name: wanxiang-cap-init
     restart: "no"
     environment:
