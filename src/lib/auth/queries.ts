@@ -3,12 +3,18 @@
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 
 import {
+  registerSmsApi,
+  requestSmsCodeApi,
+  smsLoginApi,
+} from "./api";
+import {verifyCaptcha} from "../captcha/cap";
+import {
   applyForIdentity,
   getAccount,
   listDemoAccounts,
   listIdentityApplications,
   login,
-  requestSmsCode,
+  requestEmailCode,
   register,
   resetDemo,
   verifyAccount,
@@ -28,11 +34,12 @@ export const authKeys = {
 
 export function useCurrentAccount() {
   const accountId = useAuthStore((state) => state.accountId);
+  const sessionAccount = useAuthStore((state) => state.account);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
 
   return useQuery({
     queryKey: authKeys.account(accountId),
-    queryFn: () => getAccount(accountId!),
+    queryFn: () => sessionAccount ?? getAccount(accountId!),
     enabled: hasHydrated && Boolean(accountId),
   });
 }
@@ -54,19 +61,35 @@ export function useLogin() {
   const queryClient = useQueryClient();
   const establishSession = useAuthStore((state) => state.establishSession);
   return useMutation({
-    mutationFn: (input: LoginInput) => login(input),
-    onSuccess: (account) => {
-      establishSession(account);
+    mutationFn: ({credentials, remember}: {credentials: LoginInput; remember: boolean}) =>
+      credentials.method === "sms"
+        ? smsLoginApi({...credentials, remember})
+        : login(credentials),
+    onSuccess: (account, {remember}) => {
+      establishSession(account, remember);
       queryClient.setQueryData(authKeys.account(account.id), account);
     },
   });
 }
 
-export function useRequestSmsCode() {
+export function useRequestSmsCode(purpose: "login" | "register") {
   return useMutation({
-    mutationFn: (input: Parameters<typeof requestSmsCode>[0]) =>
-      requestSmsCode(input),
+    mutationFn: (input: {phoneNumber: string; captchaToken: string}) =>
+      requestSmsCodeApi({...input, purpose}),
   });
+}
+
+export function useRequestEmailCode() {
+  return useMutation({
+    mutationFn: async (input: Parameters<typeof requestEmailCode>[0]) => {
+      await verifyCaptcha(input.captchaToken);
+      return requestEmailCode(input);
+    },
+  });
+}
+
+export function useRegisterSms() {
+  return useMutation({mutationFn: (input: Parameters<typeof registerSmsApi>[0]) => registerSmsApi(input)});
 }
 
 export function useRegister() {

@@ -24,13 +24,23 @@ export type SessionAccount = Pick<
 >;
 export type IdentityRole = Extract<Role, "supplier" | "vendor" | "funder">;
 
-export interface RegisterInput {
-  displayName: string;
-  email: string;
-  phoneNumber: string;
-  password: string;
-  sliderVerified: boolean;
-}
+export type VerificationMethod = "sms" | "email";
+
+export type RegisterInput =
+  | {
+      displayName: string;
+      email: string;
+      phoneNumber: string;
+      password: string;
+      sliderVerified: boolean;
+    }
+  | {
+      method: VerificationMethod;
+      displayName: string;
+      email: string;
+      phoneNumber: string;
+      code: string;
+    };
 
 export type LoginInput =
   | {
@@ -39,7 +49,8 @@ export type LoginInput =
       password: string;
       sliderVerified: boolean;
     }
-  | {method: "sms"; phoneNumber: string; code: string};
+  | {method: "sms"; phoneNumber: string; code: string}
+  | {method: "email"; email: string; code: string};
 
 export type AuthContext = {
   storage?: StorageLike;
@@ -47,9 +58,9 @@ export type AuthContext = {
   now?: number;
 };
 
-const SMS_CODE = "246810";
-const SMS_RESEND_MS = 60_000;
-const SMS_TTL_MS = 5 * 60_000;
+const VERIFICATION_CODE = "246810";
+const CODE_RESEND_MS = 60_000;
+const CODE_TTL_MS = 5 * 60_000;
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_COOLDOWN_MS = 60_000;
 
@@ -170,17 +181,51 @@ export async function login(
       return publicAccount(account);
     }
 
-    const phoneNumber = parsePhoneNumber(input.phoneNumber);
-    const challenge = database.smsChallenges.find(
-      (candidate) =>
-        candidate.phoneNumber === phoneNumber && candidate.expiresAtMs > now,
+    if (input.method === "sms") {
+      const phoneNumber = parsePhoneNumber(input.phoneNumber);
+      const challenge = database.smsChallenges.find(
+        (candidate) =>
+          candidate.phoneNumber === phoneNumber && candidate.expiresAtMs > now,
+      );
+      const account = database.accounts.find(
+        (candidate) => candidate.phoneNumber === phoneNumber,
+      );
+      const guardKeys = loginGuardKeys(account, phoneNumber, context);
+      assertLoginAvailable(database, guardKeys, now);
+      if (!challenge || input.code.trim() !== VERIFICATION_CODE || !account) {
+        failLogin(
+          database,
+          guardKeys,
+          now,
+          context.storage,
+          "验证码无效或已过期",
+        );
+      }
+      writeMockDatabase(
+        {
+          ...database,
+          smsChallenges: database.smsChallenges.filter(
+            (candidate) => candidate !== challenge,
+          ),
+          loginAttempts: database.loginAttempts.filter(
+            (attempt) => !guardKeys.includes(attempt.key),
+          ),
+        },
+        context.storage,
+      );
+      return publicAccount(account);
+    }
+
+    const email = parseEmail(input.email);
+    const challenge = database.emailChallenges.find(
+      (candidate) => candidate.email === email && candidate.expiresAtMs > now,
     );
     const account = database.accounts.find(
-      (candidate) => candidate.phoneNumber === phoneNumber,
+      (candidate) => candidate.email.toLowerCase() === email,
     );
-    const guardKeys = loginGuardKeys(account, phoneNumber, context);
+    const guardKeys = loginGuardKeys(account, email, context);
     assertLoginAvailable(database, guardKeys, now);
-    if (!challenge || input.code.trim() !== SMS_CODE || !account) {
+    if (!challenge || input.code.trim() !== VERIFICATION_CODE || !account) {
       failLogin(
         database,
         guardKeys,
@@ -192,7 +237,7 @@ export async function login(
     writeMockDatabase(
       {
         ...database,
-        smsChallenges: database.smsChallenges.filter(
+        emailChallenges: database.emailChallenges.filter(
           (candidate) => candidate !== challenge,
         ),
         loginAttempts: database.loginAttempts.filter(
@@ -206,11 +251,11 @@ export async function login(
 }
 
 export async function requestSmsCode(
-  input: {phoneNumber: string; sliderVerified: boolean},
+  input: {phoneNumber: string; captchaToken: string},
   context: AuthContext = {},
 ) {
   return runMockOperation(() => {
-    if (!input.sliderVerified) throw new Error("请先完成安全验证");
+    if (!input.captchaToken.trim()) throw new Error("请先完成安全验证");
     const phoneNumber = parsePhoneNumber(input.phoneNumber);
     const database = readMockDatabase(context.storage);
     const now = currentTime(context);
@@ -236,16 +281,60 @@ export async function requestSmsCode(
           {
             phoneNumber,
             clientKey,
-            expiresAtMs: now + SMS_TTL_MS,
-            resendAtMs: now + SMS_RESEND_MS,
+            expiresAtMs: now + CODE_TTL_MS,
+            resendAtMs: now + CODE_RESEND_MS,
           },
         ],
       },
       context.storage,
     );
     return {
-      previewCode: SMS_CODE,
-      resendAfterSeconds: SMS_RESEND_MS / 1_000,
+      previewCode: VERIFICATION_CODE,
+      resendAfterSeconds: CODE_RESEND_MS / 1_000,
+    };
+  });
+}
+
+export async function requestEmailCode(
+  input: {email: string; captchaToken: string},
+  context: AuthContext = {},
+) {
+  return runMockOperation(() => {
+    if (!input.captchaToken.trim()) throw new Error("请先完成安全验证");
+    const email = parseEmail(input.email);
+    const database = readMockDatabase(context.storage);
+    const now = currentTime(context);
+    const clientKey = mockClientKey(context);
+    const existing = database.emailChallenges.find(
+      (challenge) =>
+        challenge.email === email || challenge.clientKey === clientKey,
+    );
+    if (existing && existing.resendAtMs > now) {
+      const seconds = Math.ceil((existing.resendAtMs - now) / 1_000);
+      throw new Error(`请 ${seconds} 秒后重新获取`);
+    }
+
+    writeMockDatabase(
+      {
+        ...database,
+        emailChallenges: [
+          ...database.emailChallenges.filter(
+            (challenge) =>
+              challenge.email !== email && challenge.clientKey !== clientKey,
+          ),
+          {
+            email,
+            clientKey,
+            expiresAtMs: now + CODE_TTL_MS,
+            resendAtMs: now + CODE_RESEND_MS,
+          },
+        ],
+      },
+      context.storage,
+    );
+    return {
+      previewCode: VERIFICATION_CODE,
+      resendAfterSeconds: CODE_RESEND_MS / 1_000,
     };
   });
 }
@@ -255,9 +344,11 @@ export async function register(
   storage?: StorageLike,
 ) {
   return runMockOperation(() => {
-    if (!input.sliderVerified) throw new Error("请先完成安全验证");
+    if ("password" in input && !input.sliderVerified) {
+      throw new Error("请先完成安全验证");
+    }
     const database = readMockDatabase(storage);
-    const email = input.email.trim().toLowerCase();
+    const email = parseEmail(input.email);
     const phoneNumber = parsePhoneNumber(input.phoneNumber);
     if (database.accounts.some((account) => account.email.toLowerCase() === email)) {
       throw new Error("该邮箱已注册");
@@ -266,19 +357,52 @@ export async function register(
       throw new Error("该手机号已注册");
     }
 
+    if (!("password" in input)) {
+      const now = Date.now();
+      const challenge =
+        input.method === "sms"
+          ? database.smsChallenges.find(
+              (candidate) =>
+                candidate.phoneNumber === phoneNumber &&
+                candidate.expiresAtMs > now,
+            )
+          : database.emailChallenges.find(
+              (candidate) =>
+                candidate.email === email && candidate.expiresAtMs > now,
+            );
+      if (!challenge || input.code.trim() !== VERIFICATION_CODE) {
+        throw new Error("验证码无效或已过期");
+      }
+    }
+
     const account: MockAccount = {
       id: createId("account"),
       displayName: input.displayName.trim(),
       email,
       phoneNumber,
-      password: input.password,
+      password: "password" in input ? input.password : createId("disabled"),
       isDemo: false,
       roles: ["buyer"],
       verificationStatus: "unverified",
       grants: [],
     };
     writeMockDatabase(
-      {...database, accounts: [...database.accounts, account]},
+      {
+        ...database,
+        accounts: [...database.accounts, account],
+        smsChallenges:
+          "method" in input && input.method === "sms"
+            ? database.smsChallenges.filter(
+                (candidate) => candidate.phoneNumber !== phoneNumber,
+              )
+            : database.smsChallenges,
+        emailChallenges:
+          "method" in input && input.method === "email"
+            ? database.emailChallenges.filter(
+                (candidate) => candidate.email !== email,
+              )
+            : database.emailChallenges,
+      },
       storage,
     );
     return publicAccount(account);
@@ -405,6 +529,14 @@ function parsePhoneNumber(value: string) {
   const result = phoneNumberSchema.safeParse(value);
   if (!result.success) {
     throw new Error(result.error.issues[0]?.message ?? "请输入有效的手机号");
+  }
+  return result.data;
+}
+
+function parseEmail(value: string) {
+  const result = z.string().trim().toLowerCase().email("请输入有效的邮箱").safeParse(value);
+  if (!result.success) {
+    throw new Error(result.error.issues[0]?.message ?? "请输入有效的邮箱");
   }
   return result.data;
 }

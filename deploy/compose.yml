@@ -1,18 +1,94 @@
-name: compute-exchange
+name: wanxiang-frontend
 
 services:
-  app:
-    image: ghcr.io/dylan-nihilo/compute-exchange:${IMAGE_TAG:-latest}
-    container_name: compute-exchange
+  frontend:
+    image: wanxiang-frontend:${IMAGE_TAG:?IMAGE_TAG is required}
+    container_name: wanxiang-frontend
     restart: unless-stopped
     environment:
+      AUTH_API_BASE_URL: http://wanxiang-backend:8080/api/v1
       HOSTNAME: 0.0.0.0
       NODE_ENV: production
       PORT: "3000"
-    networks:
-      - tea-network
+    expose:
+      - "3000"
 
-networks:
-  tea-network:
-    external: true
-    name: deploy_tea-network
+  cap:
+    image: tiago2/cap:3.1.8@sha256:56d402dc15e536b4c20e341a81bb9e78a0082b833e4337b9b05b242d96e0ffe5
+    container_name: wanxiang-cap
+    restart: unless-stopped
+    environment:
+      ADMIN_KEY: ${CAP_ADMIN_KEY:?CAP_ADMIN_KEY is required}
+      CORS_ORIGIN: https://omnisline.com,https://www.omnisline.com
+      RATELIMIT_IP_HEADER: x-forwarded-for
+      REDIS_URL: redis://cap-valkey:6379
+    depends_on:
+      cap-valkey:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  cap-init:
+    image: tiago2/cap:3.1.8@sha256:56d402dc15e536b4c20e341a81bb9e78a0082b833e4337b9b05b242d96e0ffe5
+    container_name: wanxiang-cap-init
+    restart: "no"
+    environment:
+      CAP_SITE_JWT_SECRET: ${CAP_SITE_JWT_SECRET:?CAP_SITE_JWT_SECRET is required}
+      CAP_SITE_SECRET: ${CAP_SITE_SECRET:?CAP_SITE_SECRET is required}
+      REDIS_URL: redis://cap-valkey:6379
+    depends_on:
+      cap-valkey:
+        condition: service_healthy
+    entrypoint: ["bun"]
+    command:
+      - -e
+      - |
+        import { db } from "./src/db.js";
+        const siteKey = "omnis-prod";
+        if (!(await db.sismember("keys", siteKey))) {
+          const secretHash = await Bun.password.hash(process.env.CAP_SITE_SECRET);
+          const config = JSON.stringify({ difficulty: 4, challengeCount: 80, saltSize: 32, instrumentation: true, obfuscationLevel: 3, blockAutomatedBrowsers: false, rsw: false, rswT: 75000, corsOrigins: ["https://omnisline.com", "https://www.omnisline.com"] });
+          await db.hmset(`key:$${siteKey}`, ["name", "OmniS Production", "secretHash", secretHash, "jwtSecret", process.env.CAP_SITE_JWT_SECRET, "config", config, "created", String(Date.now())]);
+          await db.sadd("keys", siteKey);
+        }
+
+  cap-valkey:
+    image: valkey/valkey:9-alpine
+    container_name: wanxiang-cap-valkey
+    restart: unless-stopped
+    command: valkey-server --save 60 1 --loglevel warning --maxmemory-policy noeviction
+    volumes:
+      - cap_valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  caddy:
+    image: caddy:2.11.4-alpine
+    container_name: wanxiang-caddy
+    restart: unless-stopped
+    depends_on:
+      cap:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  cap_valkey_data:
+  caddy_data:
+  caddy_config:

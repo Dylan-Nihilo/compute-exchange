@@ -3,7 +3,8 @@
 import {create} from "zustand";
 import {createJSONStorage, persist} from "zustand/middleware";
 
-import type {Account, Role} from "../domain/contracts";
+import type {Role} from "../domain/contracts";
+import type {SessionAccount} from "./service";
 import {resolveActiveRole} from "./session";
 
 export const AUTH_STORAGE_KEY = "compute-exchange:session";
@@ -35,11 +36,16 @@ const safeStorage = createJSONStorage(() => ({
 }));
 
 interface AuthState {
+  account: SessionAccount | null;
   accountId: string | null;
   activeRole: Role | null;
   hasHydrated: boolean;
+  rememberSession: boolean;
   roleSwitchTarget: string | null;
-  establishSession: (account: Pick<Account, "id" | "roles">) => void;
+  establishSession: (
+    account: SessionAccount,
+    remember?: boolean,
+  ) => void;
   selectRole: (role: Role, availableRoles: readonly Role[]) => boolean;
   beginRoleSwitch: (
     role: Role,
@@ -58,14 +64,18 @@ export const useAuthStore = create<AuthState>()(
         set({hasHydrated: true});
       };
       return {
+        account: null,
         accountId: null,
         activeRole: null,
         hasHydrated: false,
+        rememberSession: true,
         roleSwitchTarget: null,
-        establishSession: (account) =>
+        establishSession: (account, rememberSession = true) =>
           set({
+            account,
             accountId: account.id,
             activeRole: resolveActiveRole(account.roles, get().activeRole),
+            rememberSession,
           }),
         selectRole: (activeRole, availableRoles) => {
           if (!availableRoles.includes(activeRole)) return false;
@@ -79,7 +89,13 @@ export const useAuthStore = create<AuthState>()(
         },
         completeRoleSwitch: () => set({roleSwitchTarget: null}),
         signOut: () =>
-          set({accountId: null, activeRole: null, roleSwitchTarget: null}),
+          set({
+            account: null,
+            accountId: null,
+            activeRole: null,
+            rememberSession: true,
+            roleSwitchTarget: null,
+          }),
         setHasHydrated: (hasHydrated) => set({hasHydrated}),
       };
     },
@@ -87,7 +103,10 @@ export const useAuthStore = create<AuthState>()(
       name: AUTH_STORAGE_KEY,
       version: 1,
       storage: safeStorage,
-      partialize: ({accountId, activeRole}) => ({accountId, activeRole}),
+      partialize: ({account, accountId, activeRole, rememberSession}) =>
+        rememberSession
+          ? {account, accountId, activeRole}
+          : {account: null, accountId: null, activeRole: null},
       onRehydrateStorage: () => (_state, error) => {
         if (error) safeStorage?.removeItem(AUTH_STORAGE_KEY);
         queueMicrotask(finishHydration);

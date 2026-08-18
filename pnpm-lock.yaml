@@ -54,6 +54,9 @@ importers:
       '@tiptap/suggestion':
         specifier: 3.27.4
         version: 3.27.4(@floating-ui/dom@1.8.0)(@tiptap/core@3.27.4(@tiptap/pm@3.27.4))(@tiptap/pm@3.27.4)
+      cap-widget:
+        specifier: 0.1.57
+        version: 0.1.57
       embla-carousel:
         specifier: 8.6.0
         version: 8.6.0
@@ -1519,6 +1522,9 @@ packages:
 
   caniuse-lite@1.0.30001803:
     resolution: {integrity: sha512-g/uHREV2ZpK9qMalCsWaxmA6ol+DX8GYhuf3T40RKoP+oL7vhRJh8LNt73PCjpnR6l14FzfPrB5Yux4PKm2meg==}
+
+  cap-widget@0.1.57:
+    resolution: {integrity: sha512-SyIK5XgYIFSDgH683M9KpfBmDSDB0ZfPZQBxL6MggNrjjnbIQYpbsNpj0S7PC/wXp7oJgAuBD2vtJnN9jJghBg==}
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -5055,6 +5061,8 @@ snapshots:
   callsites@3.1.0: {}
 
   caniuse-lite@1.0.30001803: {}
+
+  cap-widget@0.1.57: {}
 
   ccount@2.0.1: {}
 

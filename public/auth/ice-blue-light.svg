@@ -1,0 +1,9 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="800" height="620" viewBox="0 0 800 620" fill="none" xmlns="http://www.w3.org/2000/svg">
+<ellipse id="Atmosphere / Ice blue light" cx="400" cy="310" rx="400" ry="310" fill="url(#paint0_radial_0_221)"/>
+<defs>
+<radialGradient id="paint0_radial_0_221" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="scale(800 620)">
+<stop stop-color="#94E0FF" stop-opacity="0.25"/>
+<stop offset="1" stop-color="#D1F2FF" stop-opacity="0"/>
+</radialGradient>
+</defs>
+</svg>

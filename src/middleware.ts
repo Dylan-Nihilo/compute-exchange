@@ -3,8 +3,8 @@ import {NextResponse, type NextRequest} from "next/server";
 /**
  * Temporary route lockdown while the landing page is built section by
  * section: `/` serves the landing page (rewrite, clean URL) and every
- * other application route bounces back to it. The market skeleton stays
- * available for product review while the rest of the app remains locked.
+ * other application route bounces back to it. Public market and account-entry
+ * routes stay available for product review while the rest remains locked.
  */
 export function middleware(request: NextRequest) {
   const {pathname} = request.nextUrl;
@@ -16,7 +16,9 @@ export function middleware(request: NextRequest) {
     pathname === "/landing" ||
     pathname.startsWith("/landing/") ||
     pathname === "/market" ||
-    pathname.startsWith("/market/")
+    pathname.startsWith("/market/") ||
+    pathname === "/auth" ||
+    pathname.startsWith("/auth/")
   ) {
     return NextResponse.next();
   }
@@ -25,6 +27,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|brand|compute-spot|images|fonts).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|brand|compute-spot|images|fonts).*)",
   ],
 };

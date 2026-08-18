@@ -1,0 +1,13 @@
+omnisline.com, www.omnisline.com {
+	handle /api/v1/* {
+		reverse_proxy wanxiang-backend:8080
+	}
+
+	handle_path /cap/* {
+		reverse_proxy cap:3000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

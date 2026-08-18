@@ -1,53 +1,95 @@
 "use client";
 
-import {Alert, Label, Slider, Typography} from "@heroui/react";
+import {
+  Alert,
+  Button,
+  FieldError,
+  InputGroup,
+  Label,
+  Spinner,
+  TextField,
+  toast,
+  Typography,
+} from "@heroui/react";
 import {DropZone} from "@heroui-pro/react/drop-zone";
-import {useEffect, useRef} from "react";
+import {useState} from "react";
 
-export function SliderVerification({
-  disabled = false,
+import {solveCaptcha} from "@/lib/captcha/cap";
+
+export function VerificationCodeField({
+  canSend,
   id,
-  onValueChange,
-  value,
+  isPending,
+  onSend,
+  resendSeconds,
 }: {
-  disabled?: boolean;
+  canSend: boolean;
   id: string;
-  onValueChange: (value: number) => void;
-  value: number;
+  isPending: boolean;
+  onSend: (captchaToken: string) => Promise<boolean>;
+  resendSeconds: number;
 }) {
-  const verified = value === 100;
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  useEffect(() => {
-    if (inputRef.current) inputRef.current.id = id;
-  }, [id]);
+  async function verifyAndSend() {
+    setIsVerifying(true);
+    try {
+      const captchaToken = await solveCaptcha();
+      setIsVerifying(false);
+      await onSend(captchaToken);
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : "安全验证未完成，请重试");
+    } finally {
+      setIsVerifying(false);
+    }
+  }
 
   return (
-    <Slider
-      className="w-full"
-      isDisabled={disabled || verified}
-      maxValue={100}
-      minValue={0}
-      onChange={(nextValue) => {
-        if (!verified) onValueChange(Number(nextValue));
-      }}
-      step={10}
-      value={value}
+    <TextField
+      fullWidth
+      isRequired
+      name="code"
+      validate={(value) =>
+        /^[0-9]{6}$/.test(value) ? null : "请输入 6 位数字验证码"
+      }
+      variant="secondary"
     >
-      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-        <Label>安全验证</Label>
-        <Slider.Output className={verified ? "text-success" : "text-muted"}>
-          {verified ? "验证已完成" : "向右拖动滑块"}
-        </Slider.Output>
-      </div>
-      <Slider.Track>
-        <Slider.Fill />
-        <Slider.Thumb
-          aria-valuetext={verified ? "验证已完成" : `验证进度 ${value}%`}
-          inputRef={inputRef}
+      <Label className="text-[13px] text-[#315064]">验证码</Label>
+      <InputGroup
+        className="h-[50px] rounded-[13px] border border-[rgba(183,205,215,0.44)] bg-[rgba(251,253,254,0.94)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.7)]"
+        fullWidth
+        variant="secondary"
+      >
+        <InputGroup.Input
+          autoComplete="one-time-code"
+          id={id}
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="请输入 6 位验证码"
         />
-      </Slider.Track>
-    </Slider>
+        <InputGroup.Suffix className="pe-1">
+          <Button
+            className="h-9 shrink-0 rounded-[10px] px-3 text-[#2c6b88]"
+            isDisabled={!canSend || isPending || isVerifying || resendSeconds > 0}
+            isPending={isPending || isVerifying}
+            onPress={() => void verifyAndSend()}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {isPending || isVerifying ? <Spinner color="current" size="sm" /> : null}
+            {isVerifying
+              ? "安全验证中"
+              : isPending
+                ? "正在发送"
+                : resendSeconds > 0
+                  ? `${resendSeconds} 秒`
+                  : "获取验证码"}
+          </Button>
+        </InputGroup.Suffix>
+      </InputGroup>
+      <FieldError />
+    </TextField>
   );
 }
 
@@ -111,16 +153,18 @@ export function FormError({error}: {error: unknown}) {
 }
 
 export function FormHeading({
+  compact = false,
   description,
   eyebrow,
   title,
 }: {
+  compact?: boolean;
   description: string;
   eyebrow?: string;
   title: string;
 }) {
   return (
-    <header className="mb-8">
+    <header className={compact ? "mb-3" : "mb-8"}>
       {eyebrow ? (
         <Typography
           className="tracking-[0.12em]"
@@ -131,10 +175,21 @@ export function FormHeading({
           {eyebrow}
         </Typography>
       ) : null}
-      <Typography className="mt-2 tracking-[-0.035em]" type="h1">
+      <Typography
+        className={
+          compact
+            ? "text-[28px] leading-10 tracking-[-0.035em] text-[#0b263a]"
+            : "mt-2 tracking-[-0.035em]"
+        }
+        type="h1"
+      >
         {title}
       </Typography>
-      <Typography className="mt-3 leading-6" color="muted" type="body-sm">
+      <Typography
+        className={compact ? "mt-1 text-sm leading-[22px] text-[#647d8b]" : "mt-3 leading-6"}
+        color="muted"
+        type="body-sm"
+      >
         {description}
       </Typography>
     </header>

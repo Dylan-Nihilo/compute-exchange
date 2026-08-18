@@ -83,6 +83,9 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=https://omnisline.com/api/v1
+            NEXT_PUBLIC_CAP_API_ENDPOINT=https://omnisline.com/cap/omnis-prod/
           secrets: |
             "HEROUI_KEY=${{ secrets.HEROUI_KEY }}"
 

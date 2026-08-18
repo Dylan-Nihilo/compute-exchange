@@ -19,4 +19,15 @@ describe("public environment", () => {
       /HTTP\(S\)/,
     );
   });
+
+  it("normalizes an optional Cap API endpoint", () => {
+    assert.deepEqual(
+      parsePublicEnv({NEXT_PUBLIC_CAP_API_ENDPOINT: "https://cap.example.com/site"}),
+      {NEXT_PUBLIC_CAP_API_ENDPOINT: "https://cap.example.com/site/"},
+    );
+    assert.throws(
+      () => parsePublicEnv({NEXT_PUBLIC_CAP_API_ENDPOINT: "file:///tmp/cap"}),
+      /HTTP\(S\)/,
+    );
+  });
 });

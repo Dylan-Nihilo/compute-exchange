@@ -1,13 +1,11 @@
 "use client";
 
 import {
-  AlertDialog,
   Button,
-  Description,
+  Checkbox,
   FieldError,
   Form,
   Input,
-  InputOTP,
   Label,
   Link,
   Separator,
@@ -16,46 +14,39 @@ import {
   Typography,
 } from "@heroui/react";
 import {Segment} from "@heroui-pro/react/segment";
+import Image from "next/image";
 import {useRouter, useSearchParams} from "next/navigation";
 import {useEffect, useState} from "react";
 
 import {
-  useDemoAccounts,
   useLogin,
+  useRequestEmailCode,
   useRequestSmsCode,
-  useResetDemo,
 } from "@/lib/auth/queries";
 import {safeNextPath} from "@/lib/auth/session";
 import {useAuthStore} from "@/lib/auth/store";
+import type {
+  LoginInput,
+  SessionAccount,
+  VerificationMethod,
+} from "@/lib/auth/service";
 import type {Role} from "@/lib/domain/contracts";
 import {homeForRole, matchRoute} from "@/lib/domain/routes";
-import type {LoginInput, SessionAccount} from "@/lib/auth/service";
-import {FormError, FormHeading, SliderVerification} from "./form-parts";
-
-const roleLabels: Partial<Record<Role, string>> = {
-  buyer: "买家",
-  supplier: "供给方",
-  vendor: "设备厂商",
-  funder: "资方",
-  operator: "平台运营",
-  admin: "管理员",
-};
+import {FormError, FormHeading, VerificationCodeField} from "./form-parts";
 
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const mutation = useLogin();
-  const smsMutation = useRequestSmsCode();
-  const resetMutation = useResetDemo();
-  const demoAccounts = useDemoAccounts();
+  const smsMutation = useRequestSmsCode("login");
+  const emailMutation = useRequestEmailCode();
   const selectRole = useAuthStore((state) => state.selectRole);
-  const [pendingDemo, setPendingDemo] = useState<string | null>(null);
-  const [resetOpen, setResetOpen] = useState(false);
-  const [method, setMethod] = useState<"password" | "sms">("password");
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [method, setMethod] = useState<VerificationMethod>("sms");
+  const [identifier, setIdentifier] = useState("");
+  const [remember, setRemember] = useState(true);
   const [resendSeconds, setResendSeconds] = useState(0);
-  const [sliderValue, setSliderValue] = useState(0);
   const nextPath = safeNextPath(searchParams.get("next"));
+  const codeMutation = method === "sms" ? smsMutation : emailMutation;
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
@@ -66,294 +57,173 @@ export function LoginForm() {
     return () => window.clearTimeout(timer);
   }, [resendSeconds]);
 
-  async function authenticate(
-    input: LoginInput,
-    preferredRole?: Role,
-  ) {
-    const account = await mutation.mutateAsync(input);
-    const role = destinationRole(account, nextPath, preferredRole);
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const code = String(form.get("code"));
+    const credentials: LoginInput =
+      method === "sms"
+        ? {method, phoneNumber: identifier, code}
+        : {method, email: identifier, code};
+
+    const account = await mutation
+      .mutateAsync({credentials, remember})
+      .catch(() => null);
+    if (!account) return;
+
+    const role = destinationRole(account, nextPath);
     selectRole(role, account.roles);
     toast.success("登录成功");
     router.replace(nextPath ?? homeForRole(role));
   }
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const input: LoginInput =
-      method === "password"
-        ? {
-            method,
-            identifier: String(form.get("identifier")),
-            password: String(form.get("password")),
-            sliderVerified: sliderValue === 100,
-          }
-        : {
-            method,
-            phoneNumber,
-            code: String(form.get("code")),
-          };
-    await authenticate(input).catch(() => {
-      if (method === "password") setSliderValue(0);
-    });
+  async function sendCode(captchaToken: string) {
+    const result = await (method === "sms"
+      ? smsMutation.mutateAsync({phoneNumber: identifier, captchaToken})
+      : emailMutation.mutateAsync({email: identifier, captchaToken})
+    ).catch(() => null);
+    if (!result) return false;
+    setResendSeconds(result.resendAfterSeconds);
+    toast.success(
+      "previewCode" in result
+        ? `验证码已发送，演示验证码：${result.previewCode}`
+        : "验证码已发送",
+    );
+    return true;
   }
 
-  async function sendCode() {
-    await smsMutation
-      .mutateAsync({phoneNumber, sliderVerified: sliderValue === 100})
-      .then(({resendAfterSeconds}) => {
-        setResendSeconds(resendAfterSeconds);
-        setSliderValue(0);
-        toast.success("验证码已发送");
-      })
-      .catch(() => setSliderValue(0));
-  }
-
-  function switchMethod(nextMethod: "password" | "sms") {
+  function switchMethod(nextMethod: VerificationMethod) {
     setMethod(nextMethod);
-    setSliderValue(0);
+    setIdentifier("");
+    setResendSeconds(0);
     mutation.reset();
     smsMutation.reset();
+    emailMutation.reset();
   }
 
-  async function enterDemo(email: string, role: Role) {
-    setPendingDemo(email);
-    await authenticate(
-      {
-        method: "password",
-        identifier: email,
-        password: "demo1234",
-        sliderVerified: true,
-      },
-      role,
-    ).catch(() => undefined);
-    setPendingDemo(null);
-  }
+  const identifierIsValid =
+    method === "sms"
+      ? /^1\d{10}$/.test(identifier)
+      : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
 
   return (
     <>
       <FormHeading
-        description="登录后进入当前身份对应的工作台。"
-        eyebrow="账户"
-        title="登录账户"
+        compact
+        description="请使用手机号或邮箱验证码登录"
+        title="登录"
       />
       <Segment
         aria-label="登录方式"
-        className="mb-6 w-full"
-        onSelectionChange={(key) => switchMethod(key as "password" | "sms")}
+        className="mb-3 w-full rounded-[13px] bg-[rgba(232,242,246,0.52)] p-[3px] [&_[data-slot=segment-indicator]]:rounded-[10px] [&_[data-slot=segment-indicator]]:bg-[rgba(226,241,246,0.96)] [&_[data-slot=segment-item]]:h-[34px] [&_[data-slot=segment-item]]:flex-1 [&_[data-slot=segment-item]]:rounded-[10px]"
+        onSelectionChange={(key) => switchMethod(key as VerificationMethod)}
         selectedKey={method}
+        size="lg"
       >
-        <Segment.Item id="password">密码登录</Segment.Item>
-        <Segment.Item id="sms">验证码登录</Segment.Item>
+        <Segment.Item id="sms">手机号登录</Segment.Item>
+        <Segment.Item id="email">邮箱登录</Segment.Item>
       </Segment>
-      <Form className="space-y-5" onSubmit={submit}>
+
+      <Form className="space-y-3" onSubmit={submit}>
         <FormError
-          error={mutation.error ?? smsMutation.error ?? resetMutation.error}
+          error={mutation.error ?? smsMutation.error ?? emailMutation.error}
         />
-        {method === "password" ? (
-          <>
-            <TextField
-              fullWidth
-              isRequired
-              name="identifier"
-              variant="secondary"
-            >
-              <Label>邮箱或手机号</Label>
-              <Input
-                autoComplete="username"
-                id="login-identifier"
-                placeholder="邮箱或手机号"
-              />
-              <FieldError />
-            </TextField>
-            <TextField
-              fullWidth
-              isRequired
-              minLength={8}
-              name="password"
-              type="password"
-              variant="secondary"
-            >
-              <Label>密码</Label>
-              <Input
-                autoComplete="current-password"
-                id="login-password"
-              />
-              <Description>至少 8 位</Description>
-              <FieldError />
-            </TextField>
-            <SliderVerification
-              disabled={mutation.isPending}
-              id="login-password-slider"
-              onValueChange={setSliderValue}
-              value={sliderValue}
-            />
-          </>
-        ) : (
-          <>
-            <TextField
-              fullWidth
-              inputMode="numeric"
-              isRequired
-              maxLength={11}
-              name="phoneNumber"
-              onChange={setPhoneNumber}
-              pattern="1[0-9]{10}"
-              type="tel"
-              value={phoneNumber}
-              variant="secondary"
-            >
-              <Label>手机号</Label>
-              <Input
-                autoComplete="tel"
-                id="login-phone"
-                placeholder="11 位手机号"
-              />
-              <FieldError />
-            </TextField>
-            <SliderVerification
-              disabled={smsMutation.isPending || resendSeconds > 0}
-              id="login-sms-slider"
-              onValueChange={setSliderValue}
-              value={sliderValue}
-            />
-            <Button
-              fullWidth
-              isDisabled={
-                smsMutation.isPending ||
-                resendSeconds > 0 ||
-                sliderValue !== 100 ||
-                !/^1\d{10}$/.test(phoneNumber)
-              }
-              onPress={() => void sendCode()}
-              type="button"
-              variant="outline"
-            >
-              {smsMutation.isPending
-                ? "正在发送"
-                : resendSeconds > 0
-                  ? `${resendSeconds} 秒后重新获取`
-                  : "获取验证码"}
-            </Button>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="login-code">短信验证码</Label>
-              <InputOTP
-                autoComplete="one-time-code"
-                id="login-code"
-                inputMode="numeric"
-                maxLength={6}
-                minLength={6}
-                name="code"
-                pattern="^\d+$"
-                required
-                variant="secondary"
-              >
-                <InputOTP.Group>
-                  {Array.from({length: 6}, (_, index) => (
-                    <InputOTP.Slot index={index} key={index} />
-                  ))}
-                </InputOTP.Group>
-              </InputOTP>
-            </div>
-          </>
-        )}
-        <Button
+        <TextField
           fullWidth
-          isDisabled={
-            mutation.isPending || (method === "password" && sliderValue !== 100)
-          }
-          size="lg"
+          inputMode={method === "sms" ? "numeric" : "email"}
+          isRequired
+          maxLength={method === "sms" ? 11 : 120}
+          name="identifier"
+          onChange={setIdentifier}
+          type={method === "sms" ? "tel" : "email"}
+          validate={(value) => {
+            const valid =
+              method === "sms"
+                ? /^1[0-9]{10}$/.test(value)
+                : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+            return valid
+              ? null
+              : method === "sms"
+                ? "请输入正确的 11 位手机号"
+                : "请输入正确的邮箱地址";
+          }}
+          value={identifier}
+          variant="secondary"
+        >
+          <Label className="text-[13px] text-[#315064]">
+            {method === "sms" ? "手机号" : "邮箱"}
+          </Label>
+          <Input
+            autoComplete={method === "sms" ? "tel" : "email"}
+            className="h-[50px] rounded-[13px] border border-[rgba(183,205,215,0.44)] bg-[rgba(251,253,254,0.94)] px-3 text-sm text-[#173d52] shadow-[inset_0_1px_1px_rgba(255,255,255,0.7)]"
+            id="login-identifier"
+            placeholder={method === "sms" ? "请输入手机号" : "请输入邮箱"}
+          />
+          <FieldError />
+        </TextField>
+
+        <VerificationCodeField
+          canSend={identifierIsValid}
+          id="login-code"
+          isPending={codeMutation.isPending}
+          onSend={sendCode}
+          resendSeconds={resendSeconds}
+        />
+
+        <Checkbox
+          className="text-[13px] text-[#4e6c7c]"
+          isSelected={remember}
+          name="remember"
+          onChange={setRemember}
+        >
+          <Checkbox.Content>
+            <Checkbox.Control className="size-4 rounded-[5px] before:bg-[#c4ec68]">
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            保持登录
+          </Checkbox.Content>
+        </Checkbox>
+
+        <Button
+          className="h-12 rounded-xl border border-[rgba(221,243,168,0.62)] bg-[#c4ec68] text-sm font-medium text-[#112c32] shadow-[0_6px_14px_rgba(125,171,54,0.16)] hover:bg-[#bce35f]"
+          fullWidth
+          isPending={mutation.isPending}
           type="submit"
           variant="primary"
         >
-          {mutation.isPending && !pendingDemo
-            ? "正在登录"
-            : method === "sms"
-              ? "验证码登录"
-              : "登录"}
+          登录
         </Button>
       </Form>
 
-      <div className="my-8 flex items-center gap-3" aria-hidden="true">
-        <Separator className="flex-1" />
-        <Typography color="muted" type="body-xs">
-          快速进入
-        </Typography>
-        <Separator className="flex-1" />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {demoAccounts.data?.map((account) => {
-          const role = account.roles[0];
-          return (
-            <Button
-              isDisabled={mutation.isPending}
-              key={account.id}
-              onPress={() => void enterDemo(account.email, role)}
-              size="sm"
-              variant="outline"
-            >
-              {pendingDemo === account.email
-                ? "正在进入"
-                : roleLabels[role] ?? account.displayName}
-            </Button>
-          );
-        })}
-      </div>
-      {demoAccounts.isError ? (
-        <p className="mt-3 text-sm text-muted">快捷账户暂时无法加载，可使用账号登录。</p>
-      ) : null}
-      <div className="mt-4 text-center">
-        <AlertDialog isOpen={resetOpen} onOpenChange={setResetOpen}>
-          <Button size="sm" variant="ghost">
-            恢复体验数据
-          </Button>
-          <AlertDialog.Backdrop>
-            <AlertDialog.Container>
-              <AlertDialog.Dialog>
-                <AlertDialog.Header>
-                  <AlertDialog.Icon status="danger" />
-                  <AlertDialog.Heading>恢复体验数据？</AlertDialog.Heading>
-                </AlertDialog.Header>
-                <AlertDialog.Body>
-                  已创建的体验账户和身份申请会被清除，快捷账户将恢复到初始状态。
-                </AlertDialog.Body>
-                <AlertDialog.Footer>
-                  <Button
-                    isDisabled={resetMutation.isPending}
-                    onPress={() => setResetOpen(false)}
-                    variant="tertiary"
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    isPending={resetMutation.isPending}
-                    onPress={() => {
-                      void resetMutation
-                        .mutateAsync()
-                        .then(() => {
-                          setResetOpen(false);
-                          toast.success("体验数据已恢复");
-                        })
-                        .catch(() => undefined);
-                    }}
-                    variant="danger"
-                  >
-                    恢复数据
-                  </Button>
-                </AlertDialog.Footer>
-              </AlertDialog.Dialog>
-            </AlertDialog.Container>
-          </AlertDialog.Backdrop>
-        </AlertDialog>
-      </div>
-
-      <p className="mt-8 text-center text-sm text-muted">
-        还没有账户？{" "}
-        <Link className="font-medium text-foreground underline underline-offset-4" href="/auth/register">
+      <p className="mt-3 text-center text-[13px] leading-5 text-[#526f7f]">
+        还没有账号？{" "}
+        <Link className="font-medium text-[#2c6b88]" href="/auth/register">
           注册
         </Link>
       </p>
+
+      <div className="my-3 flex items-center gap-2" aria-hidden="true">
+        <Separator className="flex-1 bg-[rgba(113,151,169,0.16)]" />
+        <Typography className="w-[100px] text-center text-xs text-[#748d9a]" type="body-xs">
+          其他登录方式
+        </Typography>
+        <Separator className="flex-1 bg-[rgba(113,151,169,0.16)]" />
+      </div>
+
+      <Button
+        className="h-11 rounded-full border border-[rgba(188,210,220,0.46)] bg-[rgba(251,253,254,0.94)] text-sm font-medium text-[#234a5f] shadow-[inset_0_1px_1px_rgba(255,255,255,0.62)]"
+        fullWidth
+        onPress={() => toast.info("微信扫码登录将在开放平台配置后启用")}
+        variant="outline"
+      >
+        <Image alt="" height={20} src="/auth/wechat.svg" width={20} />
+        微信扫码登录
+      </Button>
+
+      <div className="mt-3 flex items-center justify-center gap-2 text-xs text-[#708895]">
+        <Image alt="" height={14} src="/auth/lock.svg" width={14} />
+        <span>安全验证，保障账号与交易信息安全</span>
+      </div>
     </>
   );
 }
@@ -361,17 +231,8 @@ export function LoginForm() {
 function destinationRole(
   account: SessionAccount,
   nextPath: string | null,
-  preferredRole?: Role,
 ): Exclude<Role, "guest"> {
   const route = nextPath ? matchRoute(nextPath) : null;
-  if (
-    preferredRole &&
-    preferredRole !== "guest" &&
-    account.roles.includes(preferredRole) &&
-    (!route || route.roles.includes(preferredRole))
-  ) {
-    return preferredRole;
-  }
   const routeRole = route?.roles.find(
     (role): role is Exclude<Role, "guest"> =>
       role !== "guest" && account.roles.includes(role),
