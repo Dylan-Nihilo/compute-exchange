@@ -93,7 +93,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: publish
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     concurrency:
       group: compute-exchange-production
       cancel-in-progress: false
@@ -101,7 +101,14 @@ jobs:
       contents: read
       packages: read
 
+    env:
+      DEPLOY_HOST: 123.56.177.241
+      DEPLOY_USER: root
+      RELEASE_ROOT: /opt/wanxiang/frontend
+
     steps:
+      - uses: actions/checkout@v7
+
       - name: Configure deployment SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -113,7 +120,23 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Deploy on 47
+      - name: Upload frontend release files
+        run: |
+          release_dir="$RELEASE_ROOT/releases/$GITHUB_SHA"
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "install -d -m 755 '$release_dir' && test -s '$RELEASE_ROOT/.env'"
+          scp \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            deploy/compose.yml deploy/Caddyfile deploy/deploy.sh \
+            "$DEPLOY_USER@$DEPLOY_HOST:$release_dir/"
+
+      - name: Deploy frontend on production
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -121,5 +144,5 @@ jobs:
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
-            compute-deploy@47.82.146.14 \
-            "set -e; trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT; docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin >/dev/null; cd /data/compute-exchange; IMAGE_TAG='$GITHUB_SHA' docker compose pull; IMAGE_TAG='$GITHUB_SHA' docker compose up -d --remove-orphans --wait --wait-timeout 120"
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "set -eu; trap 'docker logout ghcr.io >/dev/null 2>&1 || true' 0; docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin >/dev/null; docker pull 'ghcr.io/dylan-nihilo/compute-exchange:$GITHUB_SHA'; docker tag 'ghcr.io/dylan-nihilo/compute-exchange:$GITHUB_SHA' 'wanxiang-frontend:$GITHUB_SHA'; chmod 700 '$RELEASE_ROOT/releases/$GITHUB_SHA/deploy.sh'; '$RELEASE_ROOT/releases/$GITHUB_SHA/deploy.sh' '$GITHUB_SHA'"
