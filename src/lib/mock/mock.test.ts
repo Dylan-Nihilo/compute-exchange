@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import {describe, it} from "node:test";
 
 import {homeForRole} from "../domain/routes.ts";
+import {DEMO_CAPTCHA_TOKEN} from "../captcha/cap.ts";
 import {
+  resolvePostAuthDestination,
   resolveActiveRole,
   safeNextPath,
 } from "../auth/session.ts";
@@ -11,6 +13,7 @@ import {
   getAccount,
   listDemoAccounts,
   login,
+  requestEmailCode,
   requestSmsCode,
   register,
   resetDemo,
@@ -45,6 +48,31 @@ describe("mock session contract", () => {
     assert.equal(resolveActiveRole(["buyer", "supplier"], "supplier"), "supplier");
     assert.equal(resolveActiveRole(["buyer", "supplier"], "admin"), "buyer");
     assert.equal(homeForRole(resolveActiveRole(["operator"], null)), "/admin");
+  });
+
+  it("returns only to routes available to the authenticated account", () => {
+    const account = {
+      id: "1",
+      displayName: "138****8000",
+      email: "",
+      phoneNumber: "138****8000",
+      roles: ["buyer"] as ["buyer"],
+      verificationStatus: "unverified" as const,
+      grants: [],
+    };
+
+    assert.deepEqual(resolvePostAuthDestination(account, "/market?gpu=H100"), {
+      path: "/market?gpu=H100",
+      role: "buyer",
+    });
+    assert.deepEqual(resolvePostAuthDestination(account, "/admin"), {
+      path: "/console/buyer",
+      role: "buyer",
+    });
+    assert.deepEqual(resolvePostAuthDestination(account, "/auth/login"), {
+      path: "/console/buyer",
+      role: "buyer",
+    });
   });
 });
 
@@ -128,7 +156,7 @@ describe("mock authentication service", () => {
     assert.equal((await getAccount(registered.id, storage))?.id, registered.id);
 
     const delivery = await requestSmsCode(
-      {phoneNumber: registered.phoneNumber, sliderVerified: true},
+      {phoneNumber: registered.phoneNumber, captchaToken: DEMO_CAPTCHA_TOKEN},
       {clientKey: "memory-fallback", now: 50_000, storage},
     );
     assert.equal(
@@ -198,7 +226,7 @@ describe("mock authentication service", () => {
     );
   });
 
-  it("requires the slider before creating an account", async () => {
+  it("requires security verification before creating an account", async () => {
     const storage = createMemoryStorage();
     setMockLatency(0);
 
@@ -217,7 +245,7 @@ describe("mock authentication service", () => {
     );
   });
 
-  it("requires the slider before password login and accepts email or phone", async () => {
+  it("requires security verification before password login and accepts email or phone", async () => {
     const storage = createMemoryStorage();
     setMockLatency(0);
 
@@ -264,20 +292,20 @@ describe("mock authentication service", () => {
     );
   });
 
-  it("sends a one-time SMS code after slider verification and consumes it on login", async () => {
+  it("sends a one-time SMS code after captcha verification and consumes it on login", async () => {
     const storage = createMemoryStorage();
     setMockLatency(0);
 
     await assert.rejects(
       requestSmsCode(
-        {phoneNumber: "13800000001", sliderVerified: false},
+        {phoneNumber: "13800000001", captchaToken: ""},
         {clientKey: "client-sms", now: 2_000, storage},
       ),
       /安全验证/,
     );
 
     const delivery = await requestSmsCode(
-      {phoneNumber: "13800000001", sliderVerified: true},
+      {phoneNumber: "13800000001", captchaToken: DEMO_CAPTCHA_TOKEN},
       {clientKey: "client-sms", now: 2_000, storage},
     );
     assert.equal(delivery.previewCode, "246810");
@@ -296,6 +324,42 @@ describe("mock authentication service", () => {
       ),
       /验证码无效或已过期/,
     );
+  });
+
+  it("logs in and registers with a one-time email code", async () => {
+    const storage = createMemoryStorage();
+    setMockLatency(0);
+
+    const loginDelivery = await requestEmailCode(
+      {email: "buyer@compute.local", captchaToken: DEMO_CAPTCHA_TOKEN},
+      {clientKey: "client-email-login", storage},
+    );
+    const buyer = await login(
+      {
+        method: "email",
+        email: "BUYER@COMPUTE.LOCAL",
+        code: loginDelivery.previewCode,
+      },
+      {clientKey: "client-email-login", storage},
+    );
+    assert.equal(buyer.id, "account-buyer");
+
+    const registerDelivery = await requestEmailCode(
+      {email: "new-account@example.com", captchaToken: DEMO_CAPTCHA_TOKEN},
+      {clientKey: "client-email-register", storage},
+    );
+    const registered = await register(
+      {
+        method: "email",
+        displayName: "新注册账户",
+        email: "new-account@example.com",
+        phoneNumber: "13800138018",
+        code: registerDelivery.previewCode,
+      },
+      storage,
+    );
+    assert.equal(registered.email, "new-account@example.com");
+    assert.deepEqual(registered.roles, ["buyer"]);
   });
 
   it("cools down an account after five consecutive failed logins", async () => {
@@ -365,7 +429,7 @@ describe("mock authentication service", () => {
   it("enforces SMS resend and expiry windows", async () => {
     const storage = createMemoryStorage();
     setMockLatency(0);
-    const input = {phoneNumber: "13800000002", sliderVerified: true};
+    const input = {phoneNumber: "13800000002", captchaToken: DEMO_CAPTCHA_TOKEN};
     const delivery = await requestSmsCode(input, {
       clientKey: "sms-window",
       now: 30_000,
@@ -398,12 +462,12 @@ describe("mock authentication service", () => {
     setMockLatency(0);
 
     await requestSmsCode(
-      {phoneNumber: "13800000003", sliderVerified: true},
+      {phoneNumber: "13800000003", captchaToken: DEMO_CAPTCHA_TOKEN},
       {clientKey: "sms-shared-client", now: 35_000, storage},
     );
     await assert.rejects(
       requestSmsCode(
-        {phoneNumber: "13800000004", sliderVerified: true},
+        {phoneNumber: "13800000004", captchaToken: DEMO_CAPTCHA_TOKEN},
         {clientKey: "sms-shared-client", now: 35_001, storage},
       ),
       /60 秒后重新获取/,
@@ -643,7 +707,7 @@ describe("mock authentication service", () => {
     const storage = createMemoryStorage();
     setMockLatency(0);
     await requestSmsCode(
-      {phoneNumber: "13800000001", sliderVerified: true},
+      {phoneNumber: "13800000001", captchaToken: DEMO_CAPTCHA_TOKEN},
       {clientKey: "reset-client", now: 40_000, storage},
     );
     for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -667,7 +731,7 @@ describe("mock authentication service", () => {
     assert.equal(
       (
         await requestSmsCode(
-          {phoneNumber: "13800000001", sliderVerified: true},
+          {phoneNumber: "13800000001", captchaToken: DEMO_CAPTCHA_TOKEN},
           {clientKey: "reset-client", now: 40_000, storage},
         )
       ).previewCode,

@@ -13,6 +13,12 @@ const publicEnvSchema = z.object({
     (value) => (value === "" ? undefined : value),
     httpUrlSchema.optional(),
   ),
+  NEXT_PUBLIC_CAP_API_ENDPOINT: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    httpUrlSchema
+      .transform((value) => (value.endsWith("/") ? value : `${value}/`))
+      .optional(),
+  ),
 });
 
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
@@ -25,4 +31,5 @@ export function parsePublicEnv(
 
 export const publicEnv = parsePublicEnv({
   NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  NEXT_PUBLIC_CAP_API_ENDPOINT: process.env.NEXT_PUBLIC_CAP_API_ENDPOINT,
 });

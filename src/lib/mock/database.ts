@@ -39,6 +39,13 @@ const smsChallengeSchema = z.object({
   resendAtMs: z.number().int().nonnegative(),
 });
 
+const emailChallengeSchema = z.object({
+  email: z.string().email(),
+  clientKey: z.string().min(1),
+  expiresAtMs: z.number().int().nonnegative(),
+  resendAtMs: z.number().int().nonnegative(),
+});
+
 const loginAttemptSchema = z.object({
   key: z.string().min(1),
   failures: z.number().int().nonnegative(),
@@ -51,6 +58,7 @@ const mockDatabaseSchema = z.object({
   qualifications: z.array(qualificationSchema),
   identityApplications: z.array(identityApplicationSchema),
   smsChallenges: z.array(smsChallengeSchema),
+  emailChallenges: z.array(emailChallengeSchema).default([]),
   loginAttempts: z.array(loginAttemptSchema),
 });
 
@@ -147,6 +155,7 @@ export function createSeedDatabase(): MockDatabase {
     qualifications: [],
     identityApplications: [],
     smsChallenges: [],
+    emailChallenges: [],
     loginAttempts: [],
   };
 }

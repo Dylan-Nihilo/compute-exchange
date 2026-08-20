@@ -7,10 +7,14 @@ import {AppProviders} from "./providers";
 
 export const metadata: Metadata = {
   title: {
-    default: "算力撮合交易平台",
-    template: "%s | 算力撮合交易平台",
+    default: "万象硅芯 OmniS",
+    template: "%s | 万象硅芯 OmniS",
   },
   description: "合规算力交易与 AI Token 服务平台",
+  icons: {
+    icon: "/brand/omnis/OmniS-logo-mark-blue.svg",
+    shortcut: "/brand/omnis/OmniS-logo-mark-blue.svg",
+  },
 };
 
 export default function RootLayout({children}: Readonly<{children: ReactNode}>) {

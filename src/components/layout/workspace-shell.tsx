@@ -5,12 +5,15 @@ import {InlineSelect} from "@heroui-pro/react/inline-select";
 import {Navbar} from "@heroui-pro/react/navbar";
 import {Sidebar} from "@heroui-pro/react/sidebar";
 import {Avatar, Button, Dropdown, Label, ListBox} from "@heroui/react";
+import Image from "next/image";
 import {usePathname, useRouter} from "next/navigation";
 
-import {useCurrentAccount} from "@/lib/auth/queries";
+import {useCurrentAccount, useLogout} from "@/lib/auth/queries";
 import {useAuthStore} from "@/lib/auth/store";
 import type {Role} from "@/lib/domain/contracts";
 import {homeForRole} from "@/lib/domain/routes";
+
+import {RouteTransition} from "./route-transition";
 
 const roleLabels: Record<Role, string> = {
   guest: "访客",
@@ -28,7 +31,7 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
   const {data: account} = useCurrentAccount();
   const activeRole = useAuthStore((state) => state.activeRole);
   const beginRoleSwitch = useAuthStore((state) => state.beginRoleSwitch);
-  const signOut = useAuthStore((state) => state.signOut);
+  const logoutMutation = useLogout();
 
   if (
     !account ||
@@ -53,20 +56,28 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
   }
 
   function logout() {
-    signOut();
-    router.replace("/auth/login");
+    logoutMutation.mutate(undefined, {
+      onSettled: () => router.replace("/auth/login"),
+    });
   }
 
   const sidebarContent = (
     <>
       <Sidebar.Header>
         <Button
-          className="justify-start px-2 font-semibold tracking-[0.12em]"
+          aria-label="返回万象硅芯首页"
+          className="h-auto justify-start px-2 py-1"
           fullWidth
           onPress={() => router.push("/")}
           variant="ghost"
         >
-          算力交易平台
+          <Image
+            alt="万象硅芯 OmniS"
+            className="h-8 w-auto"
+            height={55}
+            src="/brand/omnis/OmniS-logo-horizontal-blue.svg"
+            width={195}
+          />
         </Button>
       </Sidebar.Header>
       <Sidebar.Content>
@@ -178,7 +189,7 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
       }
       sidebarCollapsible="offcanvas"
     >
-      {children}
+      <RouteTransition>{children}</RouteTransition>
     </AppLayout>
   );
 }

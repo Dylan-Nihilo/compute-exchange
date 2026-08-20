@@ -12,7 +12,6 @@ import {accessLevelForRoute} from "@/lib/domain/routes";
 export function AccessBoundary({children}: {children: React.ReactNode}) {
   const pathname = usePathname();
   const router = useRouter();
-  const accountId = useAuthStore((state) => state.accountId);
   const activeRole = useAuthStore((state) => state.activeRole);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const roleSwitchTarget = useAuthStore((state) => state.roleSwitchTarget);
@@ -40,14 +39,8 @@ export function AccessBoundary({children}: {children: React.ReactNode}) {
   }, [account, activeRole, pathname]);
 
   useEffect(() => {
-    if (!hasHydrated) return;
-    if (!accountId) {
-      router.replace(
-        `/auth/login?next=${encodeURIComponent(currentLocation(pathname))}`,
-      );
-      return;
-    }
-    if (accountQuery.isSuccess && !account) {
+    if (!hasHydrated || !accountQuery.isSuccess) return;
+    if (!account) {
       signOut();
       router.replace(
         `/auth/login?next=${encodeURIComponent(currentLocation(pathname))}`,
@@ -77,7 +70,6 @@ export function AccessBoundary({children}: {children: React.ReactNode}) {
     }
   }, [
     account,
-    accountId,
     accountQuery.isSuccess,
     activeRole,
     authorization,
@@ -90,7 +82,7 @@ export function AccessBoundary({children}: {children: React.ReactNode}) {
     signOut,
   ]);
 
-  if (!hasHydrated || (accountId && accountQuery.isPending)) {
+  if (!hasHydrated || accountQuery.isPending) {
     return <LoadingState label="正在验证访问权限" />;
   }
   if (accountQuery.isError) {

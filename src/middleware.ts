@@ -3,8 +3,8 @@ import {NextResponse, type NextRequest} from "next/server";
 /**
  * Temporary route lockdown while the landing page is built section by
  * section: `/` serves the landing page (rewrite, clean URL) and every
- * other application route bounces back to it. Remove this middleware to
- * reopen the app shell.
+ * other application route bounces back to it. Public market and account-entry
+ * routes stay available for product review while the rest remains locked.
  */
 export function middleware(request: NextRequest) {
   const {pathname} = request.nextUrl;
@@ -12,7 +12,19 @@ export function middleware(request: NextRequest) {
   if (pathname === "/") {
     return NextResponse.rewrite(new URL("/landing", request.url));
   }
-  if (pathname === "/landing" || pathname.startsWith("/landing/")) {
+  if (
+    pathname === "/landing" ||
+    pathname.startsWith("/landing/") ||
+    pathname === "/market" ||
+    pathname.startsWith("/market/") ||
+    pathname === "/auth" ||
+    pathname.startsWith("/auth/") ||
+    pathname === "/console" ||
+    pathname.startsWith("/console/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname === "/unauthorized"
+  ) {
     return NextResponse.next();
   }
   return NextResponse.redirect(new URL("/", request.url));
@@ -20,6 +32,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|compute-spot|images|fonts).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|brand|compute-spot|images|fonts).*)",
   ],
 };

@@ -2,169 +2,171 @@
 
 import {
   Button,
+  Checkbox,
   FieldError,
   Form,
   Input,
   Label,
   Link,
   TextField,
-  toast,
-  Typography,
 } from "@heroui/react";
-import {useRouter} from "next/navigation";
-import {useState} from "react";
+import {Segment} from "@heroui-pro/react/segment";
+import Image from "next/image";
+import {useRouter, useSearchParams} from "next/navigation";
+import {useEffect, useState} from "react";
 
-import {useRegister} from "@/lib/auth/queries";
-import {FormError, FormHeading, SliderVerification} from "./form-parts";
+import {useRegisterSms, useRequestSmsCode} from "@/lib/auth/queries";
+import {resolvePostAuthDestination, safeNextPath} from "@/lib/auth/session";
+import {useAuthStore} from "@/lib/auth/store";
+import {FormError, FormHeading, VerificationCodeField} from "./form-parts";
 
 export function RegisterForm() {
   const router = useRouter();
-  const mutation = useRegister();
-  const [validationError, setValidationError] = useState<Error | null>(null);
-  const [sliderValue, setSliderValue] = useState(0);
+  const searchParams = useSearchParams();
+  const smsRegisterMutation = useRegisterSms();
+  const smsMutation = useRequestSmsCode("register");
+  const selectRole = useAuthStore((state) => state.selectRole);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [agreeTos, setAgreeTos] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(0);
+  const nextPath = safeNextPath(searchParams.get("next"));
+
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = window.setTimeout(
+      () => setResendSeconds((seconds) => Math.max(0, seconds - 1)),
+      1_000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [resendSeconds]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setValidationError(null);
-    const form = new FormData(event.currentTarget);
-    const password = String(form.get("password"));
-    if (password !== String(form.get("confirmPassword"))) {
-      setValidationError(new Error("两次输入的密码不一致"));
-      return;
-    }
-
-    await mutation
+    if (!agreeTos) return;
+    const account = await smsRegisterMutation
       .mutateAsync({
-        displayName: String(form.get("displayName")),
-        email: String(form.get("email")),
-        phoneNumber: String(form.get("phoneNumber")),
-        password,
-        sliderVerified: sliderValue === 100,
+        phoneNumber,
+        code: verificationCode,
+        agreeTos,
+        remember: true,
       })
-      .then(() => {
-        toast.success("账户已创建");
-        router.replace("/auth/verify");
-      })
-      .catch(() => setSliderValue(0));
+      .catch(() => null);
+    if (!account) return;
+    const {path, role} = resolvePostAuthDestination(account, nextPath);
+    selectRole(role, account.roles);
+    router.replace(path);
   }
+
+  async function sendCode(captchaToken: string) {
+    const result = await smsMutation
+      .mutateAsync({phoneNumber, captchaToken})
+      .catch(() => null);
+    if (!result) return false;
+    setResendSeconds(result.resendAfterSeconds);
+    return true;
+  }
+
+  const targetIsValid = /^1[3-9]\d{9}$/.test(phoneNumber);
+  const canSubmit =
+    targetIsValid && /^[0-9]{6}$/.test(verificationCode) && agreeTos;
 
   return (
     <>
       <FormHeading
-        description="注册后获得买家身份，完成认证后可申请其他业务身份。"
-        eyebrow="新建账户"
-        title="创建账户"
+        compact
+        description="验证手机号后创建平台账户"
+        title="注册"
       />
-      <Form className="space-y-5" onSubmit={submit}>
-        <FormError error={validationError ?? mutation.error} />
-        <TextField
-          fullWidth
-          isRequired
-          maxLength={40}
-          minLength={2}
-          name="displayName"
-          variant="secondary"
-        >
-          <Label>账户名称</Label>
-          <Input
-            autoComplete="organization"
-            id="register-name"
-            placeholder="企业或个人名称"
-          />
-          <FieldError />
-        </TextField>
-        <div className="grid gap-5 sm:grid-cols-2">
+      <Segment
+        aria-label="注册验证方式"
+        className="mb-3 w-full rounded-[13px] bg-[rgba(232,242,246,0.52)] p-[3px] [&_[data-slot=segment-indicator]]:rounded-[10px] [&_[data-slot=segment-indicator]]:bg-[rgba(226,241,246,0.96)] [&_[data-slot=segment-item]]:h-[34px] [&_[data-slot=segment-item]]:flex-1 [&_[data-slot=segment-item]]:rounded-[10px]"
+        selectedKey="sms"
+        size="lg"
+      >
+        <Segment.Item id="sms">手机验证</Segment.Item>
+        <Segment.Item id="email" isDisabled>
+          邮箱验证 · 待开放
+        </Segment.Item>
+      </Segment>
+
+      <Form className="space-y-3" onSubmit={submit}>
+        <FormError error={smsRegisterMutation.error ?? smsMutation.error} />
+        <div>
           <TextField
             fullWidth
             inputMode="numeric"
             isRequired
             maxLength={11}
             name="phoneNumber"
-            pattern="1[0-9]{10}"
+            onChange={setPhoneNumber}
             type="tel"
+            validate={(value) =>
+              /^1[3-9][0-9]{9}$/.test(value) ? null : "请输入正确的 11 位手机号"
+            }
+            value={phoneNumber}
             variant="secondary"
           >
-            <Label>手机号</Label>
+            <Label className="text-[13px] text-[#315064]">手机号</Label>
             <Input
               autoComplete="tel"
+              className="h-[50px] rounded-[13px] border border-[rgba(183,205,215,0.44)] bg-[rgba(251,253,254,0.94)] px-3 text-sm text-[#173d52]"
               id="register-phone"
               placeholder="11 位手机号"
             />
             <FieldError />
           </TextField>
-          <TextField
-            fullWidth
-            isRequired
-            name="email"
-            type="email"
-            variant="secondary"
-          >
-            <Label>邮箱</Label>
-            <Input
-              autoComplete="email"
-              id="register-email"
-              placeholder="name@company.com"
-            />
-            <FieldError />
-          </TextField>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <TextField
-            fullWidth
-            isRequired
-            minLength={8}
-            name="password"
-            type="password"
-            variant="secondary"
-          >
-            <Label>设置密码</Label>
-            <Input
-              autoComplete="new-password"
-              id="register-password"
-            />
-            <FieldError />
-          </TextField>
-          <TextField
-            fullWidth
-            isRequired
-            minLength={8}
-            name="confirmPassword"
-            type="password"
-            variant="secondary"
-          >
-            <Label>确认密码</Label>
-            <Input
-              autoComplete="new-password"
-              id="register-confirm"
-            />
-            <FieldError />
-          </TextField>
-        </div>
-        <SliderVerification
-          disabled={mutation.isPending}
-          id="register-slider"
-          onValueChange={setSliderValue}
-          value={sliderValue}
+
+        <VerificationCodeField
+          canSend={targetIsValid}
+          id="register-code"
+          isPending={smsMutation.isPending}
+          onChange={setVerificationCode}
+          onSend={sendCode}
+          resendSeconds={resendSeconds}
+          value={verificationCode}
         />
-        <Typography className="leading-5" color="muted" type="body-xs">
-          创建账户即表示你同意平台服务条款与隐私规则。
-        </Typography>
+
+        <Checkbox
+          className="text-[13px] leading-5 text-[#4e6c7c]"
+          isRequired
+          isSelected={agreeTos}
+          name="agreeTos"
+          onChange={setAgreeTos}
+        >
+          <Checkbox.Content>
+            <Checkbox.Control className="size-4 rounded-[5px] before:bg-[#c4ec68]">
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            我同意平台服务条款与隐私规则
+          </Checkbox.Content>
+        </Checkbox>
         <Button
+          className="h-12 rounded-xl border border-[rgba(221,243,168,0.62)] bg-[#c4ec68] text-sm font-medium text-[#112c32] shadow-[0_6px_14px_rgba(125,171,54,0.16)] hover:bg-[#bce35f]"
           fullWidth
-          isDisabled={mutation.isPending || sliderValue !== 100}
-          size="lg"
+          isDisabled={!canSubmit}
+          isPending={smsRegisterMutation.isPending}
           type="submit"
           variant="primary"
         >
-          {mutation.isPending ? "正在创建" : "创建账户"}
+          创建账户
         </Button>
       </Form>
-      <p className="mt-8 text-center text-sm text-muted">
+
+      <p className="mt-3 text-center text-[13px] leading-5 text-[#526f7f]">
         已有账户？{" "}
-        <Link className="font-medium text-foreground underline underline-offset-4" href="/auth/login">
+        <Link
+          className="font-medium text-[#2c6b88]"
+          href={nextPath ? `/auth/login?next=${encodeURIComponent(nextPath)}` : "/auth/login"}
+        >
           登录
         </Link>
       </p>
+      <div className="mt-3 flex items-center justify-center gap-2 text-xs text-[#708895]">
+        <Image alt="" height={14} src="/auth/lock.svg" width={14} />
+        <span>安全验证，保障账号与交易信息安全</span>
+      </div>
     </>
   );
 }

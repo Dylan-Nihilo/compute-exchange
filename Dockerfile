@@ -17,6 +17,11 @@ RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
 
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_CAP_API_ENDPOINT
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_CAP_API_ENDPOINT=$NEXT_PUBLIC_CAP_API_ENDPOINT
+
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 

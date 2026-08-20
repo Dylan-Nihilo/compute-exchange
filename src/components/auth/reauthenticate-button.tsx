@@ -3,18 +3,20 @@
 import {Button} from "@heroui/react";
 import {useRouter} from "next/navigation";
 
-import {useAuthStore} from "@/lib/auth/store";
+import {useLogout} from "@/lib/auth/queries";
 
 export function ReauthenticateButton() {
   const router = useRouter();
-  const signOut = useAuthStore((state) => state.signOut);
+  const logoutMutation = useLogout();
 
   return (
     <Button
       onPress={() => {
-        signOut();
-        router.replace("/auth/login");
+        logoutMutation.mutate(undefined, {
+          onSettled: () => router.replace("/auth/login"),
+        });
       }}
+      isPending={logoutMutation.isPending}
       type="button"
       variant="outline"
     >
