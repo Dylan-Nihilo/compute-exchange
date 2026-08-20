@@ -1,6 +1,8 @@
 "use client";
 
-import {Link, Typography} from "@heroui/react";
+import {Link, Surface, Typography} from "@heroui/react";
+import {MeshGradient} from "@paper-design/shaders-react";
+import {useReducedMotion} from "motion/react";
 import Image from "next/image";
 import {usePathname} from "next/navigation";
 
@@ -8,68 +10,99 @@ export function AuthFrame({children}: {children: React.ReactNode}) {
   const pathname = usePathname();
   const isEntryRoute = pathname === "/auth/login" || pathname === "/auth/register";
   const isRegister = pathname === "/auth/register";
+  const shouldReduceMotion = useReducedMotion();
 
   return (
-    <main className="relative min-h-svh overflow-hidden bg-gradient-to-r from-[#f5fbfe] to-[#fbfdfe] text-[#0b263a]">
-      <Image
-        alt=""
+    <main className="relative flex min-h-svh items-center overflow-hidden bg-[#edf3f6] p-0 text-[#0b263a] sm:p-5 lg:p-8">
+      <div
         aria-hidden="true"
-        className="pointer-events-none absolute -left-40 top-28 h-[620px] w-[800px] object-fill"
-        height={620}
-        src="/auth/ice-blue-light.svg"
-        width={800}
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,255,255,0.9),transparent_28%),radial-gradient(circle_at_84%_86%,rgba(190,213,225,0.34),transparent_34%)]"
       />
-      <Image
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute left-[23%] top-[39%] h-[390px] w-[560px] object-fill"
-        height={390}
-        src="/auth/brand-glow.svg"
-        width={560}
-      />
-
-      <Link className="absolute left-6 top-6 z-20 sm:left-10 sm:top-8 lg:left-14 lg:top-10" href="/">
-        <Image
-          alt="万象硅芯 OmniS"
-          className="h-auto w-[156px] lg:w-[178px]"
-          height={55}
-          priority
-          src="/brand/omnis/OmniS-logo-horizontal-blue.svg"
-          width={195}
-        />
-      </Link>
-
-      <div className="relative z-10 grid min-h-svh lg:grid-cols-[56%_44%]">
-        <section className="relative hidden min-h-svh overflow-hidden lg:block">
-          <Image
-            alt=""
+      <Surface
+        className="relative z-10 mx-auto grid min-h-svh w-full max-w-[1240px] overflow-hidden rounded-none bg-[#fbfcfd] shadow-[0_28px_80px_rgba(36,71,109,0.13)] sm:min-h-[calc(100svh-2.5rem)] sm:rounded-[28px] lg:min-h-[760px] lg:grid-cols-[44%_56%]"
+        variant="default"
+      >
+        <section className="relative hidden overflow-hidden bg-[#edf4f7] px-12 text-[#173d52] lg:block">
+          <div
             aria-hidden="true"
-            className="object-cover opacity-95"
-            fill
-            priority
-            sizes="56vw"
-            src="/auth/compute-passage.png"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[rgba(240,250,255,0.04)] via-[rgba(245,252,255,0.16)] to-[rgba(250,253,255,0.5)] backdrop-blur-[7.5px]" />
-          <div className="absolute inset-y-0 right-0 w-[38%] bg-gradient-to-r from-transparent to-[rgba(249,252,254,0.88)]" />
-          <div className="absolute left-[9%] top-[23%] max-w-[500px]">
-            <Typography className="text-[34px] leading-[46px] tracking-[-0.03em] text-[#0b2438]" type="h1">
-              {isRegister ? "创建你的平台账户" : "欢迎登录"}
+            className="pointer-events-none absolute inset-0"
+            style={{
+              WebkitMaskImage:
+                "radial-gradient(ellipse 92% 72% at 12% 92%, #000 0%, rgba(0, 0, 0, 0.94) 46%, transparent 100%)",
+              maskImage:
+                "radial-gradient(ellipse 92% 72% at 12% 92%, #000 0%, rgba(0, 0, 0, 0.94) 46%, transparent 100%)",
+            }}
+          >
+            <MeshGradient
+              className="size-full"
+              colors={["#edf4f7", "#f8fafb", "#88afc2", "#cddfe7", "#d8f09b", "#5f91aa"]}
+              distortion={0.76}
+              frame={240}
+              grainMixer={0.06}
+              grainOverlay={0.015}
+              height="100%"
+              maxPixelCount={320_000}
+              minPixelRatio={1}
+              offsetX={-0.26}
+              offsetY={0.34}
+              scale={0.84}
+              speed={shouldReduceMotion ? 0 : 0.16}
+              swirl={0.28}
+              width="100%"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(237,244,247,0.58)_0%,rgba(237,244,247,0.08)_48%,rgba(237,244,247,0.12)_100%)]" />
+          </div>
+
+          <Link className="absolute left-12 top-10 no-underline" href="/">
+            <Image
+              alt="万象硅芯 OmniS"
+              className="h-auto w-[174px]"
+              height={55}
+              priority
+              src="/brand/omnis/OmniS-logo-horizontal-blue.svg"
+              width={195}
+            />
+          </Link>
+
+          <div className="absolute left-12 right-12 top-[108px] max-w-[390px]">
+            <div className="mb-6 h-1 w-11 rounded-full bg-[#8fb8ca]" />
+            <Typography className="text-[34px] leading-[1.22] tracking-[-0.035em] text-[#173d52]" type="h1">
+              {isRegister ? (
+                <>
+                  连接供需，<br />建立可信合作
+                </>
+              ) : (
+                <>
+                  可信算力，<br />一站连接
+                </>
+              )}
             </Typography>
-            <Typography className="mt-3 max-w-[430px] text-[15px] leading-[25px] text-[#476576]" type="body-sm">
+            <Typography className="mt-5 max-w-[360px] text-[15px] leading-7 text-[#587487]" type="body-sm">
               {isRegister
-                ? "一个账户连接算力采购、资源供给与后续业务协作。"
-                : "连接可信算力资源，轻松完成配置、下单与管理。"}
+                ? "创建平台账户，进入算力采购、资源供给与订单协作流程。"
+                : "登录后统一管理算力资源、交易订单与业务协作。"}
             </Typography>
           </div>
         </section>
 
-        <section className="min-h-svh min-w-0 bg-gradient-to-b from-[rgba(251,253,254,0.88)] to-[rgba(246,251,253,0.94)] px-5 pb-12 pt-28 backdrop-blur-[18px] sm:px-10 lg:px-12 lg:pt-[clamp(7rem,16.6vh,9.375rem)]">
-          <div className={`mx-auto min-w-0 w-full ${isEntryRoute ? "max-w-[434px]" : "max-w-xl"}`}>
+        <section className="flex min-w-0 flex-col px-5 pb-12 pt-7 sm:px-10 lg:min-h-[760px] lg:px-16 lg:pb-16 lg:pt-[136px]">
+          <Link className="w-fit no-underline lg:hidden" href="/">
+            <Image
+              alt="万象硅芯 OmniS"
+              className="h-auto w-[156px]"
+              height={55}
+              priority
+              src="/brand/omnis/OmniS-logo-horizontal-blue.svg"
+              width={195}
+            />
+          </Link>
+          <div
+            className={`mx-auto mt-14 min-w-0 w-full lg:mt-0 ${isEntryRoute ? "max-w-[434px]" : "max-w-xl"}`}
+          >
             {children}
           </div>
         </section>
-      </div>
+      </Surface>
     </main>
   );
 }

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import {describe, it} from "node:test";
 
-import {registerSmsApi, requestSmsCodeApi, smsLoginApi} from "./api.ts";
+import {
+  currentAccountApi,
+  registerSmsApi,
+  requestSmsCodeApi,
+  smsLoginApi,
+} from "./api.ts";
 
 describe("authentication API adapter", () => {
   it("passes the untouched Cap token to the SMS endpoint and checks business code", async () => {
@@ -11,7 +16,7 @@ describe("authentication API adapter", () => {
       return Response.json({
         code: 0,
         message: "success",
-        data: {expires_in: 300},
+        data: {expires_in: 300, resend_after: 60},
       });
     };
 
@@ -28,7 +33,22 @@ describe("authentication API adapter", () => {
       purpose: "login",
       captcha_token: "cap-token",
     });
-    assert.equal(result.resendAfterSeconds, 300);
+    assert.equal(result.resendAfterSeconds, 60);
+
+    const legacyResult = await requestSmsCodeApi(
+      {
+        phoneNumber: "13800138000",
+        purpose: "login",
+        captchaToken: "cap-token",
+      },
+      async () =>
+        Response.json({
+          code: 0,
+          message: "success",
+          data: {expires_in: 300},
+        }),
+    );
+    assert.equal(legacyResult.resendAfterSeconds, 60);
 
     await assert.rejects(
       requestSmsCodeApi(
@@ -65,25 +85,38 @@ describe("authentication API adapter", () => {
     assert.deepEqual(account.roles, ["buyer"]);
   });
 
-  it("submits the backend registration contract", async () => {
+  it("registers without a password and returns the authenticated account", async () => {
     let requestBody: unknown;
     const result = await registerSmsApi(
-      {phoneNumber: "13800138000", code: "123456", password: "Abc12345!"},
+      {
+        phoneNumber: "13800138000",
+        code: "123456",
+        agreeTos: true,
+        remember: true,
+      },
       async (_input, init) => {
         requestBody = JSON.parse(String(init?.body));
         return Response.json({
           code: 0,
           message: "success",
-          data: {user_id: 8},
+          data: {user: {id: 8, phone: "138****8000", roles: ["buyer"]}},
         });
       },
     );
     assert.deepEqual(requestBody, {
       phone: "13800138000",
       sms_code: "123456",
-      password: "Abc12345!",
       agree_tos: true,
+      remember: true,
     });
-    assert.equal(result.userId, "8");
+    assert.equal(result.id, "8");
+    assert.deepEqual(result.roles, ["buyer"]);
+  });
+
+  it("treats an absent cookie session as signed out", async () => {
+    const result = await currentAccountApi(async () =>
+      Response.json({code: 40100, message: "未登录"}, {status: 401}),
+    );
+    assert.equal(result, null);
   });
 });

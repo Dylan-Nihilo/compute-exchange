@@ -18,7 +18,12 @@ export function middleware(request: NextRequest) {
     pathname === "/market" ||
     pathname.startsWith("/market/") ||
     pathname === "/auth" ||
-    pathname.startsWith("/auth/")
+    pathname.startsWith("/auth/") ||
+    pathname === "/console" ||
+    pathname.startsWith("/console/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname === "/unauthorized"
   ) {
     return NextResponse.next();
   }

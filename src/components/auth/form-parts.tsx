@@ -20,14 +20,18 @@ export function VerificationCodeField({
   canSend,
   id,
   isPending,
+  onChange,
   onSend,
   resendSeconds,
+  value,
 }: {
   canSend: boolean;
   id: string;
   isPending: boolean;
+  onChange: (value: string) => void;
   onSend: (captchaToken: string) => Promise<boolean>;
   resendSeconds: number;
+  value: string;
 }) {
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -49,9 +53,11 @@ export function VerificationCodeField({
       fullWidth
       isRequired
       name="code"
+      onChange={onChange}
       validate={(value) =>
         /^[0-9]{6}$/.test(value) ? null : "请输入 6 位数字验证码"
       }
+      value={value}
       variant="secondary"
     >
       <Label className="text-[13px] text-[#315064]">验证码</Label>

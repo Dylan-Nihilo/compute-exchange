@@ -1,4 +1,6 @@
 import type {Role} from "../domain/contracts.ts";
+import {homeForRole, matchRoute} from "../domain/routes.ts";
+import type {SessionAccount} from "./service.ts";
 
 export function resolveActiveRole(
   roles: readonly Role[],
@@ -6,6 +8,22 @@ export function resolveActiveRole(
 ): Role {
   if (activeRole && roles.includes(activeRole)) return activeRole;
   return roles[0] ?? "guest";
+}
+
+export function resolvePostAuthDestination(
+  account: SessionAccount,
+  nextPath: string | null,
+): {path: string; role: Exclude<Role, "guest">} {
+  const route = nextPath ? matchRoute(nextPath) : null;
+  const routeRole = route?.roles.find(
+    (role): role is Exclude<Role, "guest"> =>
+      role !== "guest" && account.roles.includes(role),
+  );
+  const role = routeRole ?? account.roles[0];
+  return {
+    path: nextPath && route?.roles.includes(role) ? nextPath : homeForRole(role),
+    role,
+  };
 }
 
 export function safeNextPath(value: string | null | undefined): string | null {

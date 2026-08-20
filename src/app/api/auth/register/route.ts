@@ -1,5 +1,18 @@
-import {proxyAuthPost} from "@/lib/api/auth-backend";
+import {authSessionResponse, postAuthBackend} from "@/lib/api/auth-backend";
 
 export async function POST(request: Request) {
-  return proxyAuthPost(request, "/auth/register");
+  try {
+    const body = (await request.json()) as Record<string, unknown>;
+    const {payload, status} = await postAuthBackend("/auth/register", {
+      phone: body.phone,
+      sms_code: body.sms_code,
+      agree_tos: body.agree_tos,
+    });
+    return authSessionResponse(payload, status, body.remember === true);
+  } catch {
+    return Response.json(
+      {code: 50000, message: "认证服务暂不可用"},
+      {status: 502},
+    );
+  }
 }

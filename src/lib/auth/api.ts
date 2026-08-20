@@ -6,28 +6,35 @@ import type {SessionAccount} from "./service.ts";
 const smsCodeEnvelopeSchema = z.object({
   code: z.number().int(),
   message: z.string(),
-  data: z.object({expires_in: z.number().int().positive()}).optional(),
-});
-
-const smsLoginEnvelopeSchema = z.object({
-  code: z.number().int(),
-  message: z.string(),
   data: z
     .object({
-      user: z.object({
-        id: z.number().int().positive(),
-        phone: z.string().min(1),
-        email: z.string().optional(),
-        roles: z.array(roleSchema.exclude(["guest"])).min(1),
-      }),
+      expires_in: z.number().int().positive(),
+      resend_after: z.number().int().positive().optional(),
     })
     .optional(),
 });
 
-const registerEnvelopeSchema = z.object({
+const authUserSchema = z.object({
+  id: z.number().int().positive(),
+  phone: z.string().min(1),
+  email: z.string().optional(),
+  roles: z.array(roleSchema.exclude(["guest"])).min(1),
+});
+
+const sessionEnvelopeSchema = z.object({
   code: z.number().int(),
   message: z.string(),
-  data: z.object({user_id: z.number().int().positive()}).optional(),
+  data: z
+    .object({
+      user: authUserSchema,
+    })
+    .optional(),
+});
+
+const currentAccountEnvelopeSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+  data: authUserSchema.optional(),
 });
 
 export async function requestSmsCodeApi(
@@ -49,7 +56,10 @@ export async function requestSmsCodeApi(
     fetchImplementation,
   );
   if (!result.data) throw new Error("短信服务返回格式错误");
-  return {resendAfterSeconds: result.data.expires_in};
+  return {
+    resendAfterSeconds:
+      result.data.resend_after ?? Math.min(result.data.expires_in, 60),
+  };
 }
 
 export async function smsLoginApi(
@@ -59,39 +69,65 @@ export async function smsLoginApi(
   const result = await post(
     "/api/auth/sms/login",
     {phone: input.phoneNumber, sms_code: input.code, remember: input.remember},
-    smsLoginEnvelopeSchema,
+    sessionEnvelopeSchema,
     fetchImplementation,
   );
   if (!result.data) throw new Error("认证服务返回格式错误");
-  const {user} = result.data;
-  return {
-    id: String(user.id),
-    displayName: user.phone,
-    email: user.email ?? "",
-    phoneNumber: user.phone,
-    roles: user.roles,
-    verificationStatus: "unverified",
-    grants: [],
-  };
+  return toSessionAccount(result.data.user);
 }
 
 export async function registerSmsApi(
-  input: {phoneNumber: string; code: string; password: string},
+  input: {
+    phoneNumber: string;
+    code: string;
+    agreeTos: boolean;
+    remember: boolean;
+  },
   fetchImplementation: typeof fetch = fetch,
-) {
+): Promise<SessionAccount> {
   const result = await post(
     "/api/auth/register",
     {
       phone: input.phoneNumber,
       sms_code: input.code,
-      password: input.password,
-      agree_tos: true,
+      agree_tos: input.agreeTos,
+      remember: input.remember,
     },
-    registerEnvelopeSchema,
+    sessionEnvelopeSchema,
     fetchImplementation,
   );
   if (!result.data) throw new Error("注册服务返回格式错误");
-  return {userId: String(result.data.user_id)};
+  return toSessionAccount(result.data.user);
+}
+
+export async function currentAccountApi(
+  fetchImplementation: typeof fetch = fetch,
+): Promise<SessionAccount | null> {
+  const response = await fetchImplementation("/api/auth/me", {
+    cache: "no-store",
+  });
+  const parsed = currentAccountEnvelopeSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  if (response.status === 401) return null;
+  if (!parsed.success) throw new Error("认证服务返回格式错误");
+  if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) {
+    throw new Error(parsed.data.message || "账户状态读取失败");
+  }
+  return toSessionAccount(parsed.data.data);
+}
+
+export async function logoutApi(fetchImplementation: typeof fetch = fetch) {
+  const response = await fetchImplementation("/api/auth/logout", {method: "POST"});
+  const payload = (await response.json().catch(() => null)) as {
+    code?: unknown;
+    message?: unknown;
+  } | null;
+  if (!response.ok || payload?.code !== 0) {
+    throw new Error(
+      typeof payload?.message === "string" ? payload.message : "退出登录失败",
+    );
+  }
 }
 
 async function post<T extends {code: number; message: string}>(
@@ -111,4 +147,16 @@ async function post<T extends {code: number; message: string}>(
     throw new Error(parsed.data.message || "操作未完成，请重试");
   }
   return parsed.data;
+}
+
+function toSessionAccount(user: z.infer<typeof authUserSchema>): SessionAccount {
+  return {
+    id: String(user.id),
+    displayName: user.phone,
+    email: user.email ?? "",
+    phoneNumber: user.phone,
+    roles: user.roles,
+    verificationStatus: "unverified",
+    grants: [],
+  };
 }

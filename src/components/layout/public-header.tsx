@@ -42,11 +42,10 @@ export function PublicHeader() {
   const travelRef = useRef(0);
   const accountQuery = useCurrentAccount();
   const account = accountQuery.data;
-  const accountId = useAuthStore((state) => state.accountId);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const activeRole = useAuthStore((state) => state.activeRole);
   const isAccountPending =
-    !isMounted || !hasHydrated || (Boolean(accountId) && accountQuery.isPending);
+    !isMounted || !hasHydrated || accountQuery.isPending;
   const workspaceHref = account
     ? homeForRole(resolveActiveRole(account.roles, activeRole))
     : null;

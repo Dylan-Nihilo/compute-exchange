@@ -8,7 +8,7 @@ import {Avatar, Button, Dropdown, Label, ListBox} from "@heroui/react";
 import Image from "next/image";
 import {usePathname, useRouter} from "next/navigation";
 
-import {useCurrentAccount} from "@/lib/auth/queries";
+import {useCurrentAccount, useLogout} from "@/lib/auth/queries";
 import {useAuthStore} from "@/lib/auth/store";
 import type {Role} from "@/lib/domain/contracts";
 import {homeForRole} from "@/lib/domain/routes";
@@ -31,7 +31,7 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
   const {data: account} = useCurrentAccount();
   const activeRole = useAuthStore((state) => state.activeRole);
   const beginRoleSwitch = useAuthStore((state) => state.beginRoleSwitch);
-  const signOut = useAuthStore((state) => state.signOut);
+  const logoutMutation = useLogout();
 
   if (
     !account ||
@@ -56,8 +56,9 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
   }
 
   function logout() {
-    signOut();
-    router.replace("/auth/login");
+    logoutMutation.mutate(undefined, {
+      onSettled: () => router.replace("/auth/login"),
+    });
   }
 
   const sidebarContent = (

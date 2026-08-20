@@ -4,6 +4,7 @@ import {describe, it} from "node:test";
 import {homeForRole} from "../domain/routes.ts";
 import {DEMO_CAPTCHA_TOKEN} from "../captcha/cap.ts";
 import {
+  resolvePostAuthDestination,
   resolveActiveRole,
   safeNextPath,
 } from "../auth/session.ts";
@@ -47,6 +48,31 @@ describe("mock session contract", () => {
     assert.equal(resolveActiveRole(["buyer", "supplier"], "supplier"), "supplier");
     assert.equal(resolveActiveRole(["buyer", "supplier"], "admin"), "buyer");
     assert.equal(homeForRole(resolveActiveRole(["operator"], null)), "/admin");
+  });
+
+  it("returns only to routes available to the authenticated account", () => {
+    const account = {
+      id: "1",
+      displayName: "138****8000",
+      email: "",
+      phoneNumber: "138****8000",
+      roles: ["buyer"] as ["buyer"],
+      verificationStatus: "unverified" as const,
+      grants: [],
+    };
+
+    assert.deepEqual(resolvePostAuthDestination(account, "/market?gpu=H100"), {
+      path: "/market?gpu=H100",
+      role: "buyer",
+    });
+    assert.deepEqual(resolvePostAuthDestination(account, "/admin"), {
+      path: "/console/buyer",
+      role: "buyer",
+    });
+    assert.deepEqual(resolvePostAuthDestination(account, "/auth/login"), {
+      path: "/console/buyer",
+      role: "buyer",
+    });
   });
 });
 

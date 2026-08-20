@@ -105,8 +105,13 @@ export const useAuthStore = create<AuthState>()(
       storage: safeStorage,
       partialize: ({account, accountId, activeRole, rememberSession}) =>
         rememberSession
-          ? {account, accountId, activeRole}
-          : {account: null, accountId: null, activeRole: null},
+          ? {account, accountId, activeRole, rememberSession}
+          : {
+              account: null,
+              accountId: null,
+              activeRole: null,
+              rememberSession,
+            },
       onRehydrateStorage: () => (_state, error) => {
         if (error) safeStorage?.removeItem(AUTH_STORAGE_KEY);
         queueMicrotask(finishHydration);

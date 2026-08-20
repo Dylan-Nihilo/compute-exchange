@@ -1,4 +1,8 @@
 omnisline.com, www.omnisline.com {
+	handle /api/v1/auth/login {
+		respond 404
+	}
+
 	handle /api/v1/* {
 		reverse_proxy wanxiang-backend:8080
 	}

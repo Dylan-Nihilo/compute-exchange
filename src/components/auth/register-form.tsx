@@ -2,40 +2,35 @@
 
 import {
   Button,
+  Checkbox,
   FieldError,
   Form,
   Input,
   Label,
   Link,
   TextField,
-  toast,
-  Typography,
 } from "@heroui/react";
 import {Segment} from "@heroui-pro/react/segment";
 import Image from "next/image";
-import {useRouter} from "next/navigation";
+import {useRouter, useSearchParams} from "next/navigation";
 import {useEffect, useState} from "react";
 
-import {
-  useRegister,
-  useRegisterSms,
-  useRequestEmailCode,
-  useRequestSmsCode,
-} from "@/lib/auth/queries";
-import type {VerificationMethod} from "@/lib/auth/service";
+import {useRegisterSms, useRequestSmsCode} from "@/lib/auth/queries";
+import {resolvePostAuthDestination, safeNextPath} from "@/lib/auth/session";
+import {useAuthStore} from "@/lib/auth/store";
 import {FormError, FormHeading, VerificationCodeField} from "./form-parts";
 
 export function RegisterForm() {
   const router = useRouter();
-  const mutation = useRegister();
+  const searchParams = useSearchParams();
   const smsRegisterMutation = useRegisterSms();
   const smsMutation = useRequestSmsCode("register");
-  const emailMutation = useRequestEmailCode();
-  const [method, setMethod] = useState<VerificationMethod>("sms");
+  const selectRole = useAuthStore((state) => state.selectRole);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [email, setEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [agreeTos, setAgreeTos] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(0);
-  const codeMutation = method === "sms" ? smsMutation : emailMutation;
+  const nextPath = safeNextPath(searchParams.get("next"));
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
@@ -48,114 +43,56 @@ export function RegisterForm() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    if (method === "sms") {
-      const result = await smsRegisterMutation
-        .mutateAsync({
-          phoneNumber,
-          code: String(form.get("code")),
-          password: String(form.get("password")),
-        })
-        .catch(() => null);
-      if (!result) return;
-      toast.success("账户已创建，请登录");
-      router.replace("/auth/login?registered=1");
-      return;
-    }
-
-    const account = await mutation
+    if (!agreeTos) return;
+    const account = await smsRegisterMutation
       .mutateAsync({
-        method,
-        displayName: String(form.get("displayName")),
-        email,
         phoneNumber,
-        code: String(form.get("code")),
+        code: verificationCode,
+        agreeTos,
+        remember: true,
       })
       .catch(() => null);
     if (!account) return;
-    toast.success("账户已创建");
-    router.replace("/auth/verify");
+    const {path, role} = resolvePostAuthDestination(account, nextPath);
+    selectRole(role, account.roles);
+    router.replace(path);
   }
 
   async function sendCode(captchaToken: string) {
-    const result = await (method === "sms"
-      ? smsMutation.mutateAsync({phoneNumber, captchaToken})
-      : emailMutation.mutateAsync({email, captchaToken})
-    ).catch(() => null);
+    const result = await smsMutation
+      .mutateAsync({phoneNumber, captchaToken})
+      .catch(() => null);
     if (!result) return false;
     setResendSeconds(result.resendAfterSeconds);
-    toast.success(
-      "previewCode" in result
-        ? `验证码已发送，演示验证码：${result.previewCode}`
-        : "验证码已发送",
-    );
     return true;
   }
 
-  function switchMethod(nextMethod: VerificationMethod) {
-    setMethod(nextMethod);
-    setResendSeconds(0);
-    mutation.reset();
-    smsRegisterMutation.reset();
-    smsMutation.reset();
-    emailMutation.reset();
-  }
-
-  const targetIsValid =
-    method === "sms"
-      ? /^1\d{10}$/.test(phoneNumber)
-      : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const targetIsValid = /^1[3-9]\d{9}$/.test(phoneNumber);
+  const canSubmit =
+    targetIsValid && /^[0-9]{6}$/.test(verificationCode) && agreeTos;
 
   return (
     <>
       <FormHeading
         compact
-        description="验证手机号或邮箱后创建平台账户"
+        description="验证手机号后创建平台账户"
         title="注册"
       />
       <Segment
         aria-label="注册验证方式"
         className="mb-3 w-full rounded-[13px] bg-[rgba(232,242,246,0.52)] p-[3px] [&_[data-slot=segment-indicator]]:rounded-[10px] [&_[data-slot=segment-indicator]]:bg-[rgba(226,241,246,0.96)] [&_[data-slot=segment-item]]:h-[34px] [&_[data-slot=segment-item]]:flex-1 [&_[data-slot=segment-item]]:rounded-[10px]"
-        onSelectionChange={(key) => switchMethod(key as VerificationMethod)}
-        selectedKey={method}
+        selectedKey="sms"
         size="lg"
       >
         <Segment.Item id="sms">手机验证</Segment.Item>
-        <Segment.Item id="email">邮箱验证</Segment.Item>
+        <Segment.Item id="email" isDisabled>
+          邮箱验证 · 待开放
+        </Segment.Item>
       </Segment>
 
       <Form className="space-y-3" onSubmit={submit}>
-        <FormError
-          error={
-            mutation.error ??
-            smsRegisterMutation.error ??
-            smsMutation.error ??
-            emailMutation.error
-          }
-        />
-        {method === "email" ? (
-          <TextField
-            fullWidth
-            isRequired
-            maxLength={40}
-            name="displayName"
-            validate={(value) =>
-              value.trim().length >= 2 ? null : "账户名称至少需要 2 个字符"
-            }
-            variant="secondary"
-          >
-            <Label className="text-[13px] text-[#315064]">账户名称</Label>
-            <Input
-              autoComplete="name"
-              className="h-[50px] rounded-[13px] border border-[rgba(183,205,215,0.44)] bg-[rgba(251,253,254,0.94)] px-3 text-sm text-[#173d52]"
-              id="register-name"
-              placeholder="企业或个人名称"
-            />
-            <FieldError />
-          </TextField>
-        ) : null}
-
-        <div className="grid gap-3 sm:grid-cols-2">
+        <FormError error={smsRegisterMutation.error ?? smsMutation.error} />
+        <div>
           <TextField
             fullWidth
             inputMode="numeric"
@@ -165,7 +102,7 @@ export function RegisterForm() {
             onChange={setPhoneNumber}
             type="tel"
             validate={(value) =>
-              /^1[0-9]{10}$/.test(value) ? null : "请输入正确的 11 位手机号"
+              /^1[3-9][0-9]{9}$/.test(value) ? null : "请输入正确的 11 位手机号"
             }
             value={phoneNumber}
             variant="secondary"
@@ -179,69 +116,37 @@ export function RegisterForm() {
             />
             <FieldError />
           </TextField>
-          {method === "email" ? (
-            <TextField
-              fullWidth
-              isRequired
-              name="email"
-              onChange={setEmail}
-              type="email"
-              validate={(value) =>
-                /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-                  ? null
-                  : "请输入正确的邮箱地址"
-              }
-              value={email}
-              variant="secondary"
-            >
-              <Label className="text-[13px] text-[#315064]">邮箱</Label>
-              <Input
-                autoComplete="email"
-                className="h-[50px] rounded-[13px] border border-[rgba(183,205,215,0.44)] bg-[rgba(251,253,254,0.94)] px-3 text-sm text-[#173d52]"
-                id="register-email"
-                placeholder="name@company.com"
-              />
-              <FieldError />
-            </TextField>
-          ) : (
-            <TextField
-              fullWidth
-              isRequired
-              minLength={8}
-              name="password"
-              validate={(value) =>
-                value.length >= 8 ? null : "密码至少需要 8 个字符"
-              }
-              variant="secondary"
-            >
-              <Label className="text-[13px] text-[#315064]">登录密码</Label>
-              <Input
-                autoComplete="new-password"
-                className="h-[50px] rounded-[13px] border border-[rgba(183,205,215,0.44)] bg-[rgba(251,253,254,0.94)] px-3 text-sm text-[#173d52]"
-                id="register-password"
-                placeholder="至少 8 个字符"
-                type="password"
-              />
-              <FieldError />
-            </TextField>
-          )}
         </div>
 
         <VerificationCodeField
           canSend={targetIsValid}
           id="register-code"
-          isPending={codeMutation.isPending}
+          isPending={smsMutation.isPending}
+          onChange={setVerificationCode}
           onSend={sendCode}
           resendSeconds={resendSeconds}
+          value={verificationCode}
         />
 
-        <Typography className="leading-5 text-[#708895]" type="body-xs">
-          创建账户即表示你同意平台服务条款与隐私规则。
-        </Typography>
+        <Checkbox
+          className="text-[13px] leading-5 text-[#4e6c7c]"
+          isRequired
+          isSelected={agreeTos}
+          name="agreeTos"
+          onChange={setAgreeTos}
+        >
+          <Checkbox.Content>
+            <Checkbox.Control className="size-4 rounded-[5px] before:bg-[#c4ec68]">
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            我同意平台服务条款与隐私规则
+          </Checkbox.Content>
+        </Checkbox>
         <Button
           className="h-12 rounded-xl border border-[rgba(221,243,168,0.62)] bg-[#c4ec68] text-sm font-medium text-[#112c32] shadow-[0_6px_14px_rgba(125,171,54,0.16)] hover:bg-[#bce35f]"
           fullWidth
-          isPending={mutation.isPending || smsRegisterMutation.isPending}
+          isDisabled={!canSubmit}
+          isPending={smsRegisterMutation.isPending}
           type="submit"
           variant="primary"
         >
@@ -251,7 +156,10 @@ export function RegisterForm() {
 
       <p className="mt-3 text-center text-[13px] leading-5 text-[#526f7f]">
         已有账户？{" "}
-        <Link className="font-medium text-[#2c6b88]" href="/auth/login">
+        <Link
+          className="font-medium text-[#2c6b88]"
+          href={nextPath ? `/auth/login?next=${encodeURIComponent(nextPath)}` : "/auth/login"}
+        >
           登录
         </Link>
       </p>

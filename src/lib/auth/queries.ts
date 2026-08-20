@@ -1,51 +1,59 @@
 "use client";
 
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {useEffect} from "react";
 
 import {
+  currentAccountApi,
+  logoutApi,
   registerSmsApi,
   requestSmsCodeApi,
   smsLoginApi,
 } from "./api";
-import {verifyCaptcha} from "../captcha/cap";
 import {
   applyForIdentity,
-  getAccount,
-  listDemoAccounts,
   listIdentityApplications,
-  login,
-  requestEmailCode,
-  register,
-  resetDemo,
   verifyAccount,
   type IdentityApplicationInput,
-  type LoginInput,
   type VerificationInput,
 } from "./service";
 import {useAuthStore} from "./store";
 
 export const authKeys = {
   all: ["auth"] as const,
-  account: (accountId: string | null) => ["auth", "account", accountId] as const,
-  demos: ["auth", "demo-accounts"] as const,
+  account: ["auth", "account"] as const,
   applications: (accountId: string | null) =>
     ["auth", "identity-applications", accountId] as const,
 };
 
 export function useCurrentAccount() {
   const accountId = useAuthStore((state) => state.accountId);
-  const sessionAccount = useAuthStore((state) => state.account);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
+  const rememberSession = useAuthStore((state) => state.rememberSession);
+  const establishSession = useAuthStore((state) => state.establishSession);
+  const signOut = useAuthStore((state) => state.signOut);
 
-  return useQuery({
-    queryKey: authKeys.account(accountId),
-    queryFn: () => sessionAccount ?? getAccount(accountId!),
-    enabled: hasHydrated && Boolean(accountId),
+  const query = useQuery({
+    queryKey: authKeys.account,
+    queryFn: () => currentAccountApi(),
+    enabled: hasHydrated,
+    retry: false,
   });
-}
 
-export function useDemoAccounts() {
-  return useQuery({queryKey: authKeys.demos, queryFn: () => listDemoAccounts()});
+  useEffect(() => {
+    if (!query.isSuccess) return;
+    if (query.data) establishSession(query.data, rememberSession);
+    else if (accountId) signOut();
+  }, [
+    accountId,
+    establishSession,
+    query.data,
+    query.isSuccess,
+    rememberSession,
+    signOut,
+  ]);
+
+  return query;
 }
 
 export function useIdentityApplications() {
@@ -61,13 +69,10 @@ export function useLogin() {
   const queryClient = useQueryClient();
   const establishSession = useAuthStore((state) => state.establishSession);
   return useMutation({
-    mutationFn: ({credentials, remember}: {credentials: LoginInput; remember: boolean}) =>
-      credentials.method === "sms"
-        ? smsLoginApi({...credentials, remember})
-        : login(credentials),
+    mutationFn: (input: Parameters<typeof smsLoginApi>[0]) => smsLoginApi(input),
     onSuccess: (account, {remember}) => {
       establishSession(account, remember);
-      queryClient.setQueryData(authKeys.account(account.id), account);
+      queryClient.setQueryData(authKeys.account, account);
     },
   });
 }
@@ -79,28 +84,14 @@ export function useRequestSmsCode(purpose: "login" | "register") {
   });
 }
 
-export function useRequestEmailCode() {
-  return useMutation({
-    mutationFn: async (input: Parameters<typeof requestEmailCode>[0]) => {
-      await verifyCaptcha(input.captchaToken);
-      return requestEmailCode(input);
-    },
-  });
-}
-
 export function useRegisterSms() {
-  return useMutation({mutationFn: (input: Parameters<typeof registerSmsApi>[0]) => registerSmsApi(input)});
-}
-
-export function useRegister() {
   const queryClient = useQueryClient();
   const establishSession = useAuthStore((state) => state.establishSession);
   return useMutation({
-    mutationFn: (input: Parameters<typeof register>[0]) => register(input),
-    onSuccess: (account) => {
-      establishSession(account);
-      queryClient.setQueryData(authKeys.account(account.id), account);
-      void queryClient.invalidateQueries({queryKey: authKeys.demos});
+    mutationFn: (input: Parameters<typeof registerSmsApi>[0]) => registerSmsApi(input),
+    onSuccess: (account, {remember}) => {
+      establishSession(account, remember);
+      queryClient.setQueryData(authKeys.account, account);
     },
   });
 }
@@ -111,7 +102,7 @@ export function useVerifyAccount() {
   return useMutation({
     mutationFn: (input: VerificationInput) => verifyAccount(accountId!, input),
     onSuccess: (account) => {
-      queryClient.setQueryData(authKeys.account(account.id), account);
+      queryClient.setQueryData(authKeys.account, account);
     },
   });
 }
@@ -129,15 +120,14 @@ export function useApplyForIdentity() {
   });
 }
 
-export function useResetDemo() {
+export function useLogout() {
   const queryClient = useQueryClient();
   const signOut = useAuthStore((state) => state.signOut);
   return useMutation({
-    mutationFn: () => resetDemo(),
-    onSuccess: (accounts) => {
+    mutationFn: logoutApi,
+    onSettled: () => {
       signOut();
-      queryClient.clear();
-      queryClient.setQueryData(authKeys.demos, accounts);
+      queryClient.removeQueries({queryKey: authKeys.all});
     },
   });
 }
