@@ -53,10 +53,10 @@ export function AuthFrame({children}: {children: React.ReactNode}) {
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(237,244,247,0.58)_0%,rgba(237,244,247,0.08)_48%,rgba(237,244,247,0.12)_100%)]" />
           </div>
 
-          <Link className="absolute left-12 top-10 no-underline" href="/">
+          <Link className="absolute left-12 top-12 no-underline" href="/">
             <Image
               alt="万象硅芯 OmniS"
-              className="h-auto w-[174px]"
+              className="h-auto w-[210px]"
               height={55}
               priority
               src="/brand/omnis/OmniS-logo-horizontal-blue.svg"
@@ -64,8 +64,7 @@ export function AuthFrame({children}: {children: React.ReactNode}) {
             />
           </Link>
 
-          <div className="absolute left-12 right-12 top-[108px] max-w-[390px]">
-            <div className="mb-6 h-1 w-11 rounded-full bg-[#8fb8ca]" />
+          <div className="absolute left-12 right-12 top-[176px] max-w-[390px]">
             <Typography className="text-[34px] leading-[1.22] tracking-[-0.035em] text-[#173d52]" type="h1">
               {isRegister ? (
                 <>
