@@ -4,7 +4,7 @@ import {AppLayout} from "@heroui-pro/react/app-layout";
 import {InlineSelect} from "@heroui-pro/react/inline-select";
 import {Navbar} from "@heroui-pro/react/navbar";
 import {Sidebar} from "@heroui-pro/react/sidebar";
-import {Avatar, Button, Dropdown, Label, ListBox} from "@heroui/react";
+import {Avatar, Button, Dropdown, Label, ListBox, Spinner} from "@heroui/react";
 import Image from "next/image";
 import {usePathname, useRouter} from "next/navigation";
 
@@ -14,6 +14,7 @@ import type {Role} from "@/lib/domain/contracts";
 import {homeForRole} from "@/lib/domain/routes";
 
 import {RouteTransition} from "./route-transition";
+import {BuyerWorkspaceShell} from "./buyer-workspace-shell";
 
 const roleLabels: Record<Role, string> = {
   guest: "访客",
@@ -61,6 +62,19 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
     });
   }
 
+  if (activeRole === "buyer") {
+    return (
+      <BuyerWorkspaceShell
+        account={account}
+        isLoggingOut={logoutMutation.isPending}
+        onChangeRole={changeRole}
+        onLogout={logout}
+      >
+        {children}
+      </BuyerWorkspaceShell>
+    );
+  }
+
   const sidebarContent = (
     <>
       <Sidebar.Header>
@@ -105,17 +119,27 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
           <Button
             className="h-auto justify-start px-2 py-2 text-left"
             fullWidth
+            isPending={logoutMutation.isPending}
             variant="ghost"
           >
-            <Avatar size="sm">
-              <Avatar.Fallback>{account.displayName.slice(0, 1)}</Avatar.Fallback>
-            </Avatar>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-medium">
-                {account.displayName}
-              </span>
-              <span className="block truncate text-xs text-muted">{account.email}</span>
-            </span>
+            {logoutMutation.isPending ? (
+              <>
+                <Spinner aria-hidden="true" color="current" size="sm" />
+                正在退出
+              </>
+            ) : (
+              <>
+                <Avatar size="sm">
+                  <Avatar.Fallback>{account.displayName.slice(0, 1)}</Avatar.Fallback>
+                </Avatar>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">
+                    {account.displayName}
+                  </span>
+                  <span className="block truncate text-xs text-muted">{account.email}</span>
+                </span>
+              </>
+            )}
           </Button>
           <Dropdown.Popover className="min-w-48" placement="top start">
             <Dropdown.Menu
@@ -124,8 +148,14 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
                 if (key === "logout") logout();
               }}
             >
-              <Dropdown.Item id="logout" textValue="退出登录">
-                <Label>退出登录</Label>
+              <Dropdown.Item
+                id="logout"
+                isDisabled={logoutMutation.isPending}
+                textValue="退出登录"
+              >
+                <Label>
+                  {logoutMutation.isPending ? "正在退出" : "退出登录"}
+                </Label>
               </Dropdown.Item>
             </Dropdown.Menu>
           </Dropdown.Popover>

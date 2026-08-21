@@ -1,5 +1,6 @@
 import "server-only";
 
+import {cookies} from "next/headers";
 import {NextResponse} from "next/server";
 
 import {publicEnv} from "../config/public-env";
@@ -20,10 +21,49 @@ export async function postAuthBackend(
   });
 }
 
-export async function getAuthBackend(path: string, accessToken: string) {
-  return requestAuthBackend(path, {
-    headers: {authorization: `Bearer ${accessToken}`},
-  });
+export async function proxyAuthenticatedBackend(
+  path: string,
+  init: RequestInit = {},
+) {
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("..")) {
+    return NextResponse.json({code: 40001, message: "请求路径无效"}, {status: 400});
+  }
+
+  try {
+    const cookieStore = await cookies();
+    let accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
+    const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value;
+    const persistent = cookieStore.get(REMEMBER_SESSION_COOKIE)?.value === "1";
+    let refreshed: ReturnType<typeof authTokens> = null;
+
+    if (!accessToken && !refreshToken) return signedOut();
+
+    let result = accessToken
+      ? await requestAuthBackend(path, authorized(init, accessToken))
+      : {payload: null, status: 401};
+
+    if (result.status === 401 && refreshToken) {
+      const refresh = await postAuthBackend("/auth/refresh", {
+        refresh_token: refreshToken,
+      });
+      const rotatedTokens = authTokens(refresh.payload);
+      if (refresh.status === 200 && rotatedTokens) {
+        refreshed = rotatedTokens;
+        accessToken = rotatedTokens.accessToken;
+        result = await requestAuthBackend(path, authorized(init, accessToken));
+      }
+    }
+
+    const response = NextResponse.json(result.payload, {status: result.status});
+    if (refreshed) setAuthCookies(response, refreshed, persistent);
+    else if (result.status === 401) clearAuthCookies(response);
+    return response;
+  } catch {
+    return NextResponse.json(
+      {code: 50000, message: "服务暂不可用"},
+      {status: 502},
+    );
+  }
 }
 
 async function requestAuthBackend(path: string, init: RequestInit) {
@@ -129,4 +169,14 @@ export async function proxyAuthPost(request: Request, path: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function authorized(init: RequestInit, accessToken: string): RequestInit {
+  const headers = new Headers(init.headers);
+  headers.set("authorization", `Bearer ${accessToken}`);
+  return {...init, headers};
+}
+
+function signedOut() {
+  return NextResponse.json({code: 40100, message: "未登录"}, {status: 401});
 }

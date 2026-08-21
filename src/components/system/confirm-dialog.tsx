@@ -1,6 +1,6 @@
 "use client";
 
-import {AlertDialog, Button} from "@heroui/react";
+import {AlertDialog, Button, Spinner} from "@heroui/react";
 
 export function ConfirmDialog({
   cancelLabel = "取消",
@@ -48,7 +48,14 @@ export function ConfirmDialog({
               onPress={onConfirm}
               variant={isDestructive ? "danger-soft" : "primary"}
             >
-              {isPending ? "正在处理" : confirmLabel}
+              {isPending ? (
+                <>
+                  <Spinner aria-hidden="true" color="current" size="sm" />
+                  正在处理
+                </>
+              ) : (
+                confirmLabel
+              )}
             </Button>
           </AlertDialog.Footer>
         </AlertDialog.Dialog>

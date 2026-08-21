@@ -9,6 +9,7 @@ import {
   Label,
   Link,
   Separator,
+  Spinner,
   TextField,
   Typography,
 } from "@heroui/react";
@@ -63,9 +64,9 @@ export function LoginForm() {
     const result = await smsMutation
       .mutateAsync({phoneNumber: identifier, captchaToken})
       .catch(() => null);
-    if (!result) return false;
+    if (!result) return null;
     setResendSeconds(result.resendAfterSeconds);
-    return true;
+    return result;
   }
 
   const identifierIsValid = /^1[3-9]\d{9}$/.test(identifier);
@@ -148,7 +149,14 @@ export function LoginForm() {
           type="submit"
           variant="primary"
         >
-          登录
+          {mutation.isPending ? (
+            <>
+              <Spinner aria-hidden="true" color="current" size="sm" />
+              正在登录
+            </>
+          ) : (
+            "登录"
+          )}
         </Button>
       </Form>
 

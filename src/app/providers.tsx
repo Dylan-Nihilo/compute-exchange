@@ -6,6 +6,7 @@ import {ThemeProvider} from "next-themes";
 import {useState} from "react";
 import type {ReactNode} from "react";
 
+import {AuthSessionBootstrap} from "@/components/auth/auth-session";
 import {createQueryClient} from "@/lib/query/create-query-client";
 
 export function AppProviders({children}: Readonly<{children: ReactNode}>) {
@@ -20,6 +21,7 @@ export function AppProviders({children}: Readonly<{children: ReactNode}>) {
       storageKey="compute-exchange:theme"
     >
       <QueryClientProvider client={queryClient}>
+        <AuthSessionBootstrap />
         {children}
         <ToastProvider placement="top end" />
       </QueryClientProvider>

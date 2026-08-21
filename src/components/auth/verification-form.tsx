@@ -9,8 +9,8 @@ import {
   Input,
   Label,
   Link,
+  Spinner,
   TextField,
-  toast,
 } from "@heroui/react";
 import {Segment} from "@heroui-pro/react/segment";
 import {useRouter, useSearchParams} from "next/navigation";
@@ -20,6 +20,7 @@ import {useCurrentAccount, useVerifyAccount} from "@/lib/auth/queries";
 import {resolveActiveRole, safeNextPath} from "@/lib/auth/session";
 import {useAuthStore} from "@/lib/auth/store";
 import {homeForRole} from "@/lib/domain/routes";
+import {notify} from "@/lib/notify";
 import {FormError, FormHeading, LicenseDropZone} from "./form-parts";
 
 export function VerificationForm() {
@@ -117,7 +118,7 @@ export function VerificationForm() {
     await mutation
       .mutateAsync(input)
       .then((updated) => {
-        toast.success(
+        notify.success(
           updated.verificationStatus === "verified"
             ? "个人认证已完成"
             : "企业认证已提交审核",
@@ -301,11 +302,19 @@ export function VerificationForm() {
           isDisabled={
             mutation.isPending || (kind === "enterprise" && !licenseFileName)
           }
+          isPending={mutation.isPending}
           size="lg"
           type="submit"
           variant="primary"
         >
-          {mutation.isPending ? "正在核验" : "提交认证"}
+          {mutation.isPending ? (
+            <>
+              <Spinner aria-hidden="true" color="current" size="sm" />
+              正在核验
+            </>
+          ) : (
+            "提交认证"
+          )}
         </Button>
       </Form>
       <p className="mt-6 text-center text-sm text-muted">

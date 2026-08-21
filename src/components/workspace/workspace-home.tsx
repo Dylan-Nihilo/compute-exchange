@@ -1,6 +1,6 @@
 "use client";
 
-import {Button, Card, Chip, Link} from "@heroui/react";
+import {Button, Card, Chip, Link, Spinner} from "@heroui/react";
 import {EmptyState} from "@heroui-pro/react/empty-state";
 import {ItemCard} from "@heroui-pro/react/item-card";
 import {ItemCardGroup} from "@heroui-pro/react/item-card-group";
@@ -182,8 +182,19 @@ export function WorkspaceHome({role}: WorkspaceHomeProps) {
           </Card.Header>
           {accountQuery.isError ? (
             <Card.Footer>
-              <Button onPress={() => void accountQuery.refetch()} variant="outline">
-                重新读取
+              <Button
+                isPending={accountQuery.isFetching}
+                onPress={() => void accountQuery.refetch()}
+                variant="outline"
+              >
+                {accountQuery.isFetching ? (
+                  <>
+                    <Spinner aria-hidden="true" color="current" size="sm" />
+                    正在读取
+                  </>
+                ) : (
+                  "重新读取"
+                )}
               </Button>
             </Card.Footer>
           ) : null}

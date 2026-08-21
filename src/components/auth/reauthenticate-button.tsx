@@ -1,6 +1,6 @@
 "use client";
 
-import {Button} from "@heroui/react";
+import {Button, Spinner} from "@heroui/react";
 import {useRouter} from "next/navigation";
 
 import {useLogout} from "@/lib/auth/queries";
@@ -20,7 +20,14 @@ export function ReauthenticateButton() {
       type="button"
       variant="outline"
     >
-      切换账户
+      {logoutMutation.isPending ? (
+        <>
+          <Spinner aria-hidden="true" color="current" size="sm" />
+          正在退出
+        </>
+      ) : (
+        "切换账户"
+      )}
     </Button>
   );
 }

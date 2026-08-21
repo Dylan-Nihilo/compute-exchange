@@ -1,5 +1,5 @@
-import {WorkspaceHome} from "@/components/workspace/workspace-home";
+import {BuyerDashboard} from "@/components/workspace/buyer-dashboard";
 
 export default function BuyerWorkspacePage() {
-  return <WorkspaceHome role="buyer" />;
+  return <BuyerDashboard />;
 }

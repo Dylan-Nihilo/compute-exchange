@@ -1,0 +1,99 @@
+/* Motion adapted for OmniS from SelfMadeSystem/pretty-treefrog-77 (MIT). */
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
+  color: var(--foreground);
+}
+
+.mark {
+  width: 11rem;
+  height: auto;
+  overflow: visible;
+}
+
+.root[data-size="sm"] {
+  gap: 0.625rem;
+}
+
+.root[data-size="sm"] .mark {
+  width: 7.5rem;
+}
+
+.track,
+.ink {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 6;
+  vector-effect: non-scaling-stroke;
+}
+
+.track {
+  stroke: currentColor;
+  opacity: 0.12;
+}
+
+.ink {
+  stroke: color-mix(in oklch, var(--focus) 72%, var(--foreground));
+}
+
+.ink path {
+  animation:
+    omnis-dash-array 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite,
+    omnis-dash-offset 2.4s linear infinite;
+}
+
+.ink path:nth-child(2) {
+  animation-delay: 80ms;
+}
+
+.ink path:nth-child(3) {
+  animation-delay: 160ms;
+}
+
+.ink path:nth-child(4) {
+  animation-delay: 240ms;
+}
+
+.ink path:nth-child(5) {
+  animation-delay: 320ms;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+@keyframes omnis-dash-array {
+  0% {
+    stroke-dasharray: 0 1 99 0;
+  }
+  50% {
+    stroke-dasharray: 0 99 1 0;
+  }
+  100% {
+    stroke-dasharray: 99 1 0 0;
+  }
+}
+
+@keyframes omnis-dash-offset {
+  from {
+    stroke-dashoffset: 101;
+  }
+  to {
+    stroke-dashoffset: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink path {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}

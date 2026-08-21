@@ -1,0 +1,194 @@
+"use client";
+
+import {Navbar} from "@heroui-pro/react/navbar";
+import {Sidebar} from "@heroui-pro/react/sidebar";
+import {Avatar, Button, Dropdown, Label, Spinner} from "@heroui/react";
+import Image from "next/image";
+import {usePathname, useRouter} from "next/navigation";
+
+import type {SessionAccount} from "@/lib/auth/service";
+import type {Role} from "@/lib/domain/contracts";
+
+import {RouteTransition} from "./route-transition";
+
+const navItems: readonly {label: string; icon: string; href?: string}[] = [
+  {label: "工作台首页", icon: "layout-grid.svg", href: "/console/buyer"},
+  {label: "我的订单", icon: "clipboard-list.svg", href: "#recent-orders"},
+  {label: "账单中心", icon: "credit-card.svg"},
+  {label: "发票管理", icon: "file-check.svg"},
+  {label: "工单售后", icon: "life-buoy.svg"},
+  {label: "个人/企业中心", icon: "building.svg", href: "/auth/verify"},
+  {label: "消息中心", icon: "message-square.svg"},
+];
+
+const roleLabels: Record<Exclude<Role, "guest">, string> = {
+  buyer: "买家",
+  supplier: "供给方",
+  vendor: "设备厂商",
+  funder: "资方",
+  operator: "平台运营",
+  admin: "系统管理员",
+};
+
+export function BuyerWorkspaceShell({
+  account,
+  children,
+  isLoggingOut,
+  onChangeRole,
+  onLogout,
+}: {
+  account: SessionAccount;
+  children: React.ReactNode;
+  isLoggingOut: boolean;
+  onChangeRole: (role: Exclude<Role, "guest">) => void;
+  onLogout: () => void;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  return (
+    <div className="relative min-h-screen overflow-x-clip bg-linear-to-r from-[#f3fbfe] via-[#f9fdff] to-[#fdfeff] text-[#102b3b]">
+      <Image
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-[330px] left-[46%] h-[620px] w-[620px] max-w-none opacity-80"
+        height={620}
+        priority
+        src="/images/buyer-workspace/atmosphere-ice.svg"
+        width={620}
+      />
+      <Image
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute top-[610px] right-[8%] h-[360px] w-[520px] max-w-none opacity-70"
+        height={360}
+        src="/images/buyer-workspace/atmosphere-cyan.svg"
+        width={520}
+      />
+
+      <Navbar
+        className="z-20 border-b border-white/30 bg-white/25 backdrop-blur-xl"
+        height="72px"
+        maxWidth="full"
+        navigate={router.push}
+        position="sticky"
+      >
+        <Navbar.Header className="h-[72px] px-5 sm:px-10">
+          <Navbar.Brand>
+            <Navbar.Item aria-label="返回万象硅芯首页" className="px-0" href="/">
+              <Image
+                alt="万象硅芯 OmniS"
+                className="h-auto w-[132px] sm:w-[150px]"
+                height={37}
+                priority
+                src="/images/buyer-workspace/brand.png"
+                width={150}
+              />
+            </Navbar.Item>
+          </Navbar.Brand>
+          <Navbar.Spacer />
+          <Navbar.Content className="gap-2">
+            <Button
+              aria-label="消息中心"
+              className="h-10 w-10 min-w-10 rounded-xl border border-white/25 bg-transparent px-0"
+              isDisabled
+              variant="ghost"
+            >
+              <Image alt="" aria-hidden="true" height={16} src="/images/buyer-workspace/notification.svg" width={16} />
+            </Button>
+            <Dropdown>
+              <Button
+                className="h-[46px] gap-2.5 rounded-[14px] border border-white/30 bg-white/10 px-2.5 text-left transition-colors duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white/35 sm:pr-3"
+                isPending={isLoggingOut}
+                variant="ghost"
+              >
+                {isLoggingOut ? (
+                  <Spinner aria-hidden="true" color="current" size="sm" />
+                ) : (
+                  <Avatar className="bg-[#0485f7]/15 text-[#07567b]" size="sm">
+                    <Avatar.Fallback>{account.displayName.slice(0, 1)}</Avatar.Fallback>
+                  </Avatar>
+                )}
+                <span className="hidden min-w-0 sm:block">
+                  <span className="block max-w-36 truncate text-xs font-medium text-[#102b3b]">
+                    {isLoggingOut ? "正在退出" : account.displayName}
+                  </span>
+                  <span className="block text-[10px] text-[#78909c]">买家账户</span>
+                </span>
+                <Image alt="" aria-hidden="true" height={16} src="/images/buyer-workspace/chevron-down.svg" width={16} />
+              </Button>
+              <Dropdown.Popover className="min-w-52" placement="bottom end">
+                <Dropdown.Menu
+                  aria-label="账户操作"
+                  onAction={(key) => {
+                    if (key === "logout") onLogout();
+                    else if (typeof key === "string" && key.startsWith("role:")) {
+                      onChangeRole(key.slice(5) as Exclude<Role, "guest">);
+                    }
+                  }}
+                >
+                  {account.roles
+                    .filter((role) => role !== "buyer")
+                    .map((role) => (
+                      <Dropdown.Item id={`role:${role}`} key={role} textValue={`切换为${roleLabels[role]}`}>
+                        <Label>切换为{roleLabels[role]}</Label>
+                      </Dropdown.Item>
+                    ))}
+                  <Dropdown.Item id="logout" isDisabled={isLoggingOut} textValue="退出登录">
+                    <Label>{isLoggingOut ? "正在退出" : "退出登录"}</Label>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+          </Navbar.Content>
+        </Navbar.Header>
+      </Navbar>
+
+      <Sidebar.Provider
+        className="relative z-10 min-h-[calc(100vh-72px)]"
+        collapsible="none"
+        navigate={router.push}
+        toggleShortcut={false}
+      >
+        <Sidebar className="hidden min-h-[calc(100vh-72px)] w-[212px] shrink-0 border-0 bg-transparent px-4 py-6 shadow-none lg:flex">
+          <Sidebar.Content className="gap-1.5 overflow-visible px-0">
+            <Sidebar.Group>
+              <Sidebar.Menu aria-label="买家工作台导航" showGuideLines={false}>
+                {navItems.map((item, index) => (
+                  <Sidebar.MenuItem
+                    aria-disabled={!item.href}
+                    className={`text-[13px] font-medium [&_[data-slot=sidebar-menu-item-content]]:min-h-0 [&_[data-slot=sidebar-menu-item-content]]:gap-[11px] [&_[data-slot=sidebar-menu-item-content]]:rounded-[14px] [&_[data-slot=sidebar-menu-item-content]]:px-3 [&_[data-slot=sidebar-menu-item-content]]:py-3 [&_[data-slot=sidebar-menu-item-content]]:transition-colors [&_[data-slot=sidebar-menu-item-content]]:duration-150 ${
+                      index === 0
+                        ? "[&_[data-slot=sidebar-menu-item-content]]:bg-white/55 [&_[data-slot=sidebar-menu-item-content]]:shadow-[0_7px_9px_rgba(20,79,117,0.11)] hover:[&_[data-slot=sidebar-menu-item-content]]:bg-white/70"
+                        : item.href
+                          ? "hover:[&_[data-slot=sidebar-menu-item-content]]:bg-white/45"
+                          : "!cursor-not-allowed !opacity-100"
+                    }`}
+                    href={item.href}
+                    id={item.label}
+                    isCurrent={item.href === "/console/buyer" && pathname === item.href}
+                    key={item.label}
+                    textValue={item.label}
+                  >
+                    <Sidebar.MenuItemContent>
+                      <Sidebar.MenuIcon className={item.href ? "text-[#5e7786]" : "text-[#9cb0ba]"}>
+                        <Image alt="" aria-hidden="true" height={18} src={`/images/buyer-workspace/${item.icon}`} width={18} />
+                      </Sidebar.MenuIcon>
+                      <Sidebar.MenuLabel className={item.href ? "text-[#173447]" : "text-[#9cb0ba]"}>
+                        {item.label}
+                      </Sidebar.MenuLabel>
+                    </Sidebar.MenuItemContent>
+                  </Sidebar.MenuItem>
+                ))}
+              </Sidebar.Menu>
+            </Sidebar.Group>
+          </Sidebar.Content>
+        </Sidebar>
+
+        <Sidebar.Main className="min-h-[calc(100vh-72px)]">
+          <RouteTransition>{children}</RouteTransition>
+        </Sidebar.Main>
+      </Sidebar.Provider>
+    </div>
+  );
+}

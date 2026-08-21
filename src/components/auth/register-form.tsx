@@ -8,6 +8,7 @@ import {
   Input,
   Label,
   Link,
+  Spinner,
   TextField,
 } from "@heroui/react";
 import {Segment} from "@heroui-pro/react/segment";
@@ -62,9 +63,9 @@ export function RegisterForm() {
     const result = await smsMutation
       .mutateAsync({phoneNumber, captchaToken})
       .catch(() => null);
-    if (!result) return false;
+    if (!result) return null;
     setResendSeconds(result.resendAfterSeconds);
-    return true;
+    return result;
   }
 
   const targetIsValid = /^1[3-9]\d{9}$/.test(phoneNumber);
@@ -150,7 +151,14 @@ export function RegisterForm() {
           type="submit"
           variant="primary"
         >
-          创建账户
+          {smsRegisterMutation.isPending ? (
+            <>
+              <Spinner aria-hidden="true" color="current" size="sm" />
+              正在创建
+            </>
+          ) : (
+            "创建账户"
+          )}
         </Button>
       </Form>
 

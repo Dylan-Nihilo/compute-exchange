@@ -10,9 +10,9 @@ import {
   Form,
   Input,
   Label,
+  Spinner,
   TextArea,
   TextField,
-  toast,
   Typography,
 } from "@heroui/react";
 import {RadioButtonGroup} from "@heroui-pro/react/radio-button-group";
@@ -31,6 +31,7 @@ import {
 import {resolveActiveRole} from "@/lib/auth/session";
 import {useAuthStore} from "@/lib/auth/store";
 import {homeForRole} from "@/lib/domain/routes";
+import {notify} from "@/lib/notify";
 import {FormError, FormHeading, LicenseDropZone} from "./form-parts";
 
 const identityOptions: Array<{
@@ -93,7 +94,7 @@ export function IdentityForm() {
 
     await mutation
       .mutateAsync(input)
-      .then(() => toast.success(`${selectedOption.title}身份申请已提交`))
+      .then(() => notify.success(`${selectedOption.title}身份申请已提交`))
       .catch(() => undefined);
   }
 
@@ -314,11 +315,19 @@ export function IdentityForm() {
           <Button
             fullWidth
             isDisabled={mutation.isPending || !licenseFileName}
+            isPending={mutation.isPending}
             size="lg"
             type="submit"
             variant="primary"
           >
-            {mutation.isPending ? "正在提交" : "提交资质审核"}
+            {mutation.isPending ? (
+              <>
+                <Spinner aria-hidden="true" color="current" size="sm" />
+                正在提交
+              </>
+            ) : (
+              "提交资质审核"
+            )}
           </Button>
         </Form>
       ) : null}

@@ -1,0 +1,55 @@
+name: compute-exchange-cap
+
+services:
+  cap:
+    image: tiago2/cap:latest
+    container_name: compute-exchange-cap
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3210:3000"
+    environment:
+      ADMIN_KEY: ${CAP_ADMIN_KEY:?Set CAP_ADMIN_KEY to at least 32 characters}
+      CORS_ORIGIN: ${CAP_CORS_ORIGIN:-http://localhost:3000}
+      REDIS_URL: redis://valkey:6379
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  cap-init:
+    image: tiago2/cap:latest
+    container_name: compute-exchange-cap-init
+    restart: "no"
+    environment:
+      REDIS_URL: redis://valkey:6379
+      CAP_DEV_SITE_SECRET: ${CAP_DEV_SITE_SECRET:-DEMO_REPLACE_ME_CAP_SITE_SECRET_32_CHARS}
+    depends_on:
+      valkey:
+        condition: service_healthy
+    entrypoint: ["bun"]
+    command:
+      - -e
+      - |
+        import { db } from "./src/db.js";
+        const siteKey = "local-dev";
+        if (!(await db.sismember("keys", siteKey))) {
+          const secretHash = await Bun.password.hash(process.env.CAP_DEV_SITE_SECRET);
+          const config = JSON.stringify({ difficulty: 4, challengeCount: 80, saltSize: 32, instrumentation: false, obfuscationLevel: 3, blockAutomatedBrowsers: false, rsw: false, rswT: 75000, corsOrigins: ["http://localhost:3000", "http://127.0.0.1:3000"] });
+          await db.hmset(`key:$${siteKey}`, ["name", "Compute Exchange Local", "secretHash", secretHash, "jwtSecret", "local-dev-jwt-secret-not-for-production", "config", config, "created", String(Date.now())]);
+          await db.sadd("keys", siteKey);
+        }
+
+  valkey:
+    image: valkey/valkey:9-alpine
+    container_name: compute-exchange-cap-valkey
+    restart: unless-stopped
+    command: valkey-server --save 60 1 --loglevel warning --maxmemory-policy noeviction
+    volumes:
+      - cap-valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  cap-valkey-data:
