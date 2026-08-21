@@ -53,7 +53,7 @@
   --animate-route-page-enter: route-page-enter 200ms
     cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-route-loading-enter: route-loading-enter 160ms
-    cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+    cubic-bezier(0.22, 1, 0.36, 1) both;
 
   @keyframes sheen-sweep {
     from {
