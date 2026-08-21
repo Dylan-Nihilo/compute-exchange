@@ -10,6 +10,7 @@ const smsCodeEnvelopeSchema = z.object({
     .object({
       expires_in: z.number().int().positive(),
       resend_after: z.number().int().positive().optional(),
+      preview_code: z.string().regex(/^[0-9]{6}$/).optional(),
     })
     .optional(),
 });
@@ -59,6 +60,7 @@ export async function requestSmsCodeApi(
   return {
     resendAfterSeconds:
       result.data.resend_after ?? Math.min(result.data.expires_in, 60),
+    previewCode: result.data.preview_code,
   };
 }
 

@@ -3,7 +3,8 @@
 import {usePathname, useRouter} from "next/navigation";
 import {useEffect, useMemo} from "react";
 
-import {ErrorState, LoadingState} from "@/components/system/operation-state";
+import {RouteLoading} from "@/components/layout/route-loading";
+import {ErrorState} from "@/components/system/operation-state";
 import {useCurrentAccount} from "@/lib/auth/queries";
 import {resolveActiveRole} from "@/lib/auth/session";
 import {useAuthStore} from "@/lib/auth/store";
@@ -83,21 +84,22 @@ export function AccessBoundary({children}: {children: React.ReactNode}) {
   ]);
 
   if (!hasHydrated || accountQuery.isPending) {
-    return <LoadingState label="正在验证访问权限" />;
+    return <RouteLoading label="正在验证访问权限" />;
   }
   if (accountQuery.isError) {
     return (
       <ErrorState
         description={messageFor(accountQuery.error)}
+        isPending={accountQuery.isFetching}
         onRetry={() => void accountQuery.refetch()}
       />
     );
   }
   if (roleSwitchTarget && pathname !== roleSwitchTarget) {
-    return <LoadingState label="正在切换工作台" />;
+    return <RouteLoading label="正在切换工作台" />;
   }
   if (!account || authorization?.level !== "allow") {
-    return <LoadingState label="正在前往可访问页面" />;
+    return <RouteLoading label="正在前往可访问页面" />;
   }
 
   return children;

@@ -10,6 +10,7 @@ import {
   Pagination,
   SearchField,
   Select,
+  Spinner,
   TextField,
 } from "@heroui/react";
 import Image from "next/image";
@@ -224,7 +225,14 @@ export function MarketView({query, result}: MarketViewProps) {
               isPending={isPending}
               type="submit"
             >
-              筛选
+              {isPending ? (
+                <>
+                  <Spinner aria-hidden="true" color="current" size="sm" />
+                  筛选中
+                </>
+              ) : (
+                "筛选"
+              )}
             </Button>
           </div>
 

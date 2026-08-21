@@ -11,6 +11,7 @@ export async function solveCaptcha(): Promise<string> {
   const endpoint = publicEnv.NEXT_PUBLIC_CAP_API_ENDPOINT;
 
   if (!endpoint) {
+    if (process.env.NODE_ENV === "development") return DEMO_CAPTCHA_TOKEN;
     throw new Error("安全验证服务尚未配置");
   }
 

@@ -8,13 +8,13 @@ import {
   Label,
   Spinner,
   TextField,
-  toast,
   Typography,
 } from "@heroui/react";
 import {DropZone} from "@heroui-pro/react/drop-zone";
 import {useState} from "react";
 
 import {solveCaptcha} from "@/lib/captcha/cap";
+import {notify} from "@/lib/notify";
 
 export function VerificationCodeField({
   canSend,
@@ -29,7 +29,9 @@ export function VerificationCodeField({
   id: string;
   isPending: boolean;
   onChange: (value: string) => void;
-  onSend: (captchaToken: string) => Promise<boolean>;
+  onSend: (
+    captchaToken: string,
+  ) => Promise<{previewCode?: string} | null>;
   resendSeconds: number;
   value: string;
 }) {
@@ -40,9 +42,16 @@ export function VerificationCodeField({
     try {
       const captchaToken = await solveCaptcha();
       setIsVerifying(false);
-      await onSend(captchaToken);
+      const result = await onSend(captchaToken);
+      if (!result) return;
+      if (result.previewCode) onChange(result.previewCode);
+      notify.success(
+        result.previewCode
+          ? `本地验证码：${result.previewCode}`
+          : "验证码已发送，请注意查收",
+      );
     } catch (error) {
-      toast.danger(error instanceof Error ? error.message : "安全验证未完成，请重试");
+      notify.error(error instanceof Error ? error.message : "安全验证未完成，请重试");
     } finally {
       setIsVerifying(false);
     }
@@ -83,7 +92,9 @@ export function VerificationCodeField({
             type="button"
             variant="ghost"
           >
-            {isPending || isVerifying ? <Spinner color="current" size="sm" /> : null}
+            {isPending || isVerifying ? (
+              <Spinner aria-hidden="true" color="current" size="sm" />
+            ) : null}
             {isVerifying
               ? "安全验证中"
               : isPending

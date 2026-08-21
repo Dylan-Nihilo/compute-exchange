@@ -16,7 +16,7 @@ describe("authentication API adapter", () => {
       return Response.json({
         code: 0,
         message: "success",
-        data: {expires_in: 300, resend_after: 60},
+        data: {expires_in: 300, resend_after: 60, preview_code: "123456"},
       });
     };
 
@@ -34,6 +34,7 @@ describe("authentication API adapter", () => {
       captcha_token: "cap-token",
     });
     assert.equal(result.resendAfterSeconds, 60);
+    assert.equal(result.previewCode, "123456");
 
     const legacyResult = await requestSmsCodeApi(
       {

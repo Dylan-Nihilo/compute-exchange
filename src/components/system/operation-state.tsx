@@ -1,38 +1,26 @@
 "use client";
 
 import {EmptyState as ProEmptyState} from "@heroui-pro/react/empty-state";
-import {Alert, Button, ProgressCircle} from "@heroui/react";
+import {Alert, Button, Spinner} from "@heroui/react";
+
+import {OmnisLoader} from "./omnis-loader";
 
 export function LoadingState({label = "正在加载"}: {label?: string}) {
   return (
-    <div
-      aria-live="polite"
-      className="grid min-h-64 place-items-center px-6 py-12 text-center"
-      role="status"
-    >
-      <div className="flex flex-col items-center gap-3">
-        <ProgressCircle
-          isIndeterminate
-          aria-label={label}
-          id="operation-loading-progress"
-        >
-          <ProgressCircle.Track>
-            <ProgressCircle.TrackCircle />
-            <ProgressCircle.FillCircle />
-          </ProgressCircle.Track>
-        </ProgressCircle>
-        <p className="text-sm text-muted">{label}</p>
-      </div>
+    <div className="grid min-h-64 place-items-center px-6 py-12 text-center">
+      <OmnisLoader label={label} size="sm" />
     </div>
   );
 }
 
 export function ErrorState({
   description = "请求未完成，请重新尝试。",
+  isPending = false,
   onRetry,
   title = "服务暂时不可用",
 }: {
   description?: string;
+  isPending?: boolean;
   onRetry?: () => void;
   title?: string;
 }) {
@@ -45,8 +33,20 @@ export function ErrorState({
         </Alert.Content>
       </Alert>
       {onRetry ? (
-        <Button className="mt-4" onPress={onRetry} variant="outline">
-          重新尝试
+        <Button
+          className="mt-4"
+          isPending={isPending}
+          onPress={onRetry}
+          variant="outline"
+        >
+          {isPending ? (
+            <>
+              <Spinner aria-hidden="true" color="current" size="sm" />
+              正在重试
+            </>
+          ) : (
+            "重新尝试"
+          )}
         </Button>
       ) : null}
     </div>
