@@ -126,12 +126,16 @@ jobs:
           ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=5 \
             -o StrictHostKeyChecking=yes \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "install -d -m 755 '$release_dir' && test -s '$RELEASE_ROOT/.env'"
           scp \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=5 \
             -o StrictHostKeyChecking=yes \
             deploy/compose.yml deploy/Caddyfile deploy/deploy.sh \
             "$DEPLOY_USER@$DEPLOY_HOST:$release_dir/"
@@ -143,6 +147,8 @@ jobs:
           printf '%s' "$GHCR_TOKEN" | ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=5 \
             -o StrictHostKeyChecking=yes \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "set -eu; trap 'docker logout ghcr.io >/dev/null 2>&1 || true' 0; docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin >/dev/null; docker pull 'ghcr.io/dylan-nihilo/compute-exchange:$GITHUB_SHA'; docker tag 'ghcr.io/dylan-nihilo/compute-exchange:$GITHUB_SHA' 'wanxiang-frontend:$GITHUB_SHA'; chmod 700 '$RELEASE_ROOT/releases/$GITHUB_SHA/deploy.sh'; '$RELEASE_ROOT/releases/$GITHUB_SHA/deploy.sh' '$GITHUB_SHA'"
