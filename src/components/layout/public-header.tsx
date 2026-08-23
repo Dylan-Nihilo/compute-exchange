@@ -26,6 +26,8 @@ import {
 } from "./glass-navbar";
 
 const SPY_SECTION_IDS = ["modules", "network", "partners"] as const;
+const NAV_TOP_THRESHOLD = 96;
+const NAV_DIRECTION_THRESHOLD = 12;
 
 export function PublicHeader() {
   const pathname = usePathname();
@@ -49,17 +51,15 @@ export function PublicHeader() {
   const workspaceHref = account
     ? homeForRole(resolveActiveRole(account.roles, activeRole))
     : null;
-  const navVisible = prefersReducedMotion || isVisible;
+  const navVisible = isVisible;
 
   useEffect(() => setIsMounted(true), []);
 
   useMotionValueEvent(scrollY, "change", (current) => {
-    if (prefersReducedMotion) return;
-
     const previous = scrollY.getPrevious() ?? current;
     const delta = current - previous;
 
-    if (current < 180) {
+    if (current <= NAV_TOP_THRESHOLD) {
       directionRef.current = "up";
       travelRef.current = 0;
       setIsVisible(true);
@@ -74,13 +74,10 @@ export function PublicHeader() {
     }
 
     travelRef.current += Math.abs(delta);
-    if (direction === "down" && travelRef.current > 96) {
-      setIsVisible(false);
-      travelRef.current = 0;
-    } else if (direction === "up" && travelRef.current > 16) {
-      setIsVisible(true);
-      travelRef.current = 0;
-    }
+    if (travelRef.current < NAV_DIRECTION_THRESHOLD) return;
+
+    setIsVisible(direction === "up");
+    travelRef.current = 0;
   });
 
   useEffect(() => {
@@ -109,23 +106,15 @@ export function PublicHeader() {
 
   return (
     <>
-      <motion.div
-        animate={{
-          y: navVisible ? 0 : -40,
-          opacity: navVisible ? 1 : 0,
-        }}
-        className="fixed inset-x-4 top-[1.875rem] z-50 sm:inset-x-10"
+      <div
+        className={`fixed inset-x-4 top-[1.875rem] z-50 will-change-[opacity] transition-opacity motion-reduce:transition-none sm:inset-x-10 ${
+          navVisible
+            ? "opacity-100 duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+            : "opacity-0 duration-[140ms] ease-[cubic-bezier(0.4,0,1,1)]"
+        }`}
         data-nav-visible={navVisible}
         data-public-header
-        initial={false}
         style={{pointerEvents: navVisible ? "auto" : "none"}}
-        transition={
-          prefersReducedMotion
-            ? {duration: 0}
-            : navVisible
-              ? {duration: 0.42, ease: [0.16, 1, 0.3, 1]}
-              : {duration: 0.32, ease: [0.7, 0, 0.84, 0]}
-        }
         onFocusCapture={() => setIsVisible(true)}
       >
         <GlassNavbar aria-label="主导航" navigate={router.push}>
@@ -255,7 +244,7 @@ export function PublicHeader() {
             )}
           </Navbar.Menu>
         </GlassNavbar>
-      </motion.div>
+      </div>
       {isLanding ? null : <div aria-hidden="true" className="h-[5.875rem]" />}
     </>
   );

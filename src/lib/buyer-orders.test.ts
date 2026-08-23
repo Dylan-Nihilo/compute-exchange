@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {summarizeBuyerOrders, type BuyerOrder} from "./buyer-orders.ts";
+import {
+  confirmBuyerOrder,
+  fetchBuyerOrders,
+  isBuyerOrderNo,
+  summarizeBuyerOrders,
+  type BuyerOrder,
+} from "./buyer-orders.ts";
 
 const baseOrder: BuyerOrder = {
   id: 1,
@@ -41,4 +47,50 @@ test("summarizeBuyerOrders derives actionable buyer metrics", () => {
       isTruncated: true,
     },
   );
+});
+
+test("fetchBuyerOrders forwards supported filters and normalizes an empty page", async () => {
+  let requestedUrl = "";
+  const result = await fetchBuyerOrders(
+    {status: "active", orderNo: "ORD20260823", page: 2, pageSize: 20},
+    async (input) => {
+      requestedUrl = String(input);
+      return Response.json({
+        code: 0,
+        message: "success",
+        data: {list: null, total: 0, page: 2, page_size: 20},
+      });
+    },
+  );
+
+  assert.equal(
+    requestedUrl,
+    "/api/buyer/orders?page=2&page_size=20&status=active&order_no=ORD20260823",
+  );
+  assert.deepEqual(result, {orders: [], total: 0, page: 2, pageSize: 20});
+});
+
+test("fetchBuyerOrders rejects backend business errors returned with HTTP 200", async () => {
+  await assert.rejects(
+    fetchBuyerOrders({}, async () =>
+      Response.json({code: 40100, message: "未登录"}),
+    ),
+    /未登录/,
+  );
+});
+
+test("confirmBuyerOrder uses the backend order number", async () => {
+  let requestedUrl = "";
+  await confirmBuyerOrder("ORD20260823120000a1b2c3", async (input) => {
+    requestedUrl = String(input);
+    return Response.json({code: 0, message: "success"});
+  });
+
+  assert.equal(
+    requestedUrl,
+    "/api/buyer/orders/ORD20260823120000a1b2c3/confirm",
+  );
+  assert.equal(isBuyerOrderNo("ORD20260823120000a1b2c3"), true);
+  assert.equal(isBuyerOrderNo("../orders/other"), false);
+  await assert.rejects(confirmBuyerOrder("42", async () => new Response()), /订单编号无效/);
 });

@@ -17,16 +17,18 @@ export const metadata: Metadata = {
 
 export default function LandingPage() {
   return (
-    <RouteTransition>
-      <main className="overflow-x-clip bg-cs-canvas text-cs-ink">
-        <PublicHeader />
-        <HeroSection />
-        <BusinessCapabilitiesSection />
-        <NetworkSection />
-        <PartnersSection />
-        <MarketPreviewSection />
-        <LandingFooter />
-      </main>
-    </RouteTransition>
+    <>
+      <PublicHeader />
+      <RouteTransition>
+        <main className="overflow-x-clip bg-cs-canvas text-cs-ink">
+          <HeroSection />
+          <BusinessCapabilitiesSection />
+          <NetworkSection />
+          <PartnersSection />
+          <MarketPreviewSection />
+          <LandingFooter />
+        </main>
+      </RouteTransition>
+    </>
   );
 }
