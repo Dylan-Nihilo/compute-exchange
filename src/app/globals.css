@@ -86,7 +86,7 @@
 
 }
 
-.hero-particle-loader {
+.hero-spectrum-loader {
   position: fixed;
   inset: 0;
   z-index: 100;
@@ -95,143 +95,196 @@
   overflow: hidden;
   pointer-events: none;
   isolation: isolate;
-}
-
-.hero-particle-loader__surface {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
   background: var(--background);
-  will-change: clip-path;
 }
 
-.hero-particle-loader__particles {
+.hero-spectrum-loader__curtain {
   position: absolute;
   inset: 0;
-  z-index: -1;
+  display: flex;
 }
 
-.hero-particle-loader__particle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: var(--particle-size);
-  height: var(--particle-size);
-  border-radius: 999px;
-  background: color-mix(
-    in oklch,
-    var(--color-cs-accent) 78%,
-    var(--foreground)
-  );
-  box-shadow: 0 0 10px
-    color-mix(in oklch, var(--color-cs-accent) 36%, transparent);
-  opacity: 0;
+.hero-spectrum-loader__blind {
+  min-width: 0;
+  flex: 1;
+  margin-left: -1px;
+  background: var(--background);
+  transform-origin: 50% 0;
+  will-change: transform;
+}
+
+.hero-spectrum-loader__signal {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.55rem, 3vw, 2.5rem);
+  overflow: hidden;
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-size: clamp(3.5rem, 10vw, 8.5rem);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  user-select: none;
   will-change: transform, opacity;
 }
 
-.hero-particle-loader__particle:nth-child(3n) {
-  border-radius: 1px;
-  background: color-mix(in oklch, var(--foreground) 72%, transparent);
+.hero-spectrum-loader__spectrum {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: transparent;
+  -webkit-mask-image: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 6px,
+    #000 7px,
+    #000 8px
+  );
+  mask-image: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 6px,
+    #000 7px,
+    #000 8px
+  );
 }
 
-.hero-particle-loader[data-state="loading"]
-  .hero-particle-loader__surface {
-  clip-path: circle(150vmax at 50% 50%);
+.hero-spectrum-loader__spectrum::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background-image:
+    radial-gradient(
+      circle at 50% 50%,
+      color-mix(in oklch, var(--color-cs-accent) 88%, var(--surface)) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 42% 44%,
+      color-mix(in oklch, var(--color-cs-proof-title) 82%, transparent) 0%,
+      transparent 46%
+    ),
+    radial-gradient(
+      circle at 58% 56%,
+      color-mix(in oklch, var(--color-cs-proof-text) 72%, transparent) 0%,
+      transparent 46%
+    );
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent 0%,
+    transparent 10%,
+    #000 25%
+  );
+  mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent 0%,
+    transparent 10%,
+    #000 25%
+  );
+  animation:
+    hero-spectrum-travel 1.6s infinite alternate cubic-bezier(0.6, 0.8, 0.5, 1),
+    hero-spectrum-breathe 2.8s infinite cubic-bezier(0.6, 0.8, 0.5, 1);
+  will-change: transform, opacity;
 }
 
-.hero-particle-loader[data-state="loading"]
-  .hero-particle-loader__particle {
-  animation: hero-loader-particle-out 640ms cubic-bezier(0.16, 1, 0.3, 1)
-    var(--particle-delay) both;
+.hero-spectrum-loader__letter {
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  animation: hero-spectrum-letter 1.8s infinite linear var(--loader-delay);
+  will-change: transform, opacity;
 }
 
-.hero-particle-loader[data-state="loading"] .hero-particle-loader__mark {
-  opacity: 1;
+.hero-spectrum-loader[data-state="ready"] {
+  background: transparent;
+  animation: hero-spectrum-release 580ms step-end both;
 }
 
-.hero-particle-loader[data-state="ready"] {
-  animation: hero-loader-release 520ms step-end both;
+.hero-spectrum-loader[data-state="ready"] .hero-spectrum-loader__blind {
+  animation: hero-spectrum-blind-out 360ms cubic-bezier(0.4, 0, 1, 1)
+    var(--loader-delay) both;
 }
 
-.hero-particle-loader[data-state="ready"] .hero-particle-loader__surface {
-  animation: hero-loader-surface-out 520ms cubic-bezier(0.4, 0, 1, 1) both;
+.hero-spectrum-loader[data-state="ready"] .hero-spectrum-loader__signal {
+  animation: hero-spectrum-signal-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
-.hero-particle-loader[data-state="ready"] .hero-particle-loader__particle {
-  animation: hero-loader-particle-in 460ms cubic-bezier(0.4, 0, 1, 1)
-    var(--particle-delay) both;
-}
-
-.hero-particle-loader[data-state="ready"] .hero-particle-loader__mark {
-  animation: hero-loader-mark-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
-}
-
-@keyframes hero-loader-surface-out {
+@keyframes hero-spectrum-travel {
   from {
-    clip-path: circle(150vmax at 50% 50%);
+    transform: translateX(-48%);
   }
   to {
-    clip-path: circle(0 at 50% 50%);
+    transform: translateX(48%);
   }
 }
 
-@keyframes hero-loader-particle-out {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.2);
-  }
-  18% {
-    opacity: 0.82;
-  }
+@keyframes hero-spectrum-breathe {
+  0%,
   100% {
-    opacity: 0;
-    transform: translate(
-        calc(-50% + var(--particle-x)),
-        calc(-50% + var(--particle-y))
-      )
-      scale(0.1);
+    opacity: 0.2;
+  }
+  42% {
+    opacity: 0.92;
+  }
+  72% {
+    opacity: 0.4;
   }
 }
 
-@keyframes hero-loader-particle-in {
+@keyframes hero-spectrum-letter {
   0% {
-    opacity: 0;
-    transform: translate(
-        calc(-50% + var(--particle-x)),
-        calc(-50% + var(--particle-y))
-      )
-      scale(0.1);
+    opacity: 0.08;
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.04);
   }
   38% {
-    opacity: 0.78;
+    opacity: 0.28;
+    transform: none;
   }
   100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0.08;
   }
 }
 
-@keyframes hero-loader-mark-out {
+@keyframes hero-spectrum-blind-out {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes hero-spectrum-signal-out {
   to {
     opacity: 0;
-    transform: scale(0.98);
+    transform: scale(0.97);
   }
 }
 
-@keyframes hero-loader-release {
+@keyframes hero-spectrum-release {
   to {
     visibility: hidden;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-particle-loader__particle {
-    display: none;
+  .hero-spectrum-loader__spectrum::after,
+  .hero-spectrum-loader__letter {
+    animation: none;
+    opacity: 1;
   }
 
-  .hero-particle-loader__surface,
-  .hero-particle-loader__mark,
-  .hero-particle-loader[data-state="ready"] {
+  .hero-spectrum-loader__blind,
+  .hero-spectrum-loader__signal,
+  .hero-spectrum-loader[data-state="ready"] {
     animation-duration: 0.01ms !important;
   }
 }
