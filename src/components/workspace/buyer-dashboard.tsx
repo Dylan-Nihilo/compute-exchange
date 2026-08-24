@@ -7,6 +7,7 @@ import {useRouter} from "next/navigation";
 import {useMemo, useState} from "react";
 
 import {ConfirmDialog} from "@/components/system/confirm-dialog";
+import {AnimatedNumber} from "@/components/system/animated-number";
 import {ErrorState} from "@/components/system/operation-state";
 import {useCurrentAccount} from "@/lib/auth/queries";
 import {
@@ -25,11 +26,11 @@ const primaryButtonInteraction =
   "transition-[translate,scale,box-shadow,background-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:bg-[#172733] hover:shadow-[0_12px_20px_rgba(5,20,31,0.28)] active:translate-y-0 active:scale-[0.98] motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100";
 const secondaryButtonInteraction =
   "transition-[translate,scale,box-shadow,background-color,border-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-[#7e99a8] hover:bg-white/65 hover:shadow-[0_8px_16px_rgba(36,74,95,0.12)] active:translate-y-0 active:scale-[0.98] motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100";
-const money = new Intl.NumberFormat("zh-CN", {
+const currencyFormat = {
   currency: "CNY",
   maximumFractionDigits: 0,
   style: "currency",
-});
+} as const;
 
 export function BuyerDashboard() {
   const router = useRouter();
@@ -104,7 +105,9 @@ export function BuyerDashboard() {
                 <p className="text-[11px] text-[#78909c]">影响交易进度的事项</p>
               </div>
             </div>
-            <span className="text-xs text-[#6f8794]">共 {todoCount} 项</span>
+            <span className="text-xs text-[#6f8794]">
+              共 <AnimatedNumber value={todoCount} /> 项
+            </span>
           </div>
 
           {todoCount ? (
@@ -134,19 +137,20 @@ export function BuyerDashboard() {
             detail={summary.isTruncated ? "按最近 100 笔统计" : "已支付及履约订单"}
             icon="clock.svg"
             label="进行中订单"
-            value={String(summary.inProgress)}
+            value={summary.inProgress}
           />
           <Metric
+            currency
             detail="按已支付订单估算"
             icon="credit-card-small.svg"
             label="本月消费"
-            value={money.format(summary.monthSpendMinor / 100)}
+            value={summary.monthSpendMinor / 100}
           />
           <Metric
             detail="暂无可核验口径"
             icon="trending-down.svg"
             label="累计节省"
-            value="—"
+            value={null}
           />
         </section>
       </div>
@@ -160,7 +164,9 @@ export function BuyerDashboard() {
             <h2 className="text-base font-semibold text-[#173447]">近期订单</h2>
             <p className="mt-0.5 text-[11px] text-[#78909c]">查看采购、交付与履约状态</p>
           </div>
-          <span className="text-xs text-[#6f8794]">共 {ordersQuery.data.total} 笔</span>
+          <span className="text-xs text-[#6f8794]">
+            共 <AnimatedNumber value={ordersQuery.data.total} /> 笔
+          </span>
         </div>
 
         {summary.recentOrders.length ? (
@@ -238,7 +244,9 @@ function TaskLink({count, detail, icon, label}: {count: number; detail: string; 
     >
       <Image alt="" aria-hidden="true" height={7} src={`/images/buyer-workspace/${icon}`} width={7} />
       <span className="min-w-0 flex-1">
-        <span className="block text-xs font-medium text-[#244b61]">{label} {count}</span>
+        <span className="block text-xs font-medium text-[#244b61]">
+          {label} <AnimatedNumber value={count} />
+        </span>
         <span className="block truncate text-[10px] text-[#8aa0ab]">{detail}</span>
       </span>
       <Image alt="" aria-hidden="true" className="transition-[translate] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" height={16} src="/images/buyer-workspace/chevron-right.svg" width={16} />
@@ -246,7 +254,19 @@ function TaskLink({count, detail, icon, label}: {count: number; detail: string; 
   );
 }
 
-function Metric({detail, icon, label, value}: {detail: string; icon: string; label: string; value: string}) {
+function Metric({
+  currency = false,
+  detail,
+  icon,
+  label,
+  value,
+}: {
+  currency?: boolean;
+  detail: string;
+  icon: string;
+  label: string;
+  value: number | null;
+}) {
   return (
     <div className="flex min-h-28 flex-col justify-between border-[#b0c9d6]/20 px-4 py-2 first:border-0 sm:border-l">
       <div className="flex items-center gap-2">
@@ -256,7 +276,11 @@ function Metric({detail, icon, label, value}: {detail: string; icon: string; lab
         <span className="text-xs font-medium text-[#5e7786]">{label}</span>
       </div>
       <div>
-        <p className="text-[26px] leading-8 font-semibold tracking-[-0.02em] text-[#173447] tabular-nums">{value}</p>
+        <p className="text-[26px] leading-8 font-semibold tracking-[-0.02em] text-[#173447] tabular-nums">
+          {value === null ? "—" : (
+            <AnimatedNumber format={currency ? currencyFormat : undefined} value={value} />
+          )}
+        </p>
         <p className="mt-1 text-[10px] text-[#8aa0ab]">{detail}</p>
       </div>
     </div>

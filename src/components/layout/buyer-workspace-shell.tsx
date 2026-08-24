@@ -14,7 +14,7 @@ import {RouteTransition} from "./route-transition";
 const navItems: readonly {label: string; icon: string; href?: string}[] = [
   {label: "工作台首页", icon: "layout-grid.svg", href: "/console/buyer"},
   {label: "我的订单", icon: "clipboard-list.svg", href: "/console/buyer/orders"},
-  {label: "账单中心", icon: "credit-card.svg"},
+  {label: "账单中心", icon: "credit-card.svg", href: "/console/buyer/billing"},
   {label: "发票管理", icon: "file-check.svg"},
   {label: "工单售后", icon: "life-buoy.svg"},
   {label: "个人/企业中心", icon: "building.svg", href: "/auth/verify"},
@@ -47,7 +47,7 @@ export function BuyerWorkspaceShell({
   const router = useRouter();
 
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-linear-to-r from-[#f3fbfe] via-[#f9fdff] to-[#fdfeff] text-[#102b3b]">
+    <div className="omnis-workbench-controls relative min-h-screen overflow-x-clip bg-linear-to-r from-[#f3fbfe] via-[#f9fdff] to-[#fdfeff] text-[#102b3b]">
       <Image
         alt=""
         aria-hidden="true"
