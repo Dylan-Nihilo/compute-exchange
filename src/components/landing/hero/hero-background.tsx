@@ -3,31 +3,20 @@
 import Image from "next/image";
 import {useEffect, useRef, useState, type CSSProperties} from "react";
 
-import {OmnisLoader} from "@/components/system/omnis-loader";
-
 const STILL = "/compute-spot/hero-motion-poster-ec8e5d92.webp";
 const VIDEO = "/compute-spot/hero-motion-4k-2d27f117.mp4";
 const LOADER_ENTRANCE_MS = 560;
 const HERO_READY_EVENT = "omnis:hero-ready";
+const LOADER_LETTERS = [..."OMNIS"];
+const LOADER_BLINDS = Array.from({length: 12});
 
-type ParticleStyle = CSSProperties & {
-  "--particle-delay": string;
-  "--particle-size": string;
-  "--particle-x": string;
-  "--particle-y": string;
+type LoaderDelayStyle = CSSProperties & {
+  "--loader-delay": string;
 };
 
-const PARTICLES = Array.from({length: 42}, (_, index): ParticleStyle => {
-  const angle = ((index * 137.508) / 180) * Math.PI;
-  const distance = 24 + (index % 8) * 6;
-
-  return {
-    "--particle-delay": `${(index % 7) * 14}ms`,
-    "--particle-size": `${2 + (index % 4)}px`,
-    "--particle-x": `${Math.cos(angle) * distance}vmax`,
-    "--particle-y": `${Math.sin(angle) * distance}vmax`,
-  };
-});
+function startPlayback(video: HTMLVideoElement | null) {
+  if (video) void video.play().catch(() => undefined);
+}
 
 /**
  * Hero backdrop: looping motion video lifted from Figma node 373:759,
@@ -35,9 +24,12 @@ const PARTICLES = Array.from({length: 42}, (_, index): ParticleStyle => {
  */
 export function HeroBackground() {
   const posterRef = useRef<HTMLImageElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [motionEnabled, setMotionEnabled] = useState<boolean | null>(null);
   const [posterReady, setPosterReady] = useState(false);
-  const [videoReady, setVideoReady] = useState(false);
+  const [videoState, setVideoState] = useState<
+    "pending" | "playing" | "failed"
+  >("pending");
 
   useEffect(() => {
     setPosterReady(Boolean(posterRef.current?.complete));
@@ -46,9 +38,13 @@ export function HeroBackground() {
     );
   }, []);
 
+  useEffect(() => {
+    if (motionEnabled) startPlayback(videoRef.current);
+  }, [motionEnabled]);
+
   const mediaReady =
     posterReady &&
-    (motionEnabled === false || videoReady);
+    (motionEnabled === false || videoState !== "pending");
 
   useEffect(() => {
     if (mediaReady) window.dispatchEvent(new Event(HERO_READY_EVENT));
@@ -70,15 +66,17 @@ export function HeroBackground() {
         />
         {motionEnabled ? (
           <video
+            ref={videoRef}
             data-hero-motion-video
             className={`absolute inset-0 size-full object-cover transition-opacity duration-500 motion-reduce:transition-none ${
-              videoReady ? "opacity-100" : "opacity-0"
+              videoState === "playing" ? "opacity-100" : "opacity-0"
             }`}
             autoPlay
             muted
             loop
-            onCanPlay={() => setVideoReady(true)}
-            onError={() => setVideoReady(true)}
+            onCanPlay={() => startPlayback(videoRef.current)}
+            onError={() => setVideoState("failed")}
+            onPlaying={() => setVideoState("playing")}
             playsInline
             preload="auto"
           >
@@ -90,7 +88,7 @@ export function HeroBackground() {
   );
 }
 
-export function HeroParticleLoader() {
+export function HeroSpectrumLoader() {
   const [entranceComplete, setEntranceComplete] = useState(false);
   const [heroReady, setHeroReady] = useState(false);
   const isReady = entranceComplete && heroReady;
@@ -112,23 +110,36 @@ export function HeroParticleLoader() {
   return (
     <div
       aria-hidden={isReady}
-      className="hero-particle-loader"
+      className="hero-spectrum-loader"
       data-state={isReady ? "ready" : "loading"}
     >
-      <div aria-hidden className="hero-particle-loader__surface" />
-      <div aria-hidden className="hero-particle-loader__particles">
-        {PARTICLES.map((style, index) => (
+      <div aria-hidden className="hero-spectrum-loader__curtain">
+        {LOADER_BLINDS.map((_, index) => (
           <span
-            className="hero-particle-loader__particle"
+            className="hero-spectrum-loader__blind"
             key={index}
-            style={style}
+            style={{"--loader-delay": `${index * 18}ms`} as LoaderDelayStyle}
           />
         ))}
       </div>
-      <OmnisLoader
-        className="hero-particle-loader__mark"
-        label="正在加载首页"
-      />
+      <div
+        aria-label="正在加载首页"
+        aria-live="polite"
+        className="hero-spectrum-loader__signal"
+        role="status"
+      >
+        <div aria-hidden className="hero-spectrum-loader__spectrum" />
+        {LOADER_LETTERS.map((letter, index) => (
+          <span
+            aria-hidden
+            className="hero-spectrum-loader__letter"
+            key={letter}
+            style={{"--loader-delay": `${index * 90}ms`} as LoaderDelayStyle}
+          >
+            {letter}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
