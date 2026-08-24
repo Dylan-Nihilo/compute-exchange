@@ -13,7 +13,7 @@ import {RouteTransition} from "./route-transition";
 
 const navItems: readonly {label: string; icon: string; href?: string}[] = [
   {label: "工作台首页", icon: "layout-grid.svg", href: "/console/buyer"},
-  {label: "我的订单", icon: "clipboard-list.svg", href: "#recent-orders"},
+  {label: "我的订单", icon: "clipboard-list.svg", href: "/console/buyer/orders"},
   {label: "账单中心", icon: "credit-card.svg"},
   {label: "发票管理", icon: "file-check.svg"},
   {label: "工单售后", icon: "life-buoy.svg"},
@@ -153,12 +153,21 @@ export function BuyerWorkspaceShell({
         <Sidebar className="hidden min-h-[calc(100vh-72px)] w-[212px] shrink-0 border-0 bg-transparent px-4 py-6 shadow-none lg:flex">
           <Sidebar.Content className="gap-1.5 overflow-visible px-0">
             <Sidebar.Group>
+              <Sidebar.GroupLabel className="mb-2 px-0 text-[10px] font-medium text-[#9cb0ba]">
+                买家中心
+              </Sidebar.GroupLabel>
               <Sidebar.Menu aria-label="买家工作台导航" showGuideLines={false}>
-                {navItems.map((item, index) => (
-                  <Sidebar.MenuItem
+                {navItems.map((item) => {
+                  const isCurrent = item.href
+                    ? pathname === item.href ||
+                      (item.href !== "/console/buyer" && pathname.startsWith(`${item.href}/`))
+                    : false;
+
+                  return (
+                    <Sidebar.MenuItem
                     aria-disabled={!item.href}
                     className={`text-[13px] font-medium [&_[data-slot=sidebar-menu-item-content]]:min-h-0 [&_[data-slot=sidebar-menu-item-content]]:gap-[11px] [&_[data-slot=sidebar-menu-item-content]]:rounded-[14px] [&_[data-slot=sidebar-menu-item-content]]:px-3 [&_[data-slot=sidebar-menu-item-content]]:py-3 [&_[data-slot=sidebar-menu-item-content]]:transition-colors [&_[data-slot=sidebar-menu-item-content]]:duration-150 ${
-                      index === 0
+                      isCurrent
                         ? "[&_[data-slot=sidebar-menu-item-content]]:bg-white/55 [&_[data-slot=sidebar-menu-item-content]]:shadow-[0_7px_9px_rgba(20,79,117,0.11)] hover:[&_[data-slot=sidebar-menu-item-content]]:bg-white/70"
                         : item.href
                           ? "hover:[&_[data-slot=sidebar-menu-item-content]]:bg-white/45"
@@ -166,7 +175,7 @@ export function BuyerWorkspaceShell({
                     }`}
                     href={item.href}
                     id={item.label}
-                    isCurrent={item.href === "/console/buyer" && pathname === item.href}
+                    isCurrent={isCurrent}
                     key={item.label}
                     textValue={item.label}
                   >
@@ -179,7 +188,8 @@ export function BuyerWorkspaceShell({
                       </Sidebar.MenuLabel>
                     </Sidebar.MenuItemContent>
                   </Sidebar.MenuItem>
-                ))}
+                  );
+                })}
               </Sidebar.Menu>
             </Sidebar.Group>
           </Sidebar.Content>

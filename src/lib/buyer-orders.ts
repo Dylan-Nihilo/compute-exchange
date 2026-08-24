@@ -1,6 +1,6 @@
 import {z} from "zod";
 
-const orderStatusSchema = z.enum([
+export const buyerOrderStatuses = [
   "pending_payment",
   "paid",
   "provisioning",
@@ -10,7 +10,9 @@ const orderStatusSchema = z.enum([
   "refunding",
   "refunded",
   "frozen",
-]);
+] as const;
+
+const orderStatusSchema = z.enum(buyerOrderStatuses);
 
 const buyerOrderSchema = z.object({
   id: z.number().int().positive(),
@@ -29,6 +31,11 @@ const buyerOrderSchema = z.object({
   compliance_agreed: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
+  product_type: z.string().optional(),
+  gpu_model: z.string().optional(),
+  pricing_mode: z.string().optional(),
+  self_operated: z.boolean().optional(),
+  supplier_name: z.string().optional(),
 });
 
 const orderPageEnvelopeSchema = z.object({
@@ -49,6 +56,12 @@ const actionEnvelopeSchema = z.object({
 
 export type BuyerOrder = z.infer<typeof buyerOrderSchema>;
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
+export interface BuyerOrdersQuery {
+  status?: OrderStatus;
+  orderNo?: string;
+  page?: number;
+  pageSize?: number;
+}
 
 export const buyerOrderStatusCopy: Record<OrderStatus, string> = {
   pending_payment: "待支付",
@@ -63,11 +76,24 @@ export const buyerOrderStatusCopy: Record<OrderStatus, string> = {
 };
 
 export async function fetchBuyerOrders(
+  query: BuyerOrdersQuery = {},
   fetchImplementation: typeof fetch = fetch,
 ) {
-  const response = await fetchImplementation("/api/buyer/orders", {
-    cache: "no-store",
+  const params = new URLSearchParams({
+    page: String(query.page ?? 1),
+    page_size: String(query.pageSize ?? 100),
   });
+  if (query.status) params.set("status", query.status);
+  if (query.orderNo) params.set("order_no", query.orderNo);
+
+  let response: Response;
+  try {
+    response = await fetchImplementation(`/api/buyer/orders?${params}`, {
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error("订单服务暂不可用");
+  }
   const parsed = orderPageEnvelopeSchema.safeParse(
     await response.json().catch(() => null),
   );
@@ -78,17 +104,26 @@ export async function fetchBuyerOrders(
   return {
     orders: parsed.data.data.list ?? [],
     total: parsed.data.data.total,
+    page: parsed.data.data.page,
+    pageSize: parsed.data.data.page_size,
   };
 }
 
 export async function confirmBuyerOrder(
-  orderId: number,
+  orderNo: string,
   fetchImplementation: typeof fetch = fetch,
 ) {
-  const response = await fetchImplementation(
-    `/api/buyer/orders/${orderId}/confirm`,
-    {method: "POST"},
-  );
+  if (!isBuyerOrderNo(orderNo)) throw new Error("订单编号无效");
+
+  let response: Response;
+  try {
+    response = await fetchImplementation(
+      `/api/buyer/orders/${encodeURIComponent(orderNo)}/confirm`,
+      {method: "POST"},
+    );
+  } catch {
+    throw new Error("订单服务暂不可用");
+  }
   const parsed = actionEnvelopeSchema.safeParse(
     await response.json().catch(() => null),
   );
@@ -96,6 +131,10 @@ export async function confirmBuyerOrder(
   if (!response.ok || parsed.data.code !== 0) {
     throw new Error(parsed.data.message || "确认签收失败");
   }
+}
+
+export function isBuyerOrderNo(value: string) {
+  return /^(?:ORD|REN)[A-Za-z0-9-]{6,61}$/.test(value);
 }
 
 export function summarizeBuyerOrders(

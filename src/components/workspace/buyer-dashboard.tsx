@@ -38,7 +38,7 @@ export function BuyerDashboard() {
   const [confirmingOrder, setConfirmingOrder] = useState<BuyerOrder | null>(null);
   const ordersQuery = useQuery({queryKey: ordersKey, queryFn: () => fetchBuyerOrders()});
   const confirmMutation = useMutation({
-    mutationFn: (orderId: number) => confirmBuyerOrder(orderId),
+    mutationFn: (orderNo: string) => confirmBuyerOrder(orderNo),
     onSuccess: async () => {
       await queryClient.invalidateQueries({queryKey: ordersKey});
       setConfirmingOrder(null);
@@ -198,7 +198,7 @@ export function BuyerDashboard() {
         isPending={confirmMutation.isPending}
         onCancel={() => setConfirmingOrder(null)}
         onConfirm={() => {
-          if (confirmingOrder) confirmMutation.mutate(confirmingOrder.id);
+          if (confirmingOrder) confirmMutation.mutate(confirmingOrder.order_no);
         }}
         open={Boolean(confirmingOrder)}
         title="确认签收资源"
