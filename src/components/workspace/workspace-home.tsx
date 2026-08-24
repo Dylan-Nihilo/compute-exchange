@@ -9,6 +9,7 @@ import {KPIGroup} from "@heroui-pro/react/kpi-group";
 import {Widget} from "@heroui-pro/react/widget";
 import {useRouter} from "next/navigation";
 
+import {AnimatedNumber} from "@/components/system/animated-number";
 import {
   useCurrentAccount,
   useIdentityApplications,
@@ -208,13 +209,18 @@ export function WorkspaceHome({role}: WorkspaceHomeProps) {
               <KPI.Title>{metric.label}</KPI.Title>
             </KPI.Header>
             <KPI.Content>
-              <KPI.Value
-                currency={metric.currency ? "CNY" : undefined}
-                locale="zh-CN"
-                minimumFractionDigits={metric.currency ? 2 : 0}
-                style={metric.currency ? "currency" : "decimal"}
-                value={metric.value}
-              />
+              <KPI.Value value={metric.value}>
+                {() => (
+                  <AnimatedNumber
+                    format={metric.currency ? {
+                      currency: "CNY",
+                      minimumFractionDigits: 2,
+                      style: "currency",
+                    } : undefined}
+                    value={metric.value}
+                  />
+                )}
+              </KPI.Value>
             </KPI.Content>
           </KPI>
         ))}
@@ -225,7 +231,7 @@ export function WorkspaceHome({role}: WorkspaceHomeProps) {
           <Widget.Header>
             <div>
               <Widget.Title>待处理事项</Widget.Title>
-              <Widget.Description>{todoCount} 项</Widget.Description>
+              <Widget.Description><AnimatedNumber value={todoCount} /> 项</Widget.Description>
             </div>
           </Widget.Header>
           <Widget.Content>

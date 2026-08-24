@@ -19,6 +19,10 @@ import {type FormEvent, type ReactNode, useState, useTransition} from "react";
 
 import {MarketBrowser} from "@/components/market/market-browser";
 import {
+  AnimatedNumber,
+  AnimatedNumberGroup,
+} from "@/components/system/animated-number";
+import {
   formatMarketPriceRange,
   marketPaginationItems,
   parseMarketPriceRange,
@@ -122,7 +126,7 @@ export function MarketView({query, result}: MarketViewProps) {
     navigate({...query, sort, page: 1});
 
   return (
-    <main className="relative min-h-svh overflow-hidden pb-10 pt-12 text-[#102b3b] sm:pt-16">
+    <main className="omnis-workbench-controls relative min-h-svh overflow-hidden pb-10 pt-12 text-[#102b3b] sm:pt-16">
       <div
         aria-busy={isPending}
         className={`relative mx-auto w-full max-w-[1408px] px-4 transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none sm:px-8 lg:px-16 ${
@@ -207,6 +211,7 @@ export function MarketView({query, result}: MarketViewProps) {
             <TextField
               fullWidth
               aria-label="价格区间"
+              className="gap-2"
               isInvalid={priceRangeInvalid}
               value={priceRange}
               variant="secondary"
@@ -284,7 +289,7 @@ export function MarketView({query, result}: MarketViewProps) {
               更多筛选
             </Button>
             <span aria-live="polite" className="ml-auto text-[13px] font-medium text-[#496877]">
-              共 {result.total} 个商品
+              共 <AnimatedNumber value={result.total} /> 个商品
             </span>
           </div>
 
@@ -367,7 +372,9 @@ export function MarketView({query, result}: MarketViewProps) {
             className="mt-6 w-full flex-wrap justify-between gap-3 rounded-[18px] border border-white/70 bg-white/75 px-4 py-2.5 backdrop-blur-xl"
           >
             <Pagination.Summary>
-              显示 {startItem}–{endItem}，共 {result.total} 条
+              <AnimatedNumberGroup>
+                显示 <AnimatedNumber value={startItem} />–<AnimatedNumber value={endItem} />，共 <AnimatedNumber value={result.total} /> 条
+              </AnimatedNumberGroup>
             </Pagination.Summary>
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
               <div className="w-full sm:w-36">
@@ -489,9 +496,9 @@ function FilterSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="grid min-w-0 gap-2">
       {label ? (
-        <p className="mb-2 text-[13px] leading-5 font-medium text-[#24495d]">{label}</p>
+        <p className="text-[13px] leading-5 font-medium text-[#24495d]">{label}</p>
       ) : null}
       <Select
         fullWidth

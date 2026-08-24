@@ -4,6 +4,7 @@ import {Breadcrumbs, Card, Chip} from "@heroui/react";
 import {KPI} from "@heroui-pro/react/kpi";
 import {KPIGroup} from "@heroui-pro/react/kpi-group";
 
+import {AnimatedNumber} from "@/components/system/animated-number";
 import type {MarketProductDetail} from "@/lib/market-api";
 
 const rateFormatter = new Intl.NumberFormat("zh-CN", {
@@ -85,7 +86,9 @@ export function MarketProductDetailView({
             <KPI.Title>可售余量（{product.unitLabel ?? "GPU"}）</KPI.Title>
           </KPI.Header>
           <KPI.Content>
-            <KPI.Value locale="zh-CN" value={product.availableUnits} />
+            <KPI.Value locale="zh-CN" value={product.availableUnits}>
+              {() => <AnimatedNumber value={product.availableUnits} />}
+            </KPI.Value>
           </KPI.Content>
         </KPI>
         <KPI>
@@ -93,7 +96,9 @@ export function MarketProductDetailView({
             <KPI.Title>资源总量（{product.unitLabel ?? "GPU"}）</KPI.Title>
           </KPI.Header>
           <KPI.Content>
-            <KPI.Value locale="zh-CN" value={product.totalUnits} />
+            <KPI.Value locale="zh-CN" value={product.totalUnits}>
+              {() => <AnimatedNumber value={product.totalUnits} />}
+            </KPI.Value>
           </KPI.Content>
         </KPI>
         <KPI>
@@ -101,7 +106,9 @@ export function MarketProductDetailView({
             <KPI.Title>起订数量（{product.unitLabel ?? "GPU"}）</KPI.Title>
           </KPI.Header>
           <KPI.Content>
-            <KPI.Value locale="zh-CN" value={product.minimumOrder} />
+            <KPI.Value locale="zh-CN" value={product.minimumOrder}>
+              {() => <AnimatedNumber value={product.minimumOrder} />}
+            </KPI.Value>
           </KPI.Content>
         </KPI>
       </KPIGroup>

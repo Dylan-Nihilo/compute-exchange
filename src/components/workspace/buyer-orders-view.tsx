@@ -69,9 +69,9 @@ export function BuyerOrdersView({
           我的订单
         </h1>
 
-        <div className="grid w-full gap-3 sm:grid-cols-[204px_minmax(240px,280px)] md:w-auto">
-          <div>
-            <Label className="mb-2 block text-[13px] leading-5 font-medium text-[#24495d]">
+        <div className="grid w-full items-start gap-3 sm:grid-cols-[180px_240px] md:w-auto">
+          <div className="grid gap-2">
+            <Label className="text-[13px] leading-5 font-medium text-[#24495d]">
               订单状态
             </Label>
             <Select
@@ -81,7 +81,7 @@ export function BuyerOrdersView({
               variant="secondary"
               onChange={(value) => onStatusChange(String(value) as StatusFilter)}
             >
-              <Select.Trigger className="h-[50px] items-center rounded-[14px] border border-[#afc4ce]/45 bg-white/80 px-4 py-0 text-sm text-[#24495d] shadow-[0_5px_12px_-8px_rgba(36,74,95,0.08)]">
+              <Select.Trigger className="h-10 items-center rounded-xl border border-[#afc4ce]/45 bg-white/80 px-3.5 py-0 text-sm text-[#24495d] shadow-[0_5px_12px_-8px_rgba(36,74,95,0.08)]">
                 <Select.Value />
                 <Select.Indicator />
               </Select.Trigger>
@@ -105,16 +105,17 @@ export function BuyerOrdersView({
           <TextField
             fullWidth
             aria-label="按订单号筛选"
+            className="gap-2"
             value={orderNumber}
             variant="secondary"
             onChange={onOrderNumberChange}
           >
-            <Label className="mb-2 text-[13px] leading-5 font-medium text-[#24495d]">
+            <Label className="text-[13px] leading-5 font-medium text-[#24495d]">
               订单号
             </Label>
             <Input
               autoComplete="off"
-              className="h-[50px] rounded-[14px] border border-[#afc4ce]/45 bg-white/80 px-4 text-sm text-[#24495d] shadow-[0_5px_12px_-8px_rgba(36,74,95,0.08)] placeholder:text-[#9cb0ba]"
+              className="h-10 rounded-xl border border-[#afc4ce]/45 bg-white/80 px-3.5 text-sm text-[#24495d] shadow-[0_5px_12px_-8px_rgba(36,74,95,0.08)] placeholder:text-[#9cb0ba]"
               placeholder="搜索订单号"
             />
           </TextField>

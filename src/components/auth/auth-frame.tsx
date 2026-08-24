@@ -13,7 +13,7 @@ export function AuthFrame({children}: {children: React.ReactNode}) {
   const shouldReduceMotion = useReducedMotion();
 
   return (
-    <main className="relative flex min-h-svh items-center overflow-hidden bg-[#edf3f6] p-0 text-[#0b263a] sm:p-5 lg:p-8">
+    <main className="omnis-auth-controls relative flex min-h-svh items-center overflow-hidden bg-[#edf3f6] p-0 text-[#0b263a] sm:p-5 lg:p-8">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(255,255,255,0.9),transparent_28%),radial-gradient(circle_at_84%_86%,rgba(190,213,225,0.34),transparent_34%)]"
