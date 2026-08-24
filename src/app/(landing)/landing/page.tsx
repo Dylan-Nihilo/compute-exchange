@@ -1,6 +1,7 @@
 import type {Metadata} from "next";
 
 import {BusinessCapabilitiesSection} from "@/components/landing/business-capabilities-section";
+import {HeroParticleLoader} from "@/components/landing/hero/hero-background";
 import {HeroSection} from "@/components/landing/hero/hero-section";
 import {LandingFooter} from "@/components/landing/landing-footer";
 import {MarketPreviewSection} from "@/components/landing/market-preview-section";
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
 export default function LandingPage() {
   return (
     <>
+      <HeroParticleLoader />
       <PublicHeader />
       <RouteTransition>
         <main className="overflow-x-clip bg-cs-canvas text-cs-ink">
