@@ -46,6 +46,7 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/console/buyer/orders/[orderId]", label: "订单详情", area: "console", roles: ["buyer"]},
   {href: "/console/buyer/tokens", label: "我的 Token", area: "console", roles: ["buyer"]},
   {href: "/console/buyer/billing", label: "账单与发票", area: "console", roles: ["buyer"]},
+  {href: "/console/buyer/invoices", label: "发票管理", area: "console", roles: ["buyer"]},
   {href: "/console/buyer/messages", label: "消息中心", area: "console", roles: ["buyer"]},
   {href: "/console/supplier", label: "供给方工作台", area: "console", roles: ["supplier"]},
   {href: "/console/supplier/qualifications", label: "机房资质", area: "console", roles: ["supplier"]},
