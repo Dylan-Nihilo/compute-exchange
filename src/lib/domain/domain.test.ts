@@ -211,6 +211,24 @@ describe("route contract", () => {
     );
   });
 
+  it("allows buyers into the invoice workspace and rejects other roles", () => {
+    assert.equal(matchRoute("/console/buyer/invoices")?.href, "/console/buyer/invoices");
+    assert.equal(
+      canAccessRoute("/console/buyer/invoices", {
+        role: "buyer",
+        verificationStatus: "verified",
+      }),
+      true,
+    );
+    assert.equal(
+      canAccessRoute("/console/buyer/invoices", {
+        role: "supplier",
+        verificationStatus: "verified",
+      }),
+      false,
+    );
+  });
+
   it("preserves conditional route access for verification redirects", () => {
     assert.equal(
       accessLevelForRoute("/checkout", {

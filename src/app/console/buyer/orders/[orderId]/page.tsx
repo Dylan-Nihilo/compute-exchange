@@ -88,6 +88,7 @@ export default function BuyerOrderDetailPage() {
 }
 
 function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => void}) {
+  const router = useRouter();
   const {delivery, order, product, supplier} = detail;
   const supplierName = supplier.name || (supplier.self_operated ? "平台自营" : "—");
   const productName = product.gpu_model || productTypeCopy(product.product_type);
@@ -108,7 +109,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
         </div>
 
         <div className="flex flex-wrap gap-2 sm:justify-end">
-          <ActionButton label="申请发票" />
+          <ActionButton label="申请发票" onPress={() => router.push(`/console/buyer/invoices?apply=${order.order_no}`)} />
           <ActionButton label="发起工单" />
           <ActionButton label="申请退款" disabled={!detail.actions.can_refund} />
         </div>
@@ -305,12 +306,12 @@ function CredentialField({label, onCopy, value}: {label: string; onCopy?: () => 
   );
 }
 
-function ActionButton({disabled = false, label}: {disabled?: boolean; label: string}) {
+function ActionButton({disabled = false, label, onPress}: {disabled?: boolean; label: string; onPress?: () => void}) {
   return (
     <Button
       className="h-9 min-w-20 px-4 text-xs"
       isDisabled={disabled}
-      onPress={() => notify.info(`${label}暂未开放`)}
+      onPress={onPress ?? (() => notify.info(`${label}暂未开放`))}
       variant="outline"
     >
       {label}

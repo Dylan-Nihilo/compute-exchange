@@ -15,7 +15,7 @@ const navItems: readonly {label: string; icon: string; href?: string}[] = [
   {label: "工作台首页", icon: "layout-grid.svg", href: "/console/buyer"},
   {label: "我的订单", icon: "clipboard-list.svg", href: "/console/buyer/orders"},
   {label: "账单中心", icon: "credit-card.svg", href: "/console/buyer/billing"},
-  {label: "发票管理", icon: "file-check.svg"},
+  {label: "发票管理", icon: "file-check.svg", href: "/console/buyer/invoices"},
   {label: "工单售后", icon: "life-buoy.svg"},
   {label: "个人/企业中心", icon: "building.svg", href: "/auth/verify"},
   {label: "消息中心", icon: "message-square.svg"},

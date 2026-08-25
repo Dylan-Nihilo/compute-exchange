@@ -78,6 +78,78 @@ async function requestAuthBackend(path: string, init: RequestInit) {
   return {payload: await response.json(), status: response.status};
 }
 
+// proxyAuthenticatedBackendRaw 与 proxyAuthenticatedBackend 走同一套
+// cookie 鉴权 + refresh 逻辑, 但透传二进制响应(发票 PDF 下载):
+// 上游为 JSON 时按错误 envelope 透传, 否则流式转发 body 与下载相关响应头。
+export async function proxyAuthenticatedBackendRaw(
+  path: string,
+  init: RequestInit = {},
+) {
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("..")) {
+    return NextResponse.json({code: 40001, message: "请求路径无效"}, {status: 400});
+  }
+
+  try {
+    const cookieStore = await cookies();
+    let accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
+    const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value;
+    const persistent = cookieStore.get(REMEMBER_SESSION_COOKIE)?.value === "1";
+    let refreshed: ReturnType<typeof authTokens> = null;
+
+    if (!accessToken && !refreshToken) return signedOut();
+
+    const apiBaseUrl =
+      process.env.AUTH_API_BASE_URL || publicEnv.NEXT_PUBLIC_API_BASE_URL;
+    if (!apiBaseUrl) throw new Error("Authentication API is not configured");
+    const url = `${apiBaseUrl.replace(/\/+$/, "")}${path}`;
+
+    let upstream = accessToken
+      ? await fetch(url, {...authorized(init, accessToken), cache: "no-store"})
+      : null;
+
+    if ((!upstream || upstream.status === 401) && refreshToken) {
+      const refresh = await postAuthBackend("/auth/refresh", {
+        refresh_token: refreshToken,
+      });
+      const rotatedTokens = authTokens(refresh.payload);
+      if (refresh.status === 200 && rotatedTokens) {
+        refreshed = rotatedTokens;
+        accessToken = rotatedTokens.accessToken;
+        upstream = await fetch(url, {...authorized(init, accessToken), cache: "no-store"});
+      }
+    }
+
+    if (!upstream) return signedOut();
+
+    const contentType = upstream.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const payload = await upstream.json().catch(() => null);
+      const response = NextResponse.json(
+        payload ?? {code: 50000, message: "服务暂不可用"},
+        {status: upstream.status},
+      );
+      if (refreshed) setAuthCookies(response, refreshed, persistent);
+      else if (upstream.status === 401) clearAuthCookies(response);
+      return response;
+    }
+
+    const headers = new Headers({"content-type": contentType});
+    const disposition = upstream.headers.get("content-disposition");
+    if (disposition) headers.set("content-disposition", disposition);
+    const response = new NextResponse(upstream.body, {
+      status: upstream.status,
+      headers,
+    });
+    if (refreshed) setAuthCookies(response, refreshed, persistent);
+    return response;
+  } catch {
+    return NextResponse.json(
+      {code: 50000, message: "服务暂不可用"},
+      {status: 502},
+    );
+  }
+}
+
 export function authSessionResponse(
   payload: unknown,
   status: number,
