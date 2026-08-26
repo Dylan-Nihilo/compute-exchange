@@ -5,9 +5,9 @@ import {useSearchParams} from "next/navigation";
 import {Suspense, useEffect, useRef, useState} from "react";
 
 import {LoadingState} from "@/components/system/operation-state";
-import {ApplyInvoiceDialog} from "@/components/workspace/apply-invoice-dialog";
+import {ApplyInvoiceDialog} from "@/components/workspace/invoices/apply-invoice-dialog";
 import {BuyerInvoicesView} from "@/components/workspace/buyer-invoices-view";
-import {InvoiceTitleDialog} from "@/components/workspace/invoice-title-dialog";
+import {InvoiceTitleDialog} from "@/components/workspace/invoices/invoice-title-dialog";
 import {
   applyInvoice,
   fetchBillableOrders,
