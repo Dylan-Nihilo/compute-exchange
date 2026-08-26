@@ -229,6 +229,46 @@ describe("route contract", () => {
     );
   });
 
+  it("allows buyers into the message center and rejects other roles", () => {
+    assert.equal(matchRoute("/console/buyer/messages")?.href, "/console/buyer/messages");
+    assert.equal(
+      canAccessRoute("/console/buyer/messages", {
+        role: "buyer",
+        verificationStatus: "verified",
+      }),
+      true,
+    );
+    assert.equal(
+      canAccessRoute("/console/buyer/messages", {
+        role: "supplier",
+        verificationStatus: "verified",
+      }),
+      false,
+    );
+  });
+
+  it("allows buyers into ticket pages and matches the dynamic detail route", () => {
+    assert.equal(matchRoute("/console/buyer/tickets")?.href, "/console/buyer/tickets");
+    assert.equal(
+      matchRoute("/console/buyer/tickets/WO-20260826-001")?.href,
+      "/console/buyer/tickets/[ticketNo]",
+    );
+    assert.equal(
+      canAccessRoute("/console/buyer/tickets", {
+        role: "buyer",
+        verificationStatus: "verified",
+      }),
+      true,
+    );
+    assert.equal(
+      canAccessRoute("/console/buyer/tickets", {
+        role: "supplier",
+        verificationStatus: "verified",
+      }),
+      false,
+    );
+  });
+
   it("preserves conditional route access for verification redirects", () => {
     assert.equal(
       accessLevelForRoute("/checkout", {
