@@ -11,7 +11,7 @@ import {usePathname, useRouter} from "next/navigation";
 import {useCurrentAccount, useLogout} from "@/lib/auth/queries";
 import {useAuthStore} from "@/lib/auth/store";
 import type {Role} from "@/lib/domain/contracts";
-import {homeForRole} from "@/lib/domain/routes";
+import {homeForRole, routes} from "@/lib/domain/routes";
 
 import {RouteTransition} from "./route-transition";
 import {BuyerWorkspaceShell} from "./buyer-workspace-shell";
@@ -43,9 +43,19 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
     return null;
   }
 
-  const overviewHref = homeForRole(activeRole);
+  // 导航从路由表派生: 当前角色可访问的 console 静态页面自动进侧栏,
+  // 动态段(详情页)与 /new 子操作页不进导航, vendor/funder 后续自动跟进。
+  const roleConsoleNav = routes
+    .filter(
+      (route) =>
+        route.area === "console" &&
+        route.roles.includes(activeRole) &&
+        !route.href.includes("[") &&
+        !route.href.endsWith("/new"),
+    )
+    .map((route) => ({href: route.href, label: route.label}));
   const navigation = [
-    {href: overviewHref, label: "工作台概览"},
+    ...roleConsoleNav,
     {href: "/market", label: "算力市场"},
     ...(activeRole === "operator" || activeRole === "admin"
       ? []
