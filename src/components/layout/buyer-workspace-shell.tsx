@@ -4,9 +4,11 @@ import {Navbar} from "@heroui-pro/react/navbar";
 import {Sidebar} from "@heroui-pro/react/sidebar";
 import {Avatar, Button, Dropdown, Label, Spinner} from "@heroui/react";
 import Image from "next/image";
+import {useQuery} from "@tanstack/react-query";
 import {usePathname, useRouter} from "next/navigation";
 
 import type {SessionAccount} from "@/lib/auth/service";
+import {fetchUnreadNotificationCount} from "@/lib/buyer-notifications";
 import type {Role} from "@/lib/domain/contracts";
 
 import {RouteTransition} from "./route-transition";
@@ -16,9 +18,9 @@ const navItems: readonly {label: string; icon: string; href?: string}[] = [
   {label: "我的订单", icon: "clipboard-list.svg", href: "/console/buyer/orders"},
   {label: "账单中心", icon: "credit-card.svg", href: "/console/buyer/billing"},
   {label: "发票管理", icon: "file-check.svg", href: "/console/buyer/invoices"},
-  {label: "工单售后", icon: "life-buoy.svg"},
+  {label: "工单售后", icon: "life-buoy.svg", href: "/console/buyer/tickets"},
   {label: "个人/企业中心", icon: "building.svg", href: "/auth/verify"},
-  {label: "消息中心", icon: "message-square.svg"},
+  {label: "消息中心", icon: "message-square.svg", href: "/console/buyer/messages"},
 ];
 
 const roleLabels: Record<Exclude<Role, "guest">, string> = {
@@ -45,6 +47,12 @@ export function BuyerWorkspaceShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const unreadQuery = useQuery({
+    queryKey: ["buyer", "notifications", "unread-count"],
+    queryFn: () => fetchUnreadNotificationCount(),
+    refetchInterval: 60_000,
+  });
+  const unreadCount = unreadQuery.data ?? 0;
 
   return (
     <div className="omnis-workbench-controls relative min-h-screen overflow-x-clip bg-linear-to-r from-[#f3fbfe] via-[#f9fdff] to-[#fdfeff] text-[#102b3b]">
@@ -89,12 +97,17 @@ export function BuyerWorkspaceShell({
           <Navbar.Spacer />
           <Navbar.Content className="gap-2">
             <Button
-              aria-label="消息中心"
-              className="h-10 w-10 min-w-10 rounded-xl border border-white/25 bg-transparent px-0"
-              isDisabled
+              aria-label={unreadCount > 0 ? `消息中心, ${unreadCount} 条未读` : "消息中心"}
+              className="relative h-10 w-10 min-w-10 rounded-xl border border-white/25 bg-transparent px-0"
+              onPress={() => router.push("/console/buyer/messages")}
               variant="ghost"
             >
               <Image alt="" aria-hidden="true" height={16} src="/images/buyer-workspace/notification.svg" width={16} />
+              {unreadCount > 0 ? (
+                <span className="absolute -top-1.5 -right-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-[#0485f7] px-1 text-[10px] font-semibold text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
             </Button>
             <Dropdown>
               <Button

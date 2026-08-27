@@ -158,7 +158,11 @@ function toSessionAccount(user: z.infer<typeof authUserSchema>): SessionAccount 
     email: user.email ?? "",
     phoneNumber: user.phone,
     roles: user.roles,
-    verificationStatus: "unverified",
+    // TODO(KYC): 真实实名核验未接入(见 docs/20 §2.3)。dev 环境放开为 verified,
+    // 以便联调受 KYC 闸门保护的功能(发布商品/下单); 生产保持 unverified,
+    // 接入真实核验服务后删除此分支。
+    verificationStatus:
+      process.env.NODE_ENV === "development" ? "verified" : "unverified",
     grants: [],
   };
 }

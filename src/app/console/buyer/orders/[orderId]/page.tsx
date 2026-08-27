@@ -110,7 +110,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
 
         <div className="flex flex-wrap gap-2 sm:justify-end">
           <ActionButton label="申请发票" onPress={() => router.push(`/console/buyer/invoices?apply=${order.order_no}`)} />
-          <ActionButton label="发起工单" />
+          <ActionButton label="发起工单" onPress={() => router.push(`/console/buyer/tickets?order=${order.order_no}`)} />
           <ActionButton label="申请退款" disabled={!detail.actions.can_refund} />
         </div>
       </header>

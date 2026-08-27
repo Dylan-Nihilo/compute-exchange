@@ -4,20 +4,21 @@ import {Button, Skeleton} from "@heroui/react";
 import Image from "next/image";
 
 import {ErrorState} from "@/components/system/operation-state";
+import {EmptyState} from "@/components/workspace/ui/empty-state";
+import {GlassCard} from "@/components/workspace/ui/glass-card";
+import {ListPagination} from "@/components/workspace/ui/list-pagination";
+import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
+import {InvoiceStatusBadge} from "@/components/workspace/invoices/invoice-status-badge";
 import {
   invoiceDownloadUrl,
-  invoiceStatusCopy,
   invoiceTypeCopy,
   maskBankAccount,
   maskTaxNo,
   type BuyerInvoice,
-  type InvoiceStatus,
   type InvoiceTitle,
 } from "@/lib/buyer-invoices";
 import {formatDateTime} from "@/lib/format/date";
 
-const cardClass =
-  "rounded-[20px] border border-[#afc4ce]/20 bg-white/60 shadow-[0_10px_28px_-18px_rgba(14,48,69,0.12)] backdrop-blur-xl";
 const money = new Intl.NumberFormat("zh-CN", {
   currency: "CNY",
   minimumFractionDigits: 2,
@@ -57,17 +58,19 @@ export function BuyerInvoicesView({
 }: BuyerInvoicesViewProps) {
   return (
     <section className="mx-auto flex w-full max-w-[1228px] flex-col gap-5 px-4 pt-6 pb-8 sm:px-6 lg:px-8">
-      <header className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-[#173447]">发票管理</h1>
-        <Button
-          className="h-10 min-w-28 rounded-xl bg-[#c9f556] px-5 text-sm font-semibold text-[#173447] transition-colors hover:bg-[#b8e643]"
-          onPress={onApply}
-        >
-          申请开票
-        </Button>
-      </header>
+      <WorkspacePageHeader
+        actions={
+          <Button
+            className="h-10 min-w-28 rounded-xl bg-[#c9f556] px-5 text-sm font-semibold text-[#173447] transition-colors hover:bg-[#b8e643]"
+            onPress={onApply}
+          >
+            申请开票
+          </Button>
+        }
+        title="发票管理"
+      />
 
-      <section aria-label="开票信息" className={`${cardClass} px-5 py-5 sm:px-6`}>
+      <GlassCard aria-label="开票信息" className="px-5 py-5 sm:px-6">
         <div className="flex items-center justify-between gap-3">
           <CardHeading icon="file-check.svg" label="开票信息" />
           <Button
@@ -112,9 +115,9 @@ export function BuyerInvoicesView({
             </Button>
           </div>
         )}
-      </section>
+      </GlassCard>
 
-      <section aria-label="历史发票" className={`${cardClass} px-5 py-5 sm:px-6`}>
+      <GlassCard aria-label="历史发票" className="px-5 py-5 sm:px-6">
         <CardHeading icon="order-detail/receipt.svg" label="历史发票" />
 
         <div aria-busy={isLoading} className="mt-5 min-h-[300px]">
@@ -190,39 +193,21 @@ export function BuyerInvoicesView({
               </table>
             </div>
           ) : (
-            <div className="grid min-h-[300px] place-items-center px-5 text-center">
-              <div>
-                <h2 className="text-lg font-semibold text-[#173447]">还没有发票记录</h2>
-                <p className="mt-2 text-sm text-[#78909c]">
-                  点击右上角「申请开票」，选择已支付订单提交开票申请。
-                </p>
-              </div>
+            <div className="min-h-[300px]">
+              <EmptyState
+                description="点击右上角「申请开票」，选择已支付订单提交开票申请。"
+                title="还没有发票记录"
+              />
             </div>
           )}
         </div>
 
-        {!isLoading && !error && totalPages > 1 ? (
-          <nav aria-label="发票分页" className="mt-4 flex items-center justify-end gap-2 text-xs text-[#78909c]">
-            <Button
-              className="h-8 min-w-16 px-3"
-              isDisabled={page <= 1}
-              onPress={() => onPageChange(page - 1)}
-              variant="outline"
-            >
-              上一页
-            </Button>
-            <span>{page} / {totalPages}</span>
-            <Button
-              className="h-8 min-w-16 px-3"
-              isDisabled={page >= totalPages}
-              onPress={() => onPageChange(page + 1)}
-              variant="outline"
-            >
-              下一页
-            </Button>
-          </nav>
+        {!isLoading && !error ? (
+          <div className="mt-4">
+            <ListPagination page={page} totalPages={totalPages} onPageChange={onPageChange} />
+          </div>
         ) : null}
-      </section>
+      </GlassCard>
     </section>
   );
 }
@@ -248,24 +233,6 @@ function TitleField({label, value}: {label: string; value: string}) {
       <dt className="text-xs text-[#9cb0ba]">{label}</dt>
       <dd className="mt-1 truncate text-sm font-medium text-[#173447]">{value}</dd>
     </div>
-  );
-}
-
-const statusTone: Record<InvoiceStatus, string> = {
-  pending: "bg-[#e3f2fd] text-[#1d63ae]",
-  issued: "bg-[#e5f7d9] text-[#4c7c0f]",
-  rejected: "bg-[#fdeaea] text-[#c4392f]",
-  red_flushed: "bg-[#edf1f3] text-[#78909c]",
-};
-
-function InvoiceStatusBadge({invoice}: {invoice: BuyerInvoice}) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone[invoice.status]}`}
-      title={invoice.status === "rejected" ? (invoice.reject_reason ?? undefined) : undefined}
-    >
-      {invoiceStatusCopy[invoice.status]}
-    </span>
   );
 }
 
