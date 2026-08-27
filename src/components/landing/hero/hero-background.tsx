@@ -4,8 +4,7 @@ import Image from "next/image";
 import {useEffect, useRef, useState, type CSSProperties} from "react";
 
 const STILL = "/compute-spot/hero-motion-poster-ec8e5d92.webp";
-const VIDEO = "/compute-spot/hero-motion-4k-2d27f117.mp4";
-const LOADER_ENTRANCE_MS = 560;
+const VIDEO = "/compute-spot/hero-motion-4k-88aaafcc.mp4";
 const HERO_READY_EVENT = "omnis:hero-ready";
 const LOADER_LETTERS = [..."OMNIS"];
 const LOADER_BLINDS = Array.from({length: 12});
@@ -89,20 +88,16 @@ export function HeroBackground() {
 }
 
 export function HeroSpectrumLoader() {
-  const [entranceComplete, setEntranceComplete] = useState(false);
+  // 无入场下限: hero 媒体就绪(poster 加载完 + 视频起播/失败/reduced-motion)即隐藏,
+  // 不保证字母动画播完一轮。
   const [heroReady, setHeroReady] = useState(false);
-  const isReady = entranceComplete && heroReady;
+  const isReady = heroReady;
 
   useEffect(() => {
-    const timer = window.setTimeout(
-      () => setEntranceComplete(true),
-      LOADER_ENTRANCE_MS,
-    );
     const handleReady = () => setHeroReady(true);
     window.addEventListener(HERO_READY_EVENT, handleReady, {once: true});
 
     return () => {
-      window.clearTimeout(timer);
       window.removeEventListener(HERO_READY_EVENT, handleReady);
     };
   }, []);
