@@ -25,6 +25,17 @@ const nextConfig = {
   turbopack: {
     root,
   },
+  async rewrites() {
+    // 本地联调拓扑与生产一致: 浏览器始终走同源 /api/v1。
+    // 生产由 Caddy 把该路径转给后端容器, 本地由 Next 转发到 BACKEND_ORIGIN。
+    const backendOrigin = process.env.BACKEND_ORIGIN ?? "http://127.0.0.1:8080";
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: `${backendOrigin}/api/v1/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

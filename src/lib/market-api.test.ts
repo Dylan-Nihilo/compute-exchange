@@ -4,10 +4,12 @@ import {describe, it} from "node:test";
 import {ApiError, createApiClient} from "./api/client.ts";
 import {
   buildMarketHref,
+  calcOrderPreview,
   defaultMarketQuery,
   getMarketProduct,
   getMarketSupplies,
   parseMarketQuery,
+  placeOrder,
 } from "./market-api.ts";
 
 describe("compute market API", () => {
@@ -228,6 +230,47 @@ describe("compute market API", () => {
     assert.equal(
       buildMarketHref(query),
       "/market?q=H100&price_min=10.5&card_count_min=8&sort=stock_desc&page=3&page_size=50",
+    );
+  });
+});
+
+describe("checkout", () => {
+  it("calcOrderPreview matches backend CalcOrderAmount semantics", () => {
+    const preview = calcOrderPreview(3500, 2, 24);
+    assert.equal(preview.totalMinor, 168000);
+    assert.equal(preview.feeMinor, 8400);
+  });
+
+  it("placeOrder posts the payload and returns the created order", async () => {
+  let requestBody = "";
+  const result = await placeOrder(
+    {product_id: 7, quantity: 2, duration: 24, compliance_agreed: true},
+    async (input, init) => {
+      assert.equal(String(input), "/api/checkout/orders");
+      assert.equal(init?.method, "POST");
+      requestBody = String(init?.body);
+      return Response.json({
+        code: 0, message: "success",
+        data: {
+          order_no: "ORD20260827120000a1b2c3",
+          total_amount: 168000, platform_fee: 8400,
+          status: "pending_payment", payment_expires_at: "2026-08-27T12:15:00Z",
+        },
+      });
+    },
+  );
+  assert.deepEqual(JSON.parse(requestBody), {
+    product_id: 7, quantity: 2, duration: 24, compliance_agreed: true,
+  });
+  assert.equal(result.order_no, "ORD20260827120000a1b2c3");
+  assert.equal(result.status, "pending_payment");
+
+  await assert.rejects(
+    placeOrder(
+      {product_id: 7, quantity: 999, duration: 1, compliance_agreed: true},
+      async () => Response.json({code: 40900, message: "insufficient stock"}),
+    ),
+    /insufficient stock/,
     );
   });
 });

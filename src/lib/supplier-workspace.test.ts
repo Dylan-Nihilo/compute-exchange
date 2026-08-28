@@ -6,9 +6,11 @@ import {
   deliverOrder,
   fetchMyProductGroups,
   fetchMyQualifications,
+  fetchResourceSyncs,
   fetchSupplierOrders,
   fetchSupplierSettlements,
   fetchSupplierSettlementSummary,
+  submitPassiveResourceSync,
   submitQualification,
 } from "./supplier-workspace.ts";
 
@@ -134,4 +136,50 @@ test("settlements list and summary parse correctly", async () => {
   const summary = await fetchSupplierSettlementSummary(async () =>
     Response.json({code: 0, message: "success", data: {total_fen: 100, succeeded_fen: 40, pending_fen: 60}}));
   assert.deepEqual(summary, {total_fen: 100, succeeded_fen: 40, pending_fen: 60});
+});
+
+test("fetchResourceSyncs forwards filters and parses snapshots", async () => {
+  let requestedUrl = "";
+  const page = await fetchResourceSyncs({productId: 7, page: 2, pageSize: 10}, async (input) => {
+    requestedUrl = String(input);
+    return Response.json({code: 0, message: "success", data: {
+      list: [{
+        id: 1, product_id: 7, supplier_id: 9, sync_type: "passive",
+        stock_before: 32, stock_after: 30, diff: -2, reason: "机房例行上报",
+        operator_id: 9, anomaly: false, created_at: "2026-08-27T02:00:00Z",
+      }],
+      total: 3, page: 2, page_size: 10,
+    }});
+  });
+  assert.equal(requestedUrl, "/api/supplier/resource-syncs?product_id=7&page=2&page_size=10");
+  assert.equal(page.syncs.length, 1);
+  assert.equal(page.syncs[0].diff, -2);
+  assert.equal(page.total, 3);
+
+  const empty = await fetchResourceSyncs({}, async () =>
+    Response.json({code: 0, message: "success", data: {list: null, total: 0, page: 1, page_size: 20}}));
+  assert.deepEqual(empty.syncs, []);
+});
+
+test("submitPassiveResourceSync posts absolute stock and surfaces errors", async () => {
+  let requestedUrl = "";
+  let requestBody = "";
+  await submitPassiveResourceSync(
+    {product_id: 7, stock_after: 30, reason: "机房例行上报"},
+    async (input, init) => {
+      requestedUrl = String(input);
+      requestBody = String(init?.body);
+      return Response.json({code: 0, message: "success"});
+    },
+  );
+  assert.equal(requestedUrl, "/api/supplier/resource-syncs/passive");
+  assert.equal(JSON.parse(requestBody).stock_after, 30);
+
+  await assert.rejects(
+    submitPassiveResourceSync(
+      {product_id: 7, stock_after: -1, reason: ""},
+      async () => Response.json({code: 40001, message: "stock_after 必填"}),
+    ),
+    /stock_after 必填/,
+  );
 });

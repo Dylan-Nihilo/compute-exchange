@@ -1,8 +1,10 @@
 "use client";
 
-import {Breadcrumbs, Card, Chip} from "@heroui/react";
+import {Breadcrumbs, Button, Card, Chip} from "@heroui/react";
 import {KPI} from "@heroui-pro/react/kpi";
 import {KPIGroup} from "@heroui-pro/react/kpi-group";
+
+import {useRouter} from "next/navigation";
 
 import {AnimatedNumber} from "@/components/system/animated-number";
 import type {MarketProductDetail} from "@/lib/market-api";
@@ -18,6 +20,7 @@ export function MarketProductDetailView({
 }: {
   product: MarketProductDetail;
 }) {
+  const router = useRouter();
   const specifications = [
     {label: "GPU 型号", value: product.gpuModel || "—"},
     {label: "CPU", value: product.cpuSpec || "—"},
@@ -176,6 +179,20 @@ export function MarketProductDetailView({
               <p className="mt-4 border-t border-border pt-4 text-sm leading-6 text-muted">
                 税费与平台服务费将在订单确认时单独列示，以最终试算为准。
               </p>
+              {product.unitPriceMinor && product.status === "active" ? (
+                <Button
+                  className="mt-4"
+                  fullWidth
+                  onPress={() => router.push(`/checkout?product=${product.id}`)}
+                  variant="primary"
+                >
+                  立即购买
+                </Button>
+              ) : (
+                <p className="mt-4 rounded-xl bg-default/40 px-3.5 py-2.5 text-center text-xs text-muted">
+                  {product.status !== "active" ? "该商品暂不可下单" : "该商品仅支持面议, 请联系平台获取报价"}
+                </p>
+              )}
             </Card.Content>
           </Card>
 

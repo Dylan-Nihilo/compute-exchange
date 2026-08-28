@@ -502,3 +502,64 @@ function append(
 function toMinorUnits(value: number | null) {
   return value === null ? null : Math.round(value * 100);
 }
+
+// ===== Checkout =====
+
+const placeOrderResponseSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+  data: z.object({
+    order_no: z.string(),
+    total_amount: z.number().int().nonnegative(),
+    platform_fee: z.number().int().nonnegative(),
+    status: z.string(),
+    payment_expires_at: z.string().nullable(),
+  }).optional(),
+});
+
+export type PlaceOrderInput = {
+  product_id: number;
+  quantity: number;
+  duration: number;
+  compliance_agreed: boolean;
+};
+
+export type PlaceOrderResult = {
+  order_no: string;
+  total_amount: number;
+  platform_fee: number;
+  status: string;
+  payment_expires_at: string | null;
+};
+
+// 价格试算与后端 CalcOrderAmount 同口径: total = 单价(分) × 数量 × 计费周期数。
+export function calcOrderPreview(unitPriceMinor: number, quantity: number, duration: number) {
+  return {
+    totalMinor: unitPriceMinor * quantity * duration,
+    feeMinor: Math.floor((unitPriceMinor * quantity * duration * 5) / 100),
+  };
+}
+
+export async function placeOrder(
+  input: PlaceOrderInput,
+  fetchImplementation: typeof fetch = fetch,
+): Promise<PlaceOrderResult> {
+  let response: Response;
+  try {
+    response = await fetchImplementation("/api/checkout/orders", {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new Error("订单服务暂不可用");
+  }
+  const parsed = placeOrderResponseSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  if (!parsed.success) throw new Error("订单服务返回格式错误");
+  if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) {
+    throw new Error(parsed.data.message || "下单失败");
+  }
+  return parsed.data.data;
+}
