@@ -1,7 +1,11 @@
 import {z} from "zod";
 
-import {roleSchema} from "../domain/contracts.ts";
-import type {SessionAccount} from "./service.ts";
+import {roleSchema, type VerificationStatus} from "../domain/contracts.ts";
+import {
+  verificationInputSchema,
+  type SessionAccount,
+  type VerificationInput,
+} from "./service.ts";
 
 const smsCodeEnvelopeSchema = z.object({
   code: z.number().int(),
@@ -36,6 +40,26 @@ const currentAccountEnvelopeSchema = z.object({
   code: z.number().int(),
   message: z.string(),
   data: authUserSchema.optional(),
+});
+
+const operationEnvelopeSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+});
+
+const kycItemSchema = z.object({
+  status: z.enum(["none", "pending", "verified", "rejected"]),
+});
+
+const kycStatusEnvelopeSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+  data: z
+    .object({
+      personal: kycItemSchema,
+      enterprise: kycItemSchema,
+    })
+    .optional(),
 });
 
 export async function requestSmsCodeApi(
@@ -75,7 +99,10 @@ export async function smsLoginApi(
     fetchImplementation,
   );
   if (!result.data) throw new Error("认证服务返回格式错误");
-  return toSessionAccount(result.data.user);
+  return toSessionAccount(
+    result.data.user,
+    await readKycStatus(fetchImplementation),
+  );
 }
 
 export async function registerSmsApi(
@@ -99,7 +126,10 @@ export async function registerSmsApi(
     fetchImplementation,
   );
   if (!result.data) throw new Error("注册服务返回格式错误");
-  return toSessionAccount(result.data.user);
+  return toSessionAccount(
+    result.data.user,
+    await readKycStatus(fetchImplementation),
+  );
 }
 
 export async function currentAccountApi(
@@ -116,7 +146,44 @@ export async function currentAccountApi(
   if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) {
     throw new Error(parsed.data.message || "账户状态读取失败");
   }
-  return toSessionAccount(parsed.data.data);
+  return toSessionAccount(
+    parsed.data.data,
+    await readKycStatus(fetchImplementation),
+  );
+}
+
+export async function verifyAccountApi(
+  input: VerificationInput,
+  fetchImplementation: typeof fetch = fetch,
+): Promise<SessionAccount> {
+  const parsed = verificationInputSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "认证资料不完整");
+  }
+
+  const {kind} = parsed.data;
+  const body =
+    kind === "personal"
+      ? {
+          real_name: parsed.data.legalName,
+          id_card: parsed.data.identityNumber,
+        }
+      : {
+          enterprise_name: parsed.data.companyName,
+          uscc: parsed.data.creditCode,
+          // ponytail: the pilot stores the filename; add object upload when licenses need real review.
+          license_url: parsed.data.businessLicenseFileName,
+          legal_person: parsed.data.representative,
+        };
+  await post(
+    `/api/auth/kyc/${kind}`,
+    body,
+    operationEnvelopeSchema,
+    fetchImplementation,
+  );
+  const account = await currentAccountApi(fetchImplementation);
+  if (!account) throw new Error("登录状态已失效，请重新登录");
+  return account;
 }
 
 export async function logoutApi(fetchImplementation: typeof fetch = fetch) {
@@ -151,18 +218,40 @@ async function post<T extends {code: number; message: string}>(
   return parsed.data;
 }
 
-function toSessionAccount(user: z.infer<typeof authUserSchema>): SessionAccount {
+async function readKycStatus(
+  fetchImplementation: typeof fetch,
+): Promise<VerificationStatus> {
+  const response = await fetchImplementation("/api/auth/kyc/status", {
+    cache: "no-store",
+  });
+  const parsed = kycStatusEnvelopeSchema.safeParse(
+    await response.json().catch(() => null),
+  );
+  if (!parsed.success) throw new Error("认证服务返回格式错误");
+  if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) {
+    throw new Error(parsed.data.message || "认证状态读取失败");
+  }
+  const statuses = [
+    parsed.data.data.personal.status,
+    parsed.data.data.enterprise.status,
+  ];
+  if (statuses.includes("verified")) return "verified";
+  if (statuses.includes("pending")) return "pending";
+  if (statuses.includes("rejected")) return "rejected";
+  return "unverified";
+}
+
+function toSessionAccount(
+  user: z.infer<typeof authUserSchema>,
+  verificationStatus: VerificationStatus = "unverified",
+): SessionAccount {
   return {
     id: String(user.id),
     displayName: user.phone,
     email: user.email ?? "",
     phoneNumber: user.phone,
     roles: user.roles,
-    // TODO(KYC): 真实实名核验未接入(见 docs/20 §2.3)。dev 环境放开为 verified,
-    // 以便联调受 KYC 闸门保护的功能(发布商品/下单); 生产保持 unverified,
-    // 接入真实核验服务后删除此分支。
-    verificationStatus:
-      process.env.NODE_ENV === "development" ? "verified" : "unverified",
+    verificationStatus,
     grants: [],
   };
 }

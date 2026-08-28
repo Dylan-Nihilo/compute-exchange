@@ -117,11 +117,11 @@ export function VerificationForm() {
           };
     await mutation
       .mutateAsync(input)
-      .then((updated) => {
+      .then(() => {
         notify.success(
-          updated.verificationStatus === "verified"
+          kind === "personal"
             ? "个人认证已完成"
-            : "企业认证已提交审核",
+            : "企业认证已完成",
         );
         router.replace(target);
       })
@@ -197,7 +197,7 @@ export function VerificationForm() {
                 <Checkbox.Control>
                   <Checkbox.Indicator />
                 </Checkbox.Control>
-                我已完成人脸核验
+                我确认以上身份信息真实有效
               </Checkbox.Content>
               <FieldError />
             </Checkbox>
