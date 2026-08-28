@@ -11,6 +11,7 @@ import {
   Link,
   Spinner,
   TextField,
+  Typography,
 } from "@heroui/react";
 import {Segment} from "@heroui-pro/react/segment";
 import {useRouter, useSearchParams} from "next/navigation";
@@ -23,13 +24,18 @@ import {homeForRole} from "@/lib/domain/routes";
 import {notify} from "@/lib/notify";
 import {FormError, FormHeading, LicenseDropZone} from "./form-parts";
 
+const fieldClassName = "gap-2";
+const labelClassName = "text-sm font-medium text-foreground";
+const inputClassName =
+  "rounded-[10px] border border-border bg-surface px-3 text-base text-foreground shadow-none transition-colors hover:border-border-secondary";
+
 export function VerificationForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const {data: account} = useCurrentAccount();
   const mutation = useVerifyAccount();
   const activeRole = useAuthStore((state) => state.activeRole);
-  const [kind, setKind] = useState<"personal" | "enterprise">("enterprise");
+  const [kind, setKind] = useState<"personal" | "enterprise">("personal");
   const [licenseFileName, setLicenseFileName] = useState("");
 
   if (!account) return null;
@@ -101,7 +107,6 @@ export function VerificationForm() {
             kind,
             legalName: String(form.get("legalName")),
             identityNumber: String(form.get("identityNumber")),
-            phoneNumber: String(form.get("phoneNumber")),
             faceVerified: true as const,
           }
         : {
@@ -131,37 +136,64 @@ export function VerificationForm() {
   return (
     <>
       <FormHeading
-        description="认证用于交易、上架与结算等关键业务。"
-        eyebrow="账户认证"
-        title="账户认证"
+        compact
+        description="完成主体信息确认后，即可继续交易、上架与结算。"
+        title="完成账户认证"
       />
-      <Segment
-        aria-label="认证类型"
-        className="mb-6 w-full"
-        onSelectionChange={(key) => {
-          setKind(key as "personal" | "enterprise");
-          setLicenseFileName("");
-        }}
-        selectedKey={kind}
-      >
-        <Segment.Item id="personal">个人认证</Segment.Item>
-        <Segment.Item id="enterprise">企业认证</Segment.Item>
-      </Segment>
-      <Form className="space-y-5" onSubmit={submit}>
+      <div className="mb-7">
+        <Typography
+          className="mb-2 text-xs font-semibold tracking-[0.08em] text-muted"
+          type="body-xs"
+        >
+          认证主体
+        </Typography>
+        <Segment
+          aria-label="认证类型"
+          className="w-full rounded-[12px] border border-border bg-surface-secondary p-1 [&_[data-slot=segment-indicator]]:rounded-[8px] [&_[data-slot=segment-indicator]]:bg-surface [&_[data-slot=segment-indicator]]:shadow-sm [&_[data-slot=segment-item]]:h-10 [&_[data-slot=segment-item]]:flex-1 [&_[data-slot=segment-item]]:rounded-[8px] [&_[data-slot=segment-item]]:text-sm"
+          onSelectionChange={(key) => {
+            setKind(key as "personal" | "enterprise");
+            setLicenseFileName("");
+          }}
+          selectedKey={kind}
+          size="lg"
+        >
+          <Segment.Item id="personal">个人</Segment.Item>
+          <Segment.Item id="enterprise">企业</Segment.Item>
+        </Segment>
+      </div>
+      <Form className="space-y-7" onSubmit={submit}>
         <FormError error={mutation.error} />
         {kind === "personal" ? (
-          <>
+          <section className="space-y-4">
+            <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
+              <div>
+                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                  个人身份信息
+                </h2>
+                <p className="mt-1 text-sm leading-5 text-muted">
+                  请填写与证件一致的信息。
+                </p>
+              </div>
+              <span className="hidden text-xs text-muted sm:block">2 项必填</span>
+            </header>
             <TextField
+              className={fieldClassName}
               fullWidth
               isRequired
               name="legalName"
               variant="secondary"
             >
-              <Label>姓名</Label>
-              <Input id="legal-name" />
+              <Label className={labelClassName}>姓名</Label>
+              <Input
+                autoComplete="name"
+                className={inputClassName}
+                id="legal-name"
+                placeholder="请输入本人姓名"
+              />
               <FieldError />
             </TextField>
             <TextField
+              className={fieldClassName}
               fullWidth
               isRequired
               maxLength={18}
@@ -169,159 +201,199 @@ export function VerificationForm() {
               name="identityNumber"
               variant="secondary"
             >
-              <Label>身份证号</Label>
+              <Label className={labelClassName}>身份证号</Label>
               <Input
+                autoComplete="off"
+                className={inputClassName}
                 id="identity-number"
+                placeholder="15 或 18 位身份证号"
               />
               <FieldError />
             </TextField>
-            <TextField
-              fullWidth
-              inputMode="numeric"
+            <Checkbox
+              className="rounded-[10px] border border-border bg-surface-secondary px-4 py-3 text-sm text-foreground"
               isRequired
-              maxLength={11}
-              minLength={11}
-              name="phoneNumber"
-              type="tel"
+              name="faceVerified"
               variant="secondary"
             >
-              <Label>手机号</Label>
-              <Input
-                autoComplete="tel"
-                id="phone-number"
-              />
-              <FieldError />
-            </TextField>
-            <Checkbox isRequired name="faceVerified" variant="secondary">
               <Checkbox.Content>
                 <Checkbox.Control>
                   <Checkbox.Indicator />
                 </Checkbox.Control>
-                我确认以上身份信息真实有效
+                <span>我确认以上身份信息真实有效</span>
               </Checkbox.Content>
               <FieldError />
             </Checkbox>
-          </>
+          </section>
         ) : (
-          <>
-            <TextField
-              fullWidth
-              isRequired
-              name="companyName"
-              variant="secondary"
-            >
-              <Label>企业名称</Label>
-              <Input id="company-name" />
-              <FieldError />
-            </TextField>
-            <TextField
-              fullWidth
-              isRequired
-              maxLength={18}
-              minLength={18}
-              name="creditCode"
-              variant="secondary"
-            >
-              <Label>统一社会信用代码</Label>
-              <Input
-                id="credit-code"
+          <div className="space-y-7">
+            <section className="space-y-4">
+              <header className="border-b border-border pb-3">
+                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                  企业主体信息
+                </h2>
+                <p className="mt-1 text-sm leading-5 text-muted">
+                  请填写营业执照登记信息。
+                </p>
+              </header>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextField
+                  className={`${fieldClassName} sm:col-span-2`}
+                  fullWidth
+                  isRequired
+                  name="companyName"
+                  variant="secondary"
+                >
+                  <Label className={labelClassName}>企业名称</Label>
+                  <Input
+                    className={inputClassName}
+                    id="company-name"
+                    placeholder="请输入营业执照上的企业全称"
+                  />
+                  <FieldError />
+                </TextField>
+                <TextField
+                  className={`${fieldClassName} sm:col-span-2`}
+                  fullWidth
+                  isRequired
+                  maxLength={18}
+                  minLength={18}
+                  name="creditCode"
+                  variant="secondary"
+                >
+                  <Label className={labelClassName}>统一社会信用代码</Label>
+                  <Input
+                    autoComplete="off"
+                    className={inputClassName}
+                    id="credit-code"
+                    placeholder="18 位统一社会信用代码"
+                  />
+                  <FieldError />
+                </TextField>
+                <TextField
+                  className={fieldClassName}
+                  fullWidth
+                  isRequired
+                  name="representative"
+                  variant="secondary"
+                >
+                  <Label className={labelClassName}>法定代表人</Label>
+                  <Input
+                    className={inputClassName}
+                    id="representative"
+                    placeholder="请输入姓名"
+                  />
+                  <FieldError />
+                </TextField>
+                <TextField
+                  autoComplete="off"
+                  className={fieldClassName}
+                  fullWidth
+                  isRequired
+                  maxLength={18}
+                  minLength={15}
+                  name="representativeIdNumber"
+                  variant="secondary"
+                >
+                  <Label className={labelClassName}>代表人证件号</Label>
+                  <Input
+                    autoComplete="off"
+                    className={inputClassName}
+                    id="representative-id-number"
+                    placeholder="15 或 18 位证件号"
+                  />
+                  <FieldError />
+                </TextField>
+              </div>
+              <LicenseDropZone
+                fileName={licenseFileName}
+                id="business-license"
+                onSelect={(files) => setLicenseFileName(files[0]?.name ?? "")}
               />
-              <FieldError />
-            </TextField>
-            <TextField
-              fullWidth
-              isRequired
-              name="representative"
-              variant="secondary"
-            >
-              <Label>法定代表人</Label>
-              <Input id="representative" />
-              <FieldError />
-            </TextField>
-            <TextField
-              autoComplete="off"
-              fullWidth
-              isRequired
-              maxLength={18}
-              minLength={15}
-              name="representativeIdNumber"
-              variant="secondary"
-            >
-              <Label>法定代表人证件号</Label>
-              <Input
-                autoComplete="off"
-                id="representative-id-number"
-              />
-              <FieldError />
-            </TextField>
-            <LicenseDropZone
-              fileName={licenseFileName}
-              id="business-license"
-              onSelect={(files) => setLicenseFileName(files[0]?.name ?? "")}
-            />
-            <TextField
-              fullWidth
-              isRequired
-              name="bankName"
-              variant="secondary"
-            >
-              <Label>开户行</Label>
-              <Input id="bank-name" />
-              <FieldError />
-            </TextField>
-            <TextField
-              fullWidth
-              isRequired
-              name="accountName"
-              variant="secondary"
-            >
-              <Label>账户名称</Label>
-              <Input id="account-name" />
-              <FieldError />
-            </TextField>
-            <TextField
-              autoComplete="off"
-              fullWidth
-              inputMode="numeric"
-              isRequired
-              name="accountNumber"
-              pattern="[0-9]{8,32}"
-              variant="secondary"
-            >
-              <Label>银行账号</Label>
-              <Input
-                autoComplete="off"
-                id="account-number"
-              />
-              <FieldError />
-            </TextField>
-          </>
+            </section>
+
+            <section className="space-y-4">
+              <header className="border-b border-border pb-3">
+                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                  结算账户
+                </h2>
+                <p className="mt-1 text-sm leading-5 text-muted">
+                  账户名称应与认证企业一致。
+                </p>
+              </header>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextField
+                  className={`${fieldClassName} sm:col-span-2`}
+                  fullWidth
+                  isRequired
+                  name="bankName"
+                  variant="secondary"
+                >
+                  <Label className={labelClassName}>开户行</Label>
+                  <Input
+                    className={inputClassName}
+                    id="bank-name"
+                    placeholder="请输入开户行全称"
+                  />
+                  <FieldError />
+                </TextField>
+                <TextField
+                  className={fieldClassName}
+                  fullWidth
+                  isRequired
+                  name="accountName"
+                  variant="secondary"
+                >
+                  <Label className={labelClassName}>账户名称</Label>
+                  <Input className={inputClassName} id="account-name" />
+                  <FieldError />
+                </TextField>
+                <TextField
+                  autoComplete="off"
+                  className={fieldClassName}
+                  fullWidth
+                  inputMode="numeric"
+                  isRequired
+                  name="accountNumber"
+                  pattern="[0-9]{8,32}"
+                  variant="secondary"
+                >
+                  <Label className={labelClassName}>银行账号</Label>
+                  <Input
+                    autoComplete="off"
+                    className={inputClassName}
+                    id="account-number"
+                  />
+                  <FieldError />
+                </TextField>
+              </div>
+            </section>
+          </div>
         )}
-        <Button
-          fullWidth
-          isDisabled={
-            mutation.isPending || (kind === "enterprise" && !licenseFileName)
-          }
-          isPending={mutation.isPending}
-          size="lg"
-          type="submit"
-          variant="primary"
-        >
-          {mutation.isPending ? (
-            <>
-              <Spinner aria-hidden="true" color="current" size="sm" />
-              正在核验
-            </>
-          ) : (
-            "提交认证"
-          )}
-        </Button>
+        <footer className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <Link className="text-center text-sm text-muted underline-offset-4 hover:underline" href={target}>
+            稍后处理，返回工作台
+          </Link>
+          <Button
+            className="h-11 w-full rounded-[10px] px-6 text-sm sm:w-auto sm:min-w-[190px]"
+            isDisabled={
+              mutation.isPending || (kind === "enterprise" && !licenseFileName)
+            }
+            isPending={mutation.isPending}
+            type="submit"
+            variant="primary"
+          >
+            {mutation.isPending ? (
+              <>
+                <Spinner aria-hidden="true" color="current" size="sm" />
+                正在核验
+              </>
+            ) : (
+              "确认并完成认证"
+            )}
+          </Button>
+        </footer>
       </Form>
-      <p className="mt-6 text-center text-sm text-muted">
-        <Link className="underline underline-offset-4" href={target}>
-          稍后认证
-        </Link>
-      </p>
     </>
   );
 }

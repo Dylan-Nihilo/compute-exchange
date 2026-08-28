@@ -160,10 +160,15 @@ export function FormError({error}: {error: unknown}) {
   const message = error instanceof Error ? error.message : "操作未完成，请重试。";
 
   return (
-    <Alert status="danger">
+    <Alert
+      className="rounded-[10px] border border-danger/20 bg-danger/5 px-4 py-3 shadow-none"
+      status="danger"
+    >
       <Alert.Content>
-        <Alert.Title>操作未完成</Alert.Title>
-        <Alert.Description>{message}</Alert.Description>
+        <Alert.Title className="text-sm font-semibold">操作未完成</Alert.Title>
+        <Alert.Description className="mt-0.5 text-sm leading-5">
+          {message}
+        </Alert.Description>
       </Alert.Content>
     </Alert>
   );

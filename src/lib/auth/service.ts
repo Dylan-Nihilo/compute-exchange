@@ -84,11 +84,7 @@ export const verificationInputSchema = z.discriminatedUnion("kind", [
     kind: z.literal("personal"),
     legalName: requiredText,
     identityNumber: identityDocumentNumber,
-    phoneNumber: z
-      .string()
-      .trim()
-      .regex(/^1\d{10}$/, "请输入有效的手机号"),
-    faceVerified: z.literal(true, {error: "请确认已完成人脸核验"}),
+    faceVerified: z.literal(true, {error: "请确认身份信息真实有效"}),
   }),
   z.object({
     kind: z.literal("enterprise"),
@@ -666,7 +662,7 @@ function createVerificationQualification(
       unifiedSocialCreditCode: null,
       region: null,
       contactName: input.legalName,
-      contactMethod: maskPhone(input.phoneNumber),
+      contactMethod: maskPhone(account.phoneNumber),
       legalRepresentative: null,
       settlementAccount: null,
       facilityProfile: null,

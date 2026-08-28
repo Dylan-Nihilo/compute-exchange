@@ -175,7 +175,6 @@ describe("authentication API adapter", () => {
         kind: "personal",
         legalName: "测试用户",
         identityNumber: "110101199001011234",
-        phoneNumber: "13800138000",
         faceVerified: true,
       },
       async (input, init) => {
