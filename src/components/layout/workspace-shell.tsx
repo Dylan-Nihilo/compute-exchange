@@ -15,6 +15,7 @@ import {homeForRole, routes} from "@/lib/domain/routes";
 
 import {RouteTransition} from "./route-transition";
 import {BuyerWorkspaceShell} from "./buyer-workspace-shell";
+import {SupplierWorkspaceShell} from "./supplier-workspace-shell";
 
 const roleLabels: Record<Role, string> = {
   guest: "访客",
@@ -82,6 +83,19 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
       >
         {children}
       </BuyerWorkspaceShell>
+    );
+  }
+
+  if (activeRole === "supplier") {
+    return (
+      <SupplierWorkspaceShell
+        account={account}
+        isLoggingOut={logoutMutation.isPending}
+        onChangeRole={changeRole}
+        onLogout={logout}
+      >
+        {children}
+      </SupplierWorkspaceShell>
     );
   }
 

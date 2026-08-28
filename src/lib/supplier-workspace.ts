@@ -131,6 +131,20 @@ const settlementSummarySchema = z.object({
   pending_fen: z.number().int().nonnegative(),
 });
 
+const resourceSyncSchema = z.object({
+  id: z.number().int().positive(),
+  product_id: z.number().int().positive(),
+  supplier_id: z.number().int().positive(),
+  sync_type: z.string(),
+  stock_before: z.number().int().nonnegative(),
+  stock_after: z.number().int().nonnegative(),
+  diff: z.number().int(),
+  reason: z.string(),
+  operator_id: z.number().int().nonnegative(),
+  anomaly: z.boolean(),
+  created_at: z.string(),
+});
+
 const listEnvelope = <T extends z.ZodTypeAny>(item: T) =>
   z.object({
     code: z.number().int(),
@@ -203,6 +217,7 @@ export type SupplierProductGroup = z.infer<typeof productGroupSchema>;
 export type SupplierOrder = z.infer<typeof supplierOrderSchema>;
 export type SupplierSettlement = z.infer<typeof settlementSchema>;
 export type SupplierSettlementSummary = z.infer<typeof settlementSummarySchema>;
+export type SupplierResourceSync = z.infer<typeof resourceSyncSchema>;
 
 export type CreateProductInput = {
   product_type: string;
@@ -351,4 +366,40 @@ export function fetchSupplierSettlements(
 export function fetchSupplierSettlementSummary(fetchImplementation: typeof fetch = fetch) {
   return request("/api/supplier/settlements/summary", summaryEnvelopeSchema, "结算汇总读取失败", undefined, fetchImplementation)
     .then((data) => data.data ?? {total_fen: 0, succeeded_fen: 0, pending_fen: 0});
+}
+
+// ===== 资源盘点 (C-05) =====
+
+export type SubmitResourceSyncInput = {
+  product_id: number;
+  stock_after: number;
+  reason: string;
+};
+
+export function fetchResourceSyncs(
+  query: {productId?: number; page?: number; pageSize?: number} = {},
+  fetchImplementation: typeof fetch = fetch,
+) {
+  const params = new URLSearchParams();
+  if (query.productId) params.set("product_id", String(query.productId));
+  if (query.page) params.set("page", String(query.page));
+  if (query.pageSize) params.set("page_size", String(query.pageSize));
+  const url = `/api/supplier/resource-syncs${params.size ? `?${params}` : ""}`;
+  return request(url, pageEnvelope(resourceSyncSchema), "盘点记录读取失败", undefined, fetchImplementation)
+    .then((data) => ({
+      syncs: data.data?.list ?? [],
+      total: data.data?.total ?? 0,
+      page: data.data?.page ?? 1,
+      pageSize: data.data?.page_size ?? 20,
+    }));
+}
+
+export function submitPassiveResourceSync(input: SubmitResourceSyncInput, fetchImplementation: typeof fetch = fetch) {
+  return request(
+    "/api/supplier/resource-syncs/passive",
+    actionEnvelopeSchema,
+    "盘点上报失败",
+    {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(input)},
+    fetchImplementation,
+  );
 }
