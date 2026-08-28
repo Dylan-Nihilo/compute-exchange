@@ -9,11 +9,11 @@ import {
   registerSmsApi,
   requestSmsCodeApi,
   smsLoginApi,
+  verifyAccountApi,
 } from "./api";
 import {
   applyForIdentity,
   listIdentityApplications,
-  verifyAccount,
   type IdentityApplicationInput,
   type VerificationInput,
 } from "./service";
@@ -97,10 +97,9 @@ export function useRegisterSms() {
 }
 
 export function useVerifyAccount() {
-  const accountId = useAuthStore((state) => state.accountId);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: VerificationInput) => verifyAccount(accountId!, input),
+    mutationFn: (input: VerificationInput) => verifyAccountApi(input),
     onSuccess: (account) => {
       queryClient.setQueryData(authKeys.account, account);
     },
