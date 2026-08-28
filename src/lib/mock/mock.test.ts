@@ -498,7 +498,6 @@ describe("mock authentication service", () => {
         kind: "personal",
         legalName: "林晓",
         identityNumber: "110105199001011234",
-        phoneNumber: "13800138000",
         faceVerified: true,
       },
       storage,
@@ -509,7 +508,7 @@ describe("mock authentication service", () => {
     const qualification = database.qualifications.at(-1);
     assert.equal(qualification?.kind, "personal");
     assert.equal(qualification?.status, "approved");
-    assert.equal(qualification?.contactMethod, "138****8000");
+    assert.equal(qualification?.contactMethod, "138****8010");
     assert.equal(
       qualification?.documents.find(({kind}) => kind === "identityCard")?.number,
       "110***********1234",
@@ -590,7 +589,6 @@ describe("mock authentication service", () => {
         kind: "personal",
         legalName: "林晓",
         identityNumber: "110105199001011234",
-        phoneNumber: "13800138000",
         faceVerified: true,
       },
       storage,
