@@ -202,7 +202,7 @@ function AccessCredentialCard({detail}: {detail: BuyerOrderDetail}) {
         </span>
       </div>
 
-      <div className="mt-5 flex items-center overflow-x-auto pb-1 text-[11px] text-[#597481]">
+      <div className="omnis-scrollbar-x mt-5 flex items-center pb-1 text-[11px] text-[#597481]">
         {credentialSteps(detail).map((step, index, steps) => (
           <div className="flex shrink-0 items-center" key={step.label}>
             <span className={`rounded-full px-3 py-1.5 ${step.done ? "bg-[#edf4dc] text-[#718827]" : "bg-[#edf3f5] text-[#8aa0aa]"}`}>{step.label}</span>

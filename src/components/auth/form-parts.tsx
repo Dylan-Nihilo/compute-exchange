@@ -6,13 +6,14 @@ import {
   FieldError,
   InputGroup,
   Label,
-  Spinner,
   TextField,
   Typography,
 } from "@heroui/react";
 import {DropZone} from "@heroui-pro/react/drop-zone";
+import {Clock3, LoaderCircle, SendHorizontal, ShieldCheck} from "lucide";
 import {useState} from "react";
 
+import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {solveCaptcha} from "@/lib/captcha/cap";
 import {notify} from "@/lib/notify";
 
@@ -92,9 +93,19 @@ export function VerificationCodeField({
             type="button"
             variant="ghost"
           >
-            {isPending || isVerifying ? (
-              <Spinner aria-hidden="true" color="current" size="sm" />
-            ) : null}
+            <InteractiveIcon
+              className={isPending ? "animate-spin" : undefined}
+              icon={
+                isVerifying
+                  ? ShieldCheck
+                  : isPending
+                    ? LoaderCircle
+                    : resendSeconds > 0
+                      ? Clock3
+                      : SendHorizontal
+              }
+              size={15}
+            />
             {isVerifying
               ? "安全验证中"
               : isPending

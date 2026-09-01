@@ -126,7 +126,7 @@ export default function SupplierOrdersPage() {
               title="订单数据暂时不可用"
             />
           ) : orders.length ? (
-            <div className="overflow-x-auto">
+            <div className="omnis-scrollbar-x">
               <table className="w-full min-w-[980px] table-fixed border-collapse text-left">
                 <caption className="sr-only">供给方履约订单</caption>
                 <colgroup>

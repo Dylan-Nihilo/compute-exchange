@@ -97,7 +97,7 @@ export default function SupplierProductsPage() {
               title="商品数据暂时不可用"
             />
           ) : allProducts.length ? (
-            <div className="overflow-x-auto">
+            <div className="omnis-scrollbar-x">
               <table className="w-full min-w-[860px] table-fixed border-collapse text-left">
                 <caption className="sr-only">我的算力商品</caption>
                 <colgroup>

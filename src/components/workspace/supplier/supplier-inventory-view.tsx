@@ -170,7 +170,7 @@ export function SupplierInventoryView({
               title="盘点记录暂时不可用"
             />
           ) : syncs.length ? (
-            <div className="overflow-x-auto">
+            <div className="omnis-scrollbar-x">
               <table className="w-full min-w-[920px] table-fixed border-collapse text-left">
                 <caption className="sr-only">资源盘点记录</caption>
                 <colgroup>

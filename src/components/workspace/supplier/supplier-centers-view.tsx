@@ -191,7 +191,7 @@ export function SupplierCentersView({
               title="算力中心数据暂时不可用"
             />
           ) : products.length ? (
-            <div className="overflow-x-auto">
+            <div className="omnis-scrollbar-x">
               <table className="w-full min-w-[1080px] table-fixed border-collapse text-left">
                 <caption className="sr-only">成熟算力中心列表</caption>
                 <colgroup>

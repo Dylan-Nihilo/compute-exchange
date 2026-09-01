@@ -133,7 +133,7 @@ export function BuyerInvoicesView({
               />
             </div>
           ) : invoices.length ? (
-            <div className="overflow-x-auto">
+            <div className="omnis-scrollbar-x">
               <table className="w-full min-w-[860px] table-fixed border-collapse text-left">
                 <caption className="sr-only">历史发票列表</caption>
                 <colgroup>

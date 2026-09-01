@@ -8,12 +8,25 @@ services:
     ports:
       - "127.0.0.1:3210:3000"
     environment:
-      ADMIN_KEY: ${CAP_ADMIN_KEY:?Set CAP_ADMIN_KEY to at least 32 characters}
+      ADMIN_KEY: ${CAP_ADMIN_KEY:-DEMO_REPLACE_ME_CAP_ADMIN_KEY_32_CHARS}
       CORS_ORIGIN: ${CAP_CORS_ORIGIN:-http://localhost:3000}
       REDIS_URL: redis://valkey:6379
     depends_on:
       valkey:
         condition: service_healthy
+      cap-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - |
+          const response = await fetch("http://127.0.0.1:3000/local-dev/challenge", { method: "POST" });
+          if (!response.ok) process.exit(1);
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   cap-init:
     image: tiago2/cap:latest

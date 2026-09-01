@@ -138,7 +138,7 @@ export function BuyerOrdersView({
             />
           </div>
         ) : orders.length ? (
-          <div className="overflow-x-auto">
+          <div className="omnis-scrollbar-x">
             <table className="w-full min-w-[1000px] table-fixed border-collapse text-left">
               <caption className="sr-only">买家订单列表</caption>
               <colgroup>

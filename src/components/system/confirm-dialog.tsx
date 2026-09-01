@@ -1,6 +1,9 @@
 "use client";
 
-import {AlertDialog, Button, Spinner} from "@heroui/react";
+import {AlertDialog, Button} from "@heroui/react";
+import {Check, LoaderCircle, Trash2} from "lucide";
+
+import {InteractiveIcon} from "./interactive-icon";
 
 export function ConfirmDialog({
   cancelLabel = "取消",
@@ -48,14 +51,12 @@ export function ConfirmDialog({
               onPress={onConfirm}
               variant={isDestructive ? "danger-soft" : "primary"}
             >
-              {isPending ? (
-                <>
-                  <Spinner aria-hidden="true" color="current" size="sm" />
-                  正在处理
-                </>
-              ) : (
-                confirmLabel
-              )}
+              <InteractiveIcon
+                className={isPending ? "animate-spin" : undefined}
+                icon={isPending ? LoaderCircle : isDestructive ? Trash2 : Check}
+                size={16}
+              />
+              {isPending ? "正在处理" : confirmLabel}
             </Button>
           </AlertDialog.Footer>
         </AlertDialog.Dialog>

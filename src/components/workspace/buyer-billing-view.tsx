@@ -160,7 +160,7 @@ export function BuyerBillingView({
               />
             </div>
           ) : pageOrders.length ? (
-            <div className="overflow-x-auto">
+            <div className="omnis-scrollbar-x">
               <table className="w-full min-w-[880px] table-fixed border-collapse text-left">
                 <caption className="sr-only">买家订单账单列表</caption>
                 <colgroup>
