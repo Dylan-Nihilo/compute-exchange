@@ -306,6 +306,10 @@
   --focus: oklch(0.62 0.065 230 / 0.48);
   --field-border-focus: oklch(0.62 0.055 230);
   --link: var(--foreground);
+  --scrollbar-track: oklch(0.93 0.018 220 / 0.36);
+  --scrollbar-thumb: oklch(0.65 0.075 225 / 0.58);
+  --scrollbar-thumb-hover: oklch(0.53 0.11 235 / 0.76);
+  --scrollbar-thumb-active: oklch(0.91 0.19 120 / 0.84);
 }
 
 .dark {
@@ -324,6 +328,10 @@
   --focus: oklch(0.76 0.045 230 / 0.58);
   --field-border-focus: oklch(0.76 0.04 230);
   --link: var(--foreground);
+  --scrollbar-track: oklch(0.33 0.025 225 / 0.36);
+  --scrollbar-thumb: oklch(0.74 0.075 225 / 0.64);
+  --scrollbar-thumb-hover: oklch(0.82 0.1 220 / 0.8);
+  --scrollbar-thumb-active: oklch(0.89 0.18 120 / 0.86);
 }
 
 /* Shared field rhythm: compact in workspaces, roomier in authentication. */
@@ -356,6 +364,52 @@
   min-height: 3rem;
 }
 
+@keyframes auth-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .auth-route-content > * {
+    animation: auth-content-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .auth-route-content > :nth-child(2) {
+    animation-delay: 45ms;
+  }
+
+  .auth-route-content > :nth-child(3) {
+    animation-delay: 90ms;
+  }
+
+  .auth-route-content > :nth-child(4) {
+    animation-delay: 125ms;
+  }
+
+  .auth-route-content > :nth-child(n + 5) {
+    animation-delay: 150ms;
+  }
+
+  .omnis-auth-controls
+    :where(button:not(:disabled), a, [role="radio"]:not([aria-disabled="true"])) {
+    transition-duration: 150ms;
+    transition-property: transform, opacity, color, background-color,
+      border-color, box-shadow;
+    transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  .omnis-auth-controls
+    :where(button:not(:disabled), a, [role="radio"]:not([aria-disabled="true"])):active {
+    transform: translateY(1px) scale(0.985);
+  }
+}
+
 @media (max-width: 39.999rem) {
   .omnis-workbench-controls
     :where(
@@ -385,6 +439,101 @@ html {
 body {
   min-height: 100svh;
   margin: 0;
+}
+
+.omnis-scrollbar-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+}
+
+.omnis-scrollbar-y {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+* {
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+
+:is(html.is-scrolling, .is-scrolling) {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+}
+
+::-webkit-scrollbar-track {
+  border: 4px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+  background-color: transparent;
+  transition: background-color 180ms ease-out;
+}
+
+::-webkit-scrollbar-corner {
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  min-width: 3rem;
+  min-height: 3rem;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition:
+    background-color 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+
+:is(html.is-scrolling, .is-scrolling)::-webkit-scrollbar-track {
+  background-color: var(--scrollbar-track);
+}
+
+:is(html.is-scrolling, .is-scrolling)::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  box-shadow: inset 0 0 0 1px color-mix(
+    in oklch,
+    var(--foreground) 12%,
+    transparent
+  );
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+  box-shadow: inset 0 0 0 1px color-mix(
+    in oklch,
+    var(--foreground) 30%,
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-thumb {
+    transition-duration: 0.01ms;
+  }
+}
+
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: auto;
+  }
 }
 
 /* Capability card action link: per-character rise on card hover */

@@ -14,6 +14,8 @@ import {
   Typography,
 } from "@heroui/react";
 import {Segment} from "@heroui-pro/react/segment";
+import {Building2, UserRound} from "lucide";
+import {AnimatePresence, motion, useReducedMotion} from "motion/react";
 import {useRouter, useSearchParams} from "next/navigation";
 import {useState} from "react";
 
@@ -22,12 +24,14 @@ import {resolveActiveRole, safeNextPath} from "@/lib/auth/session";
 import {useAuthStore} from "@/lib/auth/store";
 import {homeForRole} from "@/lib/domain/routes";
 import {notify} from "@/lib/notify";
+import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {FormError, FormHeading, LicenseDropZone} from "./form-parts";
 
 const fieldClassName = "gap-2";
 const labelClassName = "text-sm font-medium text-foreground";
 const inputClassName =
   "rounded-[10px] border border-border bg-surface px-3 text-base text-foreground shadow-none transition-colors hover:border-border-secondary";
+const motionEase = [0.22, 1, 0.36, 1] as const;
 
 export function VerificationForm() {
   const router = useRouter();
@@ -35,6 +39,7 @@ export function VerificationForm() {
   const {data: account} = useCurrentAccount();
   const mutation = useVerifyAccount();
   const activeRole = useAuthStore((state) => state.activeRole);
+  const shouldReduceMotion = useReducedMotion();
   const [kind, setKind] = useState<"personal" | "enterprise">("personal");
   const [licenseFileName, setLicenseFileName] = useState("");
 
@@ -140,13 +145,19 @@ export function VerificationForm() {
         description="完成主体信息确认后，即可继续交易、上架与结算。"
         title="完成账户认证"
       />
-      <div className="mb-7">
-        <Typography
-          className="mb-2 text-xs font-semibold tracking-[0.08em] text-muted"
-          type="body-xs"
-        >
-          认证主体
-        </Typography>
+      <div className="mb-5">
+        <div className="mb-2 flex items-center gap-2 text-muted">
+          <InteractiveIcon
+            icon={kind === "personal" ? UserRound : Building2}
+            size={15}
+          />
+          <Typography
+            className="text-xs font-semibold tracking-[0.08em]"
+            type="body-xs"
+          >
+            认证主体
+          </Typography>
+        </div>
         <Segment
           aria-label="认证类型"
           className="w-full rounded-[12px] border border-border bg-surface-secondary p-1 [&_[data-slot=segment-indicator]]:rounded-[8px] [&_[data-slot=segment-indicator]]:bg-surface [&_[data-slot=segment-indicator]]:shadow-sm [&_[data-slot=segment-item]]:h-10 [&_[data-slot=segment-item]]:flex-1 [&_[data-slot=segment-item]]:rounded-[8px] [&_[data-slot=segment-item]]:text-sm"
@@ -161,72 +172,93 @@ export function VerificationForm() {
           <Segment.Item id="enterprise">企业</Segment.Item>
         </Segment>
       </div>
-      <Form className="space-y-7" onSubmit={submit}>
+      <Form className="space-y-5" onSubmit={submit}>
         <FormError error={mutation.error} />
-        {kind === "personal" ? (
-          <section className="space-y-4">
-            <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
-              <div>
-                <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
-                  个人身份信息
-                </h2>
-                <p className="mt-1 text-sm leading-5 text-muted">
-                  请填写与证件一致的信息。
-                </p>
-              </div>
-              <span className="hidden text-xs text-muted sm:block">2 项必填</span>
-            </header>
-            <TextField
-              className={fieldClassName}
-              fullWidth
-              isRequired
-              name="legalName"
-              variant="secondary"
+        <AnimatePresence initial={false} mode="wait">
+          {kind === "personal" ? (
+            <motion.section
+              animate={{opacity: 1, x: 0}}
+              className="space-y-3"
+              exit={{opacity: 0, x: shouldReduceMotion ? 0 : 14}}
+              initial={{opacity: 0, x: shouldReduceMotion ? 0 : -14}}
+              key="personal"
+              transition={{
+                duration: shouldReduceMotion ? 0.12 : 0.32,
+                ease: motionEase,
+              }}
             >
-              <Label className={labelClassName}>姓名</Label>
-              <Input
-                autoComplete="name"
-                className={inputClassName}
-                id="legal-name"
-                placeholder="请输入本人姓名"
-              />
-              <FieldError />
-            </TextField>
-            <TextField
-              className={fieldClassName}
-              fullWidth
-              isRequired
-              maxLength={18}
-              minLength={15}
-              name="identityNumber"
-              variant="secondary"
+              <header className="flex items-end justify-between gap-4 border-b border-border pb-3">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                    个人身份信息
+                  </h2>
+                  <p className="mt-1 text-sm leading-5 text-muted">
+                    请填写与证件一致的信息。
+                  </p>
+                </div>
+                <span className="hidden text-xs text-muted sm:block">2 项必填</span>
+              </header>
+              <TextField
+                className={fieldClassName}
+                fullWidth
+                isRequired
+                name="legalName"
+                variant="secondary"
+              >
+                <Label className={labelClassName}>姓名</Label>
+                <Input
+                  autoComplete="name"
+                  className={inputClassName}
+                  id="legal-name"
+                  placeholder="请输入本人姓名"
+                />
+                <FieldError />
+              </TextField>
+              <TextField
+                className={fieldClassName}
+                fullWidth
+                isRequired
+                maxLength={18}
+                minLength={15}
+                name="identityNumber"
+                variant="secondary"
+              >
+                <Label className={labelClassName}>身份证号</Label>
+                <Input
+                  autoComplete="off"
+                  className={inputClassName}
+                  id="identity-number"
+                  placeholder="15 或 18 位身份证号"
+                />
+                <FieldError />
+              </TextField>
+              <Checkbox
+                className="rounded-[10px] border border-border bg-surface-secondary px-4 py-3 text-sm text-foreground"
+                isRequired
+                name="faceVerified"
+                variant="secondary"
+              >
+                <Checkbox.Content>
+                  <Checkbox.Control>
+                    <Checkbox.Indicator />
+                  </Checkbox.Control>
+                  <span>我确认以上身份信息真实有效</span>
+                </Checkbox.Content>
+                <FieldError />
+              </Checkbox>
+            </motion.section>
+          ) : (
+            <motion.div
+              animate={{opacity: 1, x: 0}}
+              className="space-y-7"
+              exit={{opacity: 0, x: shouldReduceMotion ? 0 : -14}}
+              initial={{opacity: 0, x: shouldReduceMotion ? 0 : 14}}
+              key="enterprise"
+              transition={{
+                duration: shouldReduceMotion ? 0.12 : 0.32,
+                ease: motionEase,
+              }}
             >
-              <Label className={labelClassName}>身份证号</Label>
-              <Input
-                autoComplete="off"
-                className={inputClassName}
-                id="identity-number"
-                placeholder="15 或 18 位身份证号"
-              />
-              <FieldError />
-            </TextField>
-            <Checkbox
-              className="rounded-[10px] border border-border bg-surface-secondary px-4 py-3 text-sm text-foreground"
-              isRequired
-              name="faceVerified"
-              variant="secondary"
-            >
-              <Checkbox.Content>
-                <Checkbox.Control>
-                  <Checkbox.Indicator />
-                </Checkbox.Control>
-                <span>我确认以上身份信息真实有效</span>
-              </Checkbox.Content>
-              <FieldError />
-            </Checkbox>
-          </section>
-        ) : (
-          <div className="space-y-7">
             <section className="space-y-4">
               <header className="border-b border-border pb-3">
                 <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
@@ -368,9 +400,10 @@ export function VerificationForm() {
                 </TextField>
               </div>
             </section>
-          </div>
-        )}
-        <footer className="flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <footer className="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
           <Link className="text-center text-sm text-muted underline-offset-4 hover:underline" href={target}>
             稍后处理，返回工作台
           </Link>

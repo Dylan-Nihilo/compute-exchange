@@ -146,7 +146,7 @@ export function MarketView({query, result}: MarketViewProps) {
           aria-label="算力商品类型"
           className="rounded-[20px] border border-[#171e1c]/3 bg-white/70 p-3 backdrop-blur-xl"
         >
-          <div className="flex items-center gap-2.5 overflow-x-auto">
+          <div className="omnis-scrollbar-x flex items-center gap-2.5">
             {productTypeOptions.map((option) => {
               const selected = query.productType === option.value;
               return (

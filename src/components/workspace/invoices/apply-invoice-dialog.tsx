@@ -103,7 +103,7 @@ export function ApplyInvoiceDialog({
               ) : orders.length ? (
                 <div>
                   <p className="text-[13px] font-medium text-[#24495d]">选择需要开票的订单</p>
-                  <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                  <ul className="omnis-scrollbar-y mt-3 max-h-72 space-y-2 pr-1">
                     {orders.map((order) => (
                       <li key={order.order_no}>
                         <Checkbox

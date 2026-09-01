@@ -121,7 +121,7 @@ export default function SupplierSettlementsPage() {
               title="结算数据暂时不可用"
             />
           ) : settlements.length ? (
-            <div className="overflow-x-auto">
+            <div className="omnis-scrollbar-x">
               <table className="w-full min-w-[820px] table-fixed border-collapse text-left">
                 <caption className="sr-only">结算流水</caption>
                 <colgroup>

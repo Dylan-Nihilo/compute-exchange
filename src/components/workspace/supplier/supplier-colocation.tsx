@@ -241,7 +241,7 @@ export function SupplierColocation({
               title="机房数据暂时不可用"
             />
           ) : products.length ? (
-            <div className="overflow-x-auto">
+            <div className="omnis-scrollbar-x">
               <div className="flex min-w-[1010px] flex-col gap-1" role="table" aria-label="空心机房列表">
                 <div className={`${facilityGrid} h-11 rounded-[14px] bg-[#e4f4fb]/55 text-xs font-medium text-[#213645]`} role="row">
                   <p role="columnheader">机房名称</p>

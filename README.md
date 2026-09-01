@@ -13,6 +13,8 @@
 
 ## 本地启动
 
+`pnpm dev` 会通过 Docker Compose 自动启动本地 Cap，并检查独立运行的 Go 后端。请先启动 Docker Desktop 和 workspace 后端。
+
 ```bash
 cp .env.example .env.local
 # Fill HEROUI_KEY in .env.local
@@ -21,7 +23,7 @@ pnpm heroui:setup
 pnpm dev
 ```
 
-开发服务默认运行在 <http://localhost:3000>。
+开发服务默认运行在 <http://localhost:3000>；任一认证服务未就绪时不会进入前端开发服务器，避免带着失效认证继续联调。
 
 ### HeroUI Pro
 

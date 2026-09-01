@@ -1,8 +1,10 @@
 "use client";
 
 import {EmptyState as ProEmptyState} from "@heroui-pro/react/empty-state";
-import {Alert, Button, Spinner} from "@heroui/react";
+import {Alert, Button} from "@heroui/react";
+import {LoaderCircle, RotateCw} from "lucide";
 
+import {InteractiveIcon} from "./interactive-icon";
 import {OmnisLoader} from "./omnis-loader";
 
 export function LoadingState({label = "正在加载"}: {label?: string}) {
@@ -39,14 +41,12 @@ export function ErrorState({
           onPress={onRetry}
           variant="outline"
         >
-          {isPending ? (
-            <>
-              <Spinner aria-hidden="true" color="current" size="sm" />
-              正在重试
-            </>
-          ) : (
-            "重新尝试"
-          )}
+          <InteractiveIcon
+            className={isPending ? "animate-spin" : undefined}
+            icon={isPending ? LoaderCircle : RotateCw}
+            size={16}
+          />
+          {isPending ? "正在重试" : "重新尝试"}
         </Button>
       ) : null}
     </div>
