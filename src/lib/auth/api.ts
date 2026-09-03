@@ -5,7 +5,7 @@ import {
   verificationInputSchema,
   type SessionAccount,
   type VerificationInput,
-} from "./service.ts";
+} from "./contracts.ts";
 
 const smsCodeEnvelopeSchema = z.object({
   code: z.number().int(),
@@ -99,10 +99,7 @@ export async function smsLoginApi(
     fetchImplementation,
   );
   if (!result.data) throw new Error("认证服务返回格式错误");
-  return toSessionAccount(
-    result.data.user,
-    await readKycStatus(fetchImplementation),
-  );
+  return readEstablishedAccount(result.data.user.id, fetchImplementation);
 }
 
 export async function registerSmsApi(
@@ -126,15 +123,29 @@ export async function registerSmsApi(
     fetchImplementation,
   );
   if (!result.data) throw new Error("注册服务返回格式错误");
-  return toSessionAccount(
-    result.data.user,
-    await readKycStatus(fetchImplementation),
-  );
+  return readEstablishedAccount(result.data.user.id, fetchImplementation);
 }
 
 export async function currentAccountApi(
   fetchImplementation: typeof fetch = fetch,
 ): Promise<SessionAccount | null> {
+  const user = await readCurrentUser(fetchImplementation);
+  if (!user) return null;
+  return toSessionAccount(user, await readKycStatus(fetchImplementation));
+}
+
+export async function assertAuthenticatedAccountApi(
+  expectedAccountId: string,
+  fetchImplementation: typeof fetch = fetch,
+) {
+  const user = await readCurrentUser(fetchImplementation);
+  if (!user) throw new Error("登录状态已失效，请重新登录");
+  if (String(user.id) !== expectedAccountId) {
+    throw new Error("当前浏览器会话属于其他账户，请重新登录后再提交");
+  }
+}
+
+async function readCurrentUser(fetchImplementation: typeof fetch) {
   const response = await fetchImplementation("/api/auth/me", {
     cache: "no-store",
   });
@@ -146,14 +157,12 @@ export async function currentAccountApi(
   if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) {
     throw new Error(parsed.data.message || "账户状态读取失败");
   }
-  return toSessionAccount(
-    parsed.data.data,
-    await readKycStatus(fetchImplementation),
-  );
+  return parsed.data.data;
 }
 
 export async function verifyAccountApi(
   input: VerificationInput,
+  expectedAccountId: string,
   fetchImplementation: typeof fetch = fetch,
 ): Promise<SessionAccount> {
   const parsed = verificationInputSchema.safeParse(input);
@@ -162,19 +171,28 @@ export async function verifyAccountApi(
   }
 
   const {kind} = parsed.data;
-  const body =
-    kind === "personal"
-      ? {
-          real_name: parsed.data.legalName,
-          id_card: parsed.data.identityNumber,
-        }
-      : {
-          enterprise_name: parsed.data.companyName,
-          uscc: parsed.data.creditCode,
-          // ponytail: the pilot stores the filename; add object upload when licenses need real review.
-          license_url: parsed.data.businessLicenseFileName,
-          legal_person: parsed.data.representative,
-        };
+  let body: Record<string, string> | FormData;
+  if (kind === "personal") {
+    body = {
+      real_name: parsed.data.legalName,
+      id_card: parsed.data.identityNumber,
+    };
+  } else {
+    if (!parsed.data.businessLicenseFile) {
+      throw new Error("请选择营业执照文件");
+    }
+    const formData = new FormData();
+    formData.set("enterprise_name", parsed.data.companyName);
+    formData.set("uscc", parsed.data.creditCode);
+    formData.set("legal_person", parsed.data.representative);
+    formData.set("legal_person_id_card", parsed.data.representativeIdNumber);
+    formData.set("bank_name", parsed.data.bankName);
+    formData.set("bank_account_name", parsed.data.accountName);
+    formData.set("bank_account_number", parsed.data.accountNumber);
+    formData.set("business_license", parsed.data.businessLicenseFile);
+    body = formData;
+  }
+  await assertAuthenticatedAccountApi(expectedAccountId, fetchImplementation);
   await post(
     `/api/auth/kyc/${kind}`,
     body,
@@ -183,6 +201,18 @@ export async function verifyAccountApi(
   );
   const account = await currentAccountApi(fetchImplementation);
   if (!account) throw new Error("登录状态已失效，请重新登录");
+  return account;
+}
+
+async function readEstablishedAccount(
+  expectedUserId: number,
+  fetchImplementation: typeof fetch,
+) {
+  const account = await currentAccountApi(fetchImplementation);
+  if (!account) throw new Error("登录状态已失效，请重新登录");
+  if (account.id !== String(expectedUserId)) {
+    throw new Error("当前浏览器会话属于其他账户，请重新登录");
+  }
   return account;
 }
 
@@ -205,10 +235,11 @@ async function post<T extends {code: number; message: string}>(
   schema: z.ZodType<T>,
   fetchImplementation: typeof fetch,
 ): Promise<T> {
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const response = await fetchImplementation(path, {
     method: "POST",
-    headers: {"content-type": "application/json"},
-    body: JSON.stringify(body),
+    headers: isFormData ? undefined : {"content-type": "application/json"},
+    body: isFormData ? body : JSON.stringify(body),
   });
   const parsed = schema.safeParse(await response.json().catch(() => null));
   if (!parsed.success) throw new Error("认证服务返回格式错误");

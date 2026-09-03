@@ -81,6 +81,14 @@ curl -X POST http://localhost:8080/api/v1/products \
 
 ---
 
+## GET /supplier-applications · 我的供给方入驻申请 ✅ authenticated
+
+## POST /supplier-applications · 提交供给方入驻申请 ✅ authenticated + KYC
+
+供给方身份不能由用户直接添加。POST 使用 `multipart/form-data`，`business_license` 必须为 PDF/JPG/PNG 且不超过 5MB；完整字段和文件内容写入 MySQL。申请进入审核队列，Admin 通过后由服务端授予 `supplier` 角色并写入审计日志。
+
+---
+
 ## POST /orders · 下单 ✅ buyer
 
 ```

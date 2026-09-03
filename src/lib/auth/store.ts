@@ -4,7 +4,7 @@ import {create} from "zustand";
 import {createJSONStorage, persist} from "zustand/middleware";
 
 import type {Role} from "../domain/contracts";
-import type {SessionAccount} from "./service";
+import type {SessionAccount} from "./contracts";
 import {resolveActiveRole} from "./session";
 
 export const AUTH_STORAGE_KEY = "compute-exchange:session";

@@ -2,6 +2,7 @@
 
 import {useQuery} from "@tanstack/react-query";
 import {Label, ListBox, Select, Skeleton} from "@heroui/react";
+import {ReceiptText} from "lucide";
 import {useState} from "react";
 
 import {ErrorState} from "@/components/system/operation-state";
@@ -166,6 +167,7 @@ export default function SupplierSettlementsPage() {
           ) : (
             <EmptyState
               description="订单完成分账后, 结算流水会显示在这里。当前分账尚未接入真实支付流水。"
+              icon={ReceiptText}
               title="暂无结算记录"
             />
           )}

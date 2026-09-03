@@ -11,7 +11,7 @@ export function RouteTransition({
 
   return (
     <div
-      className="route-transition animate-route-page-enter motion-reduce:animate-none will-change-[opacity,transform]"
+      className="route-transition relative flex min-h-[calc(100svh-72px)] flex-col animate-route-page-enter motion-reduce:animate-none will-change-[opacity,transform]"
       key={transitionKey ?? pathname}
     >
       {children}

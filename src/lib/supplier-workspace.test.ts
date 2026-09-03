@@ -24,9 +24,14 @@ test("fetchMyQualifications normalizes empty and populated lists", async () => {
       id: 1, user_id: 2, qual_type: "idc_license", cert_name: "IDC 许可证",
       cert_number: "B1-2026", cert_url: "https://example.com/c.pdf",
       expires_at: null, status: "pending", created_at: "2026-08-26T10:00:00Z",
+    }, {
+      id: 2, user_id: 2, qual_type: "supplier_onboarding", cert_name: "测试企业",
+      cert_number: "91310115MA1K4X2A7Q", cert_url: "license.pdf",
+      expires_at: null, status: "verified", created_at: "2026-08-25T10:00:00Z",
     }]}));
-  assert.equal(list.length, 1);
+  assert.equal(list.length, 2);
   assert.equal(list[0].status, "pending");
+  assert.equal(list[1].status, "approved");
 });
 
 test("submitQualification posts payload and surfaces backend errors", async () => {

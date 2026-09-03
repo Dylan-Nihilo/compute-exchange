@@ -7,7 +7,7 @@ import Image from "next/image";
 import {useQuery} from "@tanstack/react-query";
 import {usePathname, useRouter} from "next/navigation";
 
-import type {SessionAccount} from "@/lib/auth/service";
+import type {SessionAccount} from "@/lib/auth/contracts";
 import type {Role} from "@/lib/domain/contracts";
 import {fetchSupplierUnreadNotificationCount} from "@/lib/supplier-notifications";
 

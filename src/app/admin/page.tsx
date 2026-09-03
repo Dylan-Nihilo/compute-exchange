@@ -1,9 +1,5 @@
-"use client";
-
-import {WorkspaceHome} from "@/components/workspace/workspace-home";
-import {useAuthStore} from "@/lib/auth/store";
+import {AdminOverview} from "@/components/workspace/admin/admin-overview";
 
 export default function AdminWorkspacePage() {
-  const activeRole = useAuthStore((state) => state.activeRole);
-  return <WorkspaceHome role={activeRole === "admin" ? "admin" : "operator"} />;
+  return <AdminOverview />;
 }

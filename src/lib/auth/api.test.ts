@@ -70,6 +70,13 @@ describe("authentication API adapter", () => {
     const account = await smsLoginApi(
       {phoneNumber: "13800138000", code: "123456", remember: true},
       async (input, init) => {
+        if (String(input) === "/api/auth/me") {
+          return Response.json({
+            code: 0,
+            message: "success",
+            data: {id: 7, phone: "138****8000", roles: ["buyer"]},
+          });
+        }
         if (String(input) === "/api/auth/kyc/status") {
           return Response.json({
             code: 0,
@@ -108,6 +115,13 @@ describe("authentication API adapter", () => {
         remember: true,
       },
       async (input, init) => {
+        if (String(input) === "/api/auth/me") {
+          return Response.json({
+            code: 0,
+            message: "success",
+            data: {id: 8, phone: "138****8000", roles: ["buyer"]},
+          });
+        }
         if (String(input) === "/api/auth/kyc/status") {
           return Response.json({
             code: 0,
@@ -134,6 +148,44 @@ describe("authentication API adapter", () => {
     });
     assert.equal(result.id, "8");
     assert.deepEqual(result.roles, ["buyer"]);
+  });
+
+  it("never combines a newly registered account with another cookie session", async () => {
+    await assert.rejects(
+      registerSmsApi(
+        {
+          phoneNumber: "18800001992",
+          code: "123456",
+          agreeTos: true,
+          remember: true,
+        },
+        async (input) => {
+          if (String(input) === "/api/auth/register") {
+            return Response.json({
+              code: 0,
+              message: "success",
+              data: {user: {id: 17, phone: "188****1992", roles: ["buyer"]}},
+            });
+          }
+          if (String(input) === "/api/auth/me") {
+            return Response.json({
+              code: 0,
+              message: "success",
+              data: {id: 5, phone: "182****6753", roles: ["buyer"]},
+            });
+          }
+          return Response.json({
+            code: 0,
+            message: "success",
+            data: {
+              personal: {status: "none"},
+              enterprise: {status: "verified"},
+            },
+          });
+        },
+      ),
+      /浏览器会话属于其他账户/,
+    );
   });
 
   it("treats an absent cookie session as signed out", async () => {
@@ -177,6 +229,7 @@ describe("authentication API adapter", () => {
         identityNumber: "110101199001011234",
         faceVerified: true,
       },
+      "9",
       async (input, init) => {
         requests.push({
           path: String(input),
@@ -203,7 +256,7 @@ describe("authentication API adapter", () => {
       },
     );
 
-    assert.deepEqual(requests[0], {
+    assert.deepEqual(requests.find(({path}) => path === "/api/auth/kyc/personal"), {
       path: "/api/auth/kyc/personal",
       body: {real_name: "测试用户", id_card: "110101199001011234"},
     });
@@ -211,7 +264,10 @@ describe("authentication API adapter", () => {
   });
 
   it("maps enterprise KYC to the backend contract", async () => {
-    let requestBody: unknown;
+    let requestBody: BodyInit | null | undefined;
+    const businessLicense = new File(["license-content"], "license.png", {
+      type: "image/png",
+    });
     await verifyAccountApi(
       {
         kind: "enterprise",
@@ -220,13 +276,15 @@ describe("authentication API adapter", () => {
         representative: "测试法人",
         representativeIdNumber: "110101199001011234",
         businessLicenseFileName: "license.png",
+        businessLicenseFile: businessLicense,
         bankName: "测试银行",
         accountName: "测试企业",
         accountNumber: "1234567890",
       },
+      "10",
       async (input, init) => {
         if (String(input) === "/api/auth/kyc/enterprise") {
-          requestBody = JSON.parse(String(init?.body));
+          requestBody = init?.body;
           return Response.json({code: 0, message: "提交成功"});
         }
         if (String(input) === "/api/auth/me") {
@@ -247,11 +305,50 @@ describe("authentication API adapter", () => {
       },
     );
 
-    assert.deepEqual(requestBody, {
-      enterprise_name: "测试企业",
-      uscc: "91110000123456789X",
-      license_url: "license.png",
-      legal_person: "测试法人",
-    });
+    assert.ok(requestBody instanceof FormData);
+    assert.equal(requestBody.get("enterprise_name"), "测试企业");
+    assert.equal(requestBody.get("uscc"), "91110000123456789X");
+    assert.equal(requestBody.get("legal_person"), "测试法人");
+    assert.equal(requestBody.get("legal_person_id_card"), "110101199001011234");
+    assert.equal(requestBody.get("bank_name"), "测试银行");
+    assert.equal(requestBody.get("bank_account_name"), "测试企业");
+    assert.equal(requestBody.get("bank_account_number"), "1234567890");
+    const uploaded = requestBody.get("business_license");
+    assert.ok(uploaded instanceof File);
+    assert.equal(uploaded.name, "license.png");
+    assert.equal(await uploaded.text(), "license-content");
+  });
+
+  it("returns actionable enterprise field validation before sending", async () => {
+    let requests = 0;
+    const unexpectedFetch: typeof fetch = async () => {
+      requests += 1;
+      return Response.json({code: 0, message: "unexpected"});
+    };
+    const validInput = {
+      kind: "enterprise" as const,
+      companyName: "测试企业",
+      creditCode: "91110000123456789X",
+      representative: "测试法人",
+      representativeIdNumber: "110101199001011234",
+      businessLicenseFileName: "license.png",
+      bankName: "测试银行",
+      accountName: "测试企业",
+      accountNumber: "1234567890",
+    };
+
+    await assert.rejects(
+      verifyAccountApi(
+        {...validInput, representativeIdNumber: "123"},
+        "10",
+        unexpectedFetch,
+      ),
+      /证件号需为 15 位数字，或 18 位且末位可为 X/,
+    );
+    await assert.rejects(
+      verifyAccountApi({...validInput, accountNumber: "12"}, "10", unexpectedFetch),
+      /银行账号需为 8–32 位数字/,
+    );
+    assert.equal(requests, 0);
   });
 });

@@ -247,6 +247,23 @@ describe("route contract", () => {
     );
   });
 
+  it("separates account KYC from supplier onboarding", () => {
+    assert.equal(matchRoute("/auth/verify")?.label, "个人/企业认证");
+    assert.equal(
+      matchRoute("/console/buyer/profile")?.label,
+      "个人/企业中心",
+    );
+    assert.equal(matchRoute("/supplier/apply")?.label, "成为供给方");
+    assert.equal(matchRoute("/auth/identity"), undefined);
+    assert.equal(
+      canAccessRoute("/supplier/apply", {
+        role: "buyer",
+        verificationStatus: "verified",
+      }),
+      true,
+    );
+  });
+
   it("allows buyers into ticket pages and matches the dynamic detail route", () => {
     assert.equal(matchRoute("/console/buyer/tickets")?.href, "/console/buyer/tickets");
     assert.equal(

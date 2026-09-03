@@ -20,7 +20,7 @@ const footerGroups = [
     label: "合作",
     links: [
       ["成为伙伴", "/auth/register"],
-      ["资源入驻", "/auth/register"],
+      ["资源入驻", "/supplier/apply"],
     ],
   },
   {

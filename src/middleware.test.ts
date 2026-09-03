@@ -26,3 +26,15 @@ test("protected pages allow refresh-cookie sessions to reach the account check",
 
   assert.equal(response.headers.get("x-middleware-next"), "1");
 });
+
+test("supplier onboarding stays protected outside the auth route group", () => {
+  const response = middleware(
+    new NextRequest("http://localhost:3000/supplier/apply"),
+  );
+
+  assert.equal(response.status, 307);
+  assert.equal(
+    response.headers.get("location"),
+    "http://localhost:3000/auth/login?next=%2Fsupplier%2Fapply",
+  );
+});

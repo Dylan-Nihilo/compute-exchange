@@ -9,6 +9,7 @@ const PROTECTED_ROUTES = [
   "/admin",
   "/auth/verify",
   "/auth/identity",
+  "/supplier/apply",
   "/checkout",
 ] as const;
 
@@ -41,6 +42,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/checkout/") ||
     pathname === "/auth" ||
     pathname.startsWith("/auth/") ||
+    pathname === "/supplier" ||
+    pathname.startsWith("/supplier/") ||
     pathname === "/console" ||
     pathname.startsWith("/console/") ||
     pathname === "/admin" ||

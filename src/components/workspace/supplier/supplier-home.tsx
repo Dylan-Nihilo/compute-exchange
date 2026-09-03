@@ -1,17 +1,13 @@
 "use client";
 
-import {Chip, Link, Spinner} from "@heroui/react";
+import {Chip, Link} from "@heroui/react";
 import {ItemCard} from "@heroui-pro/react/item-card";
 import {ItemCardGroup} from "@heroui-pro/react/item-card-group";
 import {KPI} from "@heroui-pro/react/kpi";
 import {KPIGroup} from "@heroui-pro/react/kpi-group";
 import {Widget} from "@heroui-pro/react/widget";
 import {AnimatedNumber} from "@/components/system/animated-number";
-import {
-  qualificationStatusCopy,
-  type SupplierQualification,
-  type SupplierSettlementSummary,
-} from "@/lib/supplier-workspace";
+import type {SupplierSettlementSummary} from "@/lib/supplier-workspace";
 
 export type SupplierHomeMetrics = {
   activeProducts: number;
@@ -21,13 +17,9 @@ export type SupplierHomeMetrics = {
 
 // 供给方工作台首页: 真实 KPI(在售/库存/履约中/待结算) + 资质状态 + 快捷入口。
 export function SupplierHome({
-  isLoading = false,
-  latestQualification,
   metrics,
   settlement,
 }: {
-  isLoading?: boolean;
-  latestQualification: SupplierQualification | null;
   metrics: SupplierHomeMetrics;
   settlement: SupplierSettlementSummary;
 }) {
@@ -43,33 +35,14 @@ export function SupplierHome({
         </div>
         <Widget>
           <Widget.Header>
-            <Widget.Title>机房资质</Widget.Title>
-            <Widget.Description>上架权限的准入门槛</Widget.Description>
+            <Widget.Title>供给方准入</Widget.Title>
+            <Widget.Description>入驻审核状态</Widget.Description>
           </Widget.Header>
           <Widget.Content className="space-y-3">
-            {isLoading ? (
-              <Spinner aria-label="正在读取资质" size="sm" />
-            ) : latestQualification ? (
-              <>
-                <Chip
-                  color={latestQualification.status === "approved" ? "success" : latestQualification.status === "rejected" ? "danger" : "warning"}
-                  variant="soft"
-                >
-                  {qualificationStatusCopy[latestQualification.status] ?? latestQualification.status}
-                </Chip>
-                <p className="text-sm leading-6 text-muted">
-                  {latestQualification.status === "rejected"
-                    ? `驳回原因: ${latestQualification.rejected_reason || "未说明"}`
-                    : latestQualification.status === "approved"
-                      ? "资质已通过, 可正常发布算力商品。"
-                      : "资质审核中, 通过后即可发布商品。"}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm leading-6 text-muted">
-                尚未提交机房资质。发布算力商品前, 请先完成资质审核。
-              </p>
-            )}
+            <Chip color="success" variant="soft">已通过</Chip>
+            <p className="text-sm leading-6 text-muted">
+              入驻审核已通过，可发布和管理算力商品。
+            </p>
           </Widget.Content>
         </Widget>
       </header>
@@ -147,8 +120,8 @@ export function SupplierHome({
         </ItemCard>
         <ItemCard>
           <ItemCard.Content>
-            <ItemCard.Title>机房资质</ItemCard.Title>
-            <ItemCard.Description>提交与跟踪资质审核</ItemCard.Description>
+            <ItemCard.Title>资质材料</ItemCard.Title>
+            <ItemCard.Description>补充与维护机房证明材料</ItemCard.Description>
           </ItemCard.Content>
           <ItemCard.Action>
             <Link href="/console/supplier/qualifications">管理资质</Link>

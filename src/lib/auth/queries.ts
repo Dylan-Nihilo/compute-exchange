@@ -12,11 +12,10 @@ import {
   verifyAccountApi,
 } from "./api";
 import {
-  applyForIdentity,
-  listIdentityApplications,
   type IdentityApplicationInput,
   type VerificationInput,
-} from "./service";
+} from "./contracts";
+import {fetchSupplierApplications, submitSupplierApplication} from "../supplier-application";
 import {useAuthStore} from "./store";
 
 export const authKeys = {
@@ -60,7 +59,7 @@ export function useIdentityApplications() {
   const accountId = useAuthStore((state) => state.accountId);
   return useQuery({
     queryKey: authKeys.applications(accountId),
-    queryFn: () => listIdentityApplications(accountId!),
+    queryFn: () => fetchSupplierApplications(accountId!),
     enabled: Boolean(accountId),
   });
 }
@@ -96,22 +95,32 @@ export function useRegisterSms() {
   });
 }
 
-export function useVerifyAccount() {
+export function useVerifyAccount(expectedAccountId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: VerificationInput) => verifyAccountApi(input),
+    mutationFn: (input: VerificationInput) => {
+      if (!expectedAccountId) return Promise.reject(new Error("登录状态已失效，请重新登录"));
+      return verifyAccountApi(input, expectedAccountId);
+    },
     onSuccess: (account) => {
       queryClient.setQueryData(authKeys.account, account);
     },
   });
 }
 
-export function useApplyForIdentity() {
+export function useApplyForIdentity(expectedAccountId: string | null) {
   const accountId = useAuthStore((state) => state.accountId);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: IdentityApplicationInput) =>
-      applyForIdentity(accountId!, input),
+    mutationFn: (input: IdentityApplicationInput) => {
+      if (input.requestedRole !== "supplier") {
+        return Promise.reject(new Error("该身份申请入口尚未开放"));
+      }
+      if (!expectedAccountId) {
+        return Promise.reject(new Error("登录状态已失效，请重新登录"));
+      }
+      return submitSupplierApplication(input, expectedAccountId);
+    },
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: authKeys.applications(accountId),

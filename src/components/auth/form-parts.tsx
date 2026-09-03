@@ -122,12 +122,14 @@ export function VerificationCodeField({
 }
 
 export function LicenseDropZone({
+  error,
   fileName,
   id,
   label = "营业执照",
   name = "businessLicense",
   onSelect,
 }: {
+  error?: string;
   fileName: string;
   id: string;
   label?: string;
@@ -137,23 +139,45 @@ export function LicenseDropZone({
   const extension = fileName.split(".").pop()?.toUpperCase() || "FILE";
 
   return (
-    <DropZone className="w-full">
-      <DropZone.Area>
+    <DropZone className="w-full space-y-2">
+      <DropZone.Area
+        className={`min-h-[132px] rounded-[12px] border border-dashed px-5 py-5 transition-[border-color,background-color] duration-200 ${
+          error
+            ? "border-danger/50 bg-danger/5"
+            : "border-border bg-surface-secondary/50 hover:border-border-secondary hover:bg-surface-secondary"
+        }`}
+      >
         <DropZone.Icon />
-        <DropZone.Label>{label}</DropZone.Label>
-        <DropZone.Description>支持 JPG、PNG 或 PDF 文件</DropZone.Description>
-        <DropZone.Trigger>选择文件</DropZone.Trigger>
+        <DropZone.Label className="text-sm font-semibold text-foreground">
+          {label}
+        </DropZone.Label>
+        <DropZone.Description className="text-xs text-muted">
+          JPG、PNG 或 PDF，不超过 5MB
+        </DropZone.Description>
+        <DropZone.Trigger className="min-h-10 rounded-[10px] px-4 text-sm font-medium">
+          选择执照文件
+        </DropZone.Trigger>
       </DropZone.Area>
       <DropZone.Input
         accept=".jpg,.jpeg,.png,.pdf"
+        aria-describedby={error ? `${id}-error` : undefined}
+        aria-invalid={Boolean(error)}
         aria-required="true"
         id={id}
         name={name}
         onSelect={onSelect}
       />
+      {error ? (
+        <p className="text-xs leading-5 text-danger" id={`${id}-error`} role="alert">
+          {error}
+        </p>
+      ) : null}
       {fileName ? (
-        <DropZone.FileList>
-          <DropZone.FileItem status="complete">
+        <DropZone.FileList className="pt-1">
+          <DropZone.FileItem
+            className="rounded-[10px] border border-border bg-surface px-3 py-2"
+            status="complete"
+          >
             <DropZone.FileFormatIcon format={extension} />
             <DropZone.FileInfo>
               <DropZone.FileName>{fileName}</DropZone.FileName>
@@ -166,7 +190,13 @@ export function LicenseDropZone({
   );
 }
 
-export function FormError({error}: {error: unknown}) {
+export function FormError({
+  error,
+  title = "暂时无法继续",
+}: {
+  error: unknown;
+  title?: string;
+}) {
   if (!error) return null;
   const message = error instanceof Error ? error.message : "操作未完成，请重试。";
 
@@ -176,7 +206,7 @@ export function FormError({error}: {error: unknown}) {
       status="danger"
     >
       <Alert.Content>
-        <Alert.Title className="text-sm font-semibold">操作未完成</Alert.Title>
+        <Alert.Title className="text-sm font-semibold">{title}</Alert.Title>
         <Alert.Description className="mt-0.5 text-sm leading-5">
           {message}
         </Alert.Description>

@@ -97,7 +97,6 @@ Response: { "code": 0, "data": { "list": [...], "total": 100, "page": 1, "page_s
 | POST | `/user/kyc/personal` | 个人实名认证 | ✅ |
 | POST | `/user/kyc/enterprise` | 企业认证 | ✅ |
 | GET | `/user/kyc/status` | 认证状态 | ✅ |
-| POST | `/user/roles` | 申请角色（supplier/vendor/funder） | ✅ |
 
 **POST /user/kyc/personal**
 ```json
@@ -105,6 +104,8 @@ Response: { "code": 0, "data": { "list": [...], "total": 100, "page": 1, "page_s
 ```
 
 当前试运行阶段不调用第三方核验服务，提交后状态直接写为 `verified`。前端通过 `/api/auth/kyc/*` BFF 代理这些接口。
+
+完成 KYC 后，用户通过 `POST /supplier-applications` 提交供给方入驻资料。审核通过前不会获得 `supplier` 角色。
 
 **POST /user/kyc/enterprise**
 ```json

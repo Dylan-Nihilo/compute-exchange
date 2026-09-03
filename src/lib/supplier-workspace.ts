@@ -52,7 +52,10 @@ const qualificationSchema = z.object({
   status: z.string(),
   rejected_reason: z.string().optional(),
   created_at: z.string(),
-});
+}).transform((qualification) => ({
+  ...qualification,
+  status: qualification.status === "verified" ? "approved" : qualification.status,
+}));
 
 const productSchema = z.object({
   id: z.number().int().positive(),

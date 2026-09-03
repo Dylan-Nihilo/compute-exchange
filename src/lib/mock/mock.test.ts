@@ -17,6 +17,7 @@ import {
   requestSmsCode,
   register,
   resetDemo,
+  type SessionAccount,
   verifyAccount,
 } from "../auth/service.ts";
 import {
@@ -51,7 +52,7 @@ describe("mock session contract", () => {
   });
 
   it("returns only to routes available to the authenticated account", () => {
-    const account = {
+    const account: SessionAccount = {
       id: "1",
       displayName: "138****8000",
       email: "",
@@ -541,6 +542,7 @@ describe("mock authentication service", () => {
         representative: "林晓",
         representativeIdNumber: "110105199001011234",
         businessLicenseFileName: "license.pdf",
+        businessLicenseFile: new File(["mock-license"], "license.pdf", {type: "application/pdf"}),
         bankName: "示例银行",
         accountName: "北辰科技有限公司",
         accountNumber: "6222021234567890123",
@@ -595,7 +597,7 @@ describe("mock authentication service", () => {
     );
 
     const application = await applyForIdentity(
-      account.id,
+      account,
       {
         requestedRole: "supplier",
         companyName: "北辰智算有限公司",
@@ -603,6 +605,7 @@ describe("mock authentication service", () => {
         representative: "林晓",
         representativeIdNumber: "110105199001011234",
         businessLicenseFileName: "license.pdf",
+        businessLicenseFile: new File(["mock-license"], "license.pdf", {type: "application/pdf"}),
         contactMethod: "13800138000",
         bankName: "示例银行",
         accountName: "北辰智算有限公司",
@@ -631,7 +634,7 @@ describe("mock authentication service", () => {
     assert.equal(JSON.stringify(qualification).includes("110105199001011234"), false);
     await assert.rejects(
       applyForIdentity(
-        account.id,
+        account,
         {
           requestedRole: "supplier",
           companyName: "北辰智算有限公司",
@@ -639,6 +642,7 @@ describe("mock authentication service", () => {
           representative: "林晓",
           representativeIdNumber: "110105199001011234",
           businessLicenseFileName: "license.pdf",
+          businessLicenseFile: new File(["mock-license"], "license.pdf", {type: "application/pdf"}),
           contactMethod: "13800138000",
           bankName: "示例银行",
           accountName: "北辰智算有限公司",
@@ -652,6 +656,45 @@ describe("mock authentication service", () => {
       ),
       /正在审核中/,
     );
+  });
+
+  it("accepts a supplier application from an authenticated backend account", async () => {
+    const storage = createMemoryStorage();
+    setMockLatency(0);
+    const account: SessionAccount = {
+      id: "12",
+      displayName: "18800001003",
+      email: "",
+      phoneNumber: "18800001003",
+      roles: ["buyer"],
+      verificationStatus: "verified",
+      grants: [],
+    };
+
+    const application = await applyForIdentity(
+      account,
+      {
+        requestedRole: "supplier",
+        companyName: "万象算力（上海）测试有限公司",
+        creditCode: "91310115MA1K4X2A7Q",
+        representative: "测试负责人",
+        representativeIdNumber: "11010119900101001X",
+        businessLicenseFileName: "license.pdf",
+        businessLicenseFile: new File(["mock-license"], "license.pdf", {type: "application/pdf"}),
+        contactMethod: "18800001003",
+        bankName: "招商银行股份有限公司上海张江支行",
+        accountName: "万象算力（上海）测试有限公司",
+        accountNumber: "3105012345678901234",
+        facilityAddress: "上海市浦东新区张江路 88 号 A1 数据中心",
+        hasIdcLicense: true,
+        powerDescription: "10kV 双路市电，2N UPS 冗余",
+        coolingDescription: "冷冻水精密空调，N+1 冗余",
+      },
+      storage,
+    );
+
+    assert.equal(application.accountId, account.id);
+    assert.equal(application.status, "pending");
   });
 
   it("keeps newly registered accounts out of the demo shortcut list", async () => {

@@ -1,10 +1,12 @@
 import {dirname} from "node:path";
 import {fileURLToPath} from "node:url";
+import {PHASE_DEVELOPMENT_SERVER} from "next/constants.js";
 
 const root = dirname(fileURLToPath(import.meta.url));
 
-/** @type {import("next").NextConfig} */
-const nextConfig = {
+/** @param {string} phase @returns {import("next").NextConfig} */
+const nextConfig = (phase) => ({
+  distDir: phase === PHASE_DEVELOPMENT_SERVER ? ".next-dev" : ".next",
   output: "standalone",
   outputFileTracingRoot: root,
   poweredByHeader: false,
@@ -36,6 +38,6 @@ const nextConfig = {
       },
     ];
   },
-};
+});
 
 export default nextConfig;

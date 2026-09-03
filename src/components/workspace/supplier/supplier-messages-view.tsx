@@ -1,6 +1,7 @@
 "use client";
 
 import {Button, Skeleton} from "@heroui/react";
+import {Bell} from "lucide";
 import Image from "next/image";
 import {useRouter} from "next/navigation";
 
@@ -140,6 +141,7 @@ export function SupplierMessagesView({
                 description={type === "all"
                   ? "订单接单、结算到账和资质审核进展会第一时间出现在这里。"
                   : "该类型下暂时没有消息。"}
+                icon={Bell}
                 title="暂无消息"
               />
             </div>

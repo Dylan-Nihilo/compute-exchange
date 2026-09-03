@@ -11,17 +11,17 @@ import {
   writeMockDatabase,
 } from "../mock/database.ts";
 import {resetMockRuntime, runMockOperation} from "../mock/runtime.ts";
+import {
+  identityApplicationInputSchema,
+  verificationInputSchema,
+  type IdentityApplicationInput,
+  type SessionAccount,
+  type VerificationInput,
+} from "./contracts.ts";
 
-export type SessionAccount = Pick<
-  MockAccount,
-  | "id"
-  | "displayName"
-  | "email"
-  | "phoneNumber"
-  | "roles"
-  | "verificationStatus"
-  | "grants"
->;
+export {identityApplicationInputSchema, verificationInputSchema};
+export type {IdentityApplicationInput, SessionAccount, VerificationInput};
+
 export type IdentityRole = Extract<Role, "supplier" | "vendor" | "funder">;
 
 export type VerificationMethod = "sms" | "email";
@@ -63,74 +63,6 @@ const CODE_RESEND_MS = 60_000;
 const CODE_TTL_MS = 5 * 60_000;
 const MAX_LOGIN_FAILURES = 5;
 const LOGIN_COOLDOWN_MS = 60_000;
-
-const requiredText = z.string().trim().min(1, "请填写完整资料");
-const creditCode = z
-  .string()
-  .trim()
-  .length(18, "统一社会信用代码应为 18 位")
-  .transform((value) => value.toUpperCase());
-const accountNumber = z
-  .string()
-  .trim()
-  .regex(/^\d{8,32}$/, "银行账号应为 8 至 32 位数字");
-const identityDocumentNumber = z
-  .string()
-  .trim()
-  .regex(/^(?:\d{15}|\d{17}[\dXx])$/, "请输入有效的证件号");
-
-export const verificationInputSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("personal"),
-    legalName: requiredText,
-    identityNumber: identityDocumentNumber,
-    faceVerified: z.literal(true, {error: "请确认身份信息真实有效"}),
-  }),
-  z.object({
-    kind: z.literal("enterprise"),
-    companyName: requiredText,
-    creditCode,
-    representative: requiredText,
-    representativeIdNumber: identityDocumentNumber,
-    businessLicenseFileName: requiredText,
-    bankName: requiredText,
-    accountName: requiredText,
-    accountNumber,
-  }),
-]);
-
-const identityEnterpriseFields = {
-  companyName: requiredText,
-  creditCode,
-  representative: requiredText,
-  representativeIdNumber: identityDocumentNumber,
-  businessLicenseFileName: requiredText,
-  contactMethod: requiredText,
-  bankName: requiredText,
-  accountName: requiredText,
-  accountNumber,
-};
-
-export const identityApplicationInputSchema = z.discriminatedUnion(
-  "requestedRole",
-  [
-    z.object({
-      requestedRole: z.literal("supplier"),
-      ...identityEnterpriseFields,
-      facilityAddress: requiredText,
-      hasIdcLicense: z.literal(true, {error: "请确认已具备 IDC 经营资质"}),
-      powerDescription: requiredText,
-      coolingDescription: requiredText,
-    }),
-    z.object({requestedRole: z.literal("vendor"), ...identityEnterpriseFields}),
-    z.object({requestedRole: z.literal("funder"), ...identityEnterpriseFields}),
-  ],
-);
-
-export type VerificationInput = z.infer<typeof verificationInputSchema>;
-export type IdentityApplicationInput = z.infer<
-  typeof identityApplicationInputSchema
->;
 
 export async function listDemoAccounts(storage?: StorageLike) {
   return runMockOperation(() =>
@@ -445,19 +377,21 @@ export async function verifyAccount(
 }
 
 export async function applyForIdentity(
-  accountId: string,
+  account: SessionAccount,
   input: IdentityApplicationInput,
   storage?: StorageLike,
 ) {
   return runMockOperation(() => {
     const database = readMockDatabase(storage);
-    const account = requiredAccount(database.accounts, accountId);
+    const accountId = account.id;
+    const currentAccount =
+      database.accounts.find(({id}) => id === accountId) ?? account;
     const parsed = parseIdentityApplicationInput(input);
     const {requestedRole} = parsed;
-    if (account.verificationStatus !== "verified") {
+    if (currentAccount.verificationStatus !== "verified") {
       throw new Error("请先完成实名认证");
     }
-    if (account.roles.includes(requestedRole)) {
+    if (currentAccount.roles.includes(requestedRole)) {
       throw new Error("当前账户已具备该身份");
     }
     if (

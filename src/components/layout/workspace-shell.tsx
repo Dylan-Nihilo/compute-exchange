@@ -14,6 +14,7 @@ import type {Role} from "@/lib/domain/contracts";
 import {homeForRole, routes} from "@/lib/domain/routes";
 
 import {RouteTransition} from "./route-transition";
+import {AdminWorkspaceShell} from "./admin-workspace-shell";
 import {BuyerWorkspaceShell} from "./buyer-workspace-shell";
 import {SupplierWorkspaceShell} from "./supplier-workspace-shell";
 
@@ -58,9 +59,6 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
   const navigation = [
     ...roleConsoleNav,
     {href: "/market", label: "算力市场"},
-    ...(activeRole === "operator" || activeRole === "admin"
-      ? []
-      : [{href: "/auth/identity", label: "身份与认证"}]),
   ];
 
   function changeRole(role: Role) {
@@ -96,6 +94,20 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
       >
         {children}
       </SupplierWorkspaceShell>
+    );
+  }
+
+  if (activeRole === "operator" || activeRole === "admin") {
+    return (
+      <AdminWorkspaceShell
+        account={account}
+        activeRole={activeRole}
+        isLoggingOut={logoutMutation.isPending}
+        onChangeRole={changeRole}
+        onLogout={logout}
+      >
+        {children}
+      </AdminWorkspaceShell>
     );
   }
 

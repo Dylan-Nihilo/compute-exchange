@@ -122,6 +122,14 @@ curl http://localhost:8080/api/v1/auth/me \
 
 ---
 
+## POST /user/kyc/enterprise · 企业认证
+
+前端通过同源 `/api/auth/kyc/enterprise` BFF，以 `multipart/form-data` 向后端提交企业主体、法定代表人、对公账户和营业执照文件。文件支持 PDF/JPG/PNG，最大 5MB；BFF 只转发 HttpOnly Cookie 对应的 Bearer token，不在浏览器状态中保存 token。
+
+试运行阶段审核结果仍自动通过，但表单字段和执照文件均持久化到本地 MySQL，不再只保存文件名。
+
+---
+
 ## 通用错误
 
 | code | 说明 |

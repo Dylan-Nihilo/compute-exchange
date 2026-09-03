@@ -1,6 +1,6 @@
 import type {Role} from "../domain/contracts.ts";
 import {homeForRole, matchRoute} from "../domain/routes.ts";
-import type {SessionAccount} from "./service.ts";
+import type {SessionAccount} from "./contracts.ts";
 
 export function resolveActiveRole(
   roles: readonly Role[],
@@ -8,6 +8,18 @@ export function resolveActiveRole(
 ): Role {
   if (activeRole && roles.includes(activeRole)) return activeRole;
   return roles[0] ?? "guest";
+}
+
+export function completedVerificationDestination(
+  account: SessionAccount,
+  activeRole: Role | null,
+  nextPath: string | null,
+) {
+  if (account.verificationStatus !== "verified") return null;
+  return (
+    safeNextPath(nextPath) ??
+    homeForRole(resolveActiveRole(account.roles, activeRole))
+  );
 }
 
 export function resolvePostAuthDestination(

@@ -84,7 +84,7 @@ export default function SupplierQualificationsPage() {
       <GlassCard className="px-5 py-5 sm:px-6">
         <h2 className="text-[15px] font-semibold text-[#173447]">提交资质</h2>
         <p className="mt-1 text-xs text-[#78909c]">
-          通过审核后解锁算力商品上架权限。证照附件请先上传至可访问的地址后填写链接。
+          补充经营许可证、电力与散热等证明材料，提交后进入平台审核。
         </p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
@@ -178,7 +178,7 @@ export default function SupplierQualificationsPage() {
             </ul>
           ) : (
             <EmptyState
-              description="提交 IDC/电信资质、电力与散热说明后, 平台审核通过即可上架商品。"
+              description="如需补充经营许可或机房证明，可在上方提交审核。"
               title="还没有资质记录"
             />
           )}

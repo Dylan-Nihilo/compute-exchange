@@ -6,7 +6,13 @@ import {
   type Capability,
 } from "./permissions.ts";
 
-export type RouteArea = "portal" | "market" | "auth" | "console" | "admin";
+export type RouteArea =
+  | "portal"
+  | "market"
+  | "auth"
+  | "onboarding"
+  | "console"
+  | "admin";
 
 export interface RouteDefinition {
   href: string;
@@ -39,9 +45,10 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/checkout", label: "确认订单", area: "market", roles: ["buyer"], capability: "orderCompute"},
   {href: "/auth/login", label: "登录", area: "auth", roles: ["guest"], capability: "authenticate"},
   {href: "/auth/register", label: "注册", area: "auth", roles: ["guest"], capability: "authenticate"},
-  {href: "/auth/verify", label: "实名认证", area: "auth", roles: ["buyer", "supplier", "vendor", "funder"], capability: "kyc"},
-  {href: "/auth/identity", label: "身份申请", area: "auth", roles: ["buyer", "supplier", "vendor", "funder"], capability: "kyc"},
+  {href: "/auth/verify", label: "个人/企业认证", area: "auth", roles: ["buyer", "supplier", "vendor", "funder"], capability: "kyc"},
+  {href: "/supplier/apply", label: "成为供给方", area: "onboarding", roles: ["buyer"]},
   {href: "/console/buyer", label: "买家工作台", area: "console", roles: ["buyer"]},
+  {href: "/console/buyer/profile", label: "个人/企业中心", area: "console", roles: ["buyer"]},
   {href: "/console/buyer/orders", label: "我的订单", area: "console", roles: ["buyer"]},
   {href: "/console/buyer/orders/[orderId]", label: "订单详情", area: "console", roles: ["buyer"]},
   {href: "/console/buyer/tokens", label: "我的 Token", area: "console", roles: ["buyer"]},
@@ -76,6 +83,7 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/admin/finance", label: "资金与对账", area: "admin", roles: ["operator", "admin"], capability: "viewFinance"},
   {href: "/admin/crm", label: "CRM", area: "admin", roles: ["operator", "admin"], capability: "manageCrm"},
   {href: "/admin/risk", label: "风控工作台", area: "admin", roles: ["operator", "admin"], capability: "manageRisk"},
+  {href: "/admin/tickets", label: "工单处理", area: "admin", roles: ["operator", "admin"], capability: "interveneOrder"},
   {href: "/admin/tokens", label: "Token 管理", area: "admin", roles: ["operator", "admin"], capability: "manageTokens"},
   {href: "/admin/cms", label: "内容管理", area: "admin", roles: ["operator", "admin"], capability: "manageCms"},
   {href: "/admin/users", label: "用户管理", area: "admin", roles: ["operator", "admin"], capability: "manageUsers"},

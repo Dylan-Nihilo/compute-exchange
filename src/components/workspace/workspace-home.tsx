@@ -29,7 +29,7 @@ type WorkspaceConfig = {
   metrics: readonly {label: string; value: number; currency?: boolean}[];
   emptyTitle: string;
   emptyDescription: string;
-  links: readonly {href: "/market" | "/auth/identity"; label: string}[];
+  links: readonly {href: string; label: string}[];
 };
 
 const workspaceConfig: Record<WorkspaceRole, WorkspaceConfig> = {
@@ -46,7 +46,7 @@ const workspaceConfig: Record<WorkspaceRole, WorkspaceConfig> = {
     emptyDescription: "选定算力后，可在这里跟踪支付、交付与验收。",
     links: [
       {href: "/market", label: "选购算力"},
-      {href: "/auth/identity", label: "申请业务身份"},
+      {href: "/supplier/apply", label: "成为供给方"},
     ],
   },
   supplier: {
@@ -62,7 +62,7 @@ const workspaceConfig: Record<WorkspaceRole, WorkspaceConfig> = {
     emptyDescription: "新订单确认后，可在这里查看交付与验收进度。",
     links: [
       {href: "/market", label: "查看市场供需"},
-      {href: "/auth/identity", label: "管理业务身份"},
+      {href: "/console/supplier/qualifications", label: "管理供给方资质"},
     ],
   },
   vendor: {
@@ -78,7 +78,7 @@ const workspaceConfig: Record<WorkspaceRole, WorkspaceConfig> = {
     emptyDescription: "平台分配线索后，可在这里记录跟进与报价结果。",
     links: [
       {href: "/market", label: "查看算力市场"},
-      {href: "/auth/identity", label: "管理业务身份"},
+      {href: "/console/vendor/qualifications", label: "管理厂商资质"},
     ],
   },
   funder: {
@@ -94,7 +94,7 @@ const workspaceConfig: Record<WorkspaceRole, WorkspaceConfig> = {
     emptyDescription: "平台分配线索后，可在这里推进尽调与方案报价。",
     links: [
       {href: "/market", label: "查看算力市场"},
-      {href: "/auth/identity", label: "管理业务身份"},
+      {href: "/console/funder/qualifications", label: "管理资方资质"},
     ],
   },
   operator: {

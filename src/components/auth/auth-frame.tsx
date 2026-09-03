@@ -60,7 +60,7 @@ const authStages = [
     path: "/auth/verify",
     eyebrow: "账户认证",
     title: ["确认主体，", "开启可信交易"],
-    description: "完成主体信息确认，解锁交易、上架与结算等关键能力。",
+    description: "完成个人或企业主体信息确认，建立可信账户身份。",
     visual: {
       background: "#edf4f3",
       colors: ["#ebf3f2", "#f9fbfa", "#60a3a5", "#c6ded9", "#a8cdbd", "#457c83"],
@@ -81,10 +81,10 @@ const authStages = [
     },
   },
   {
-    path: "/auth/identity",
-    eyebrow: "业务身份",
-    title: ["拓展角色，", "连接更多业务"],
-    description: "通过资质申请启用供给、设备与资金协作能力。",
+    path: "/supplier/apply",
+    eyebrow: "供给方入驻",
+    title: ["发布资源，", "连接算力需求"],
+    description: "提交机房与经营资质，申请开通供给方工作台。",
     visual: {
       background: "#f4f0e9",
       colors: ["#f5f0e9", "#fbfaf7", "#b68762", "#dfcdb9", "#bdc9a2", "#728a9b"],
@@ -116,7 +116,8 @@ export function AuthFrame({children}: {children: React.ReactNode}) {
   );
   const stage = authStages[stageIndex];
   const isEntryRoute = stageIndex < 2;
-  const isVerificationRoute = stage.path === "/auth/verify";
+  const isLongFormRoute =
+    stage.path === "/auth/verify" || stage.path === "/supplier/apply";
   const shouldReduceMotion = useReducedMotion();
   const previousStageIndex = useRef(stageIndex);
   const contentPanel = useRef<HTMLElement>(null);
@@ -258,7 +259,8 @@ export function AuthFrame({children}: {children: React.ReactNode}) {
         </section>
 
         <section
-          className={`flex min-w-0 flex-col px-5 pb-12 pt-7 sm:px-10 lg:h-full lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-contain lg:px-16 lg:pt-[136px] ${isVerificationRoute ? "lg:pb-6" : "lg:pb-16"}`}
+          className={`flex min-w-0 flex-col px-5 pb-12 pt-7 sm:px-10 lg:h-full lg:min-h-0 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-contain lg:px-16 ${isLongFormRoute ? "lg:pb-6 lg:pt-12" : "lg:pb-16 lg:pt-[136px]"}`}
+          id="auth-content-panel"
           ref={contentPanel}
         >
           <Link className="w-fit no-underline lg:hidden" href="/">
@@ -273,13 +275,13 @@ export function AuthFrame({children}: {children: React.ReactNode}) {
           </Link>
           <motion.div
             layout={shouldReduceMotion ? false : "position"}
-            className={`relative mx-auto mt-14 min-w-0 w-full lg:mt-0 ${isEntryRoute ? "max-w-[434px]" : "max-w-xl"}`}
+            className={`relative mx-auto mt-14 flex min-w-0 w-full flex-1 flex-col lg:mt-0 ${isEntryRoute ? "max-w-[434px]" : "max-w-xl"}`}
             transition={{duration: routeDuration, ease: motionEase}}
           >
             <AnimatePresence custom={direction} mode="popLayout">
               <motion.div
                 animate={{opacity: 1, x: 0, scale: 1}}
-                className="auth-route-content"
+                className="auth-route-content flex flex-1 flex-col"
                 custom={direction}
                 exit={{
                   opacity: 0,

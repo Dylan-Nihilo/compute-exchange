@@ -7,19 +7,28 @@ import Image from "next/image";
 import {useQuery} from "@tanstack/react-query";
 import {usePathname, useRouter} from "next/navigation";
 
-import type {SessionAccount} from "@/lib/auth/service";
+import type {SessionAccount} from "@/lib/auth/contracts";
 import {fetchUnreadNotificationCount} from "@/lib/buyer-notifications";
 import type {Role} from "@/lib/domain/contracts";
 
 import {RouteTransition} from "./route-transition";
 
-const navItems: readonly {label: string; icon: string; href?: string}[] = [
+const navItems: readonly {
+  label: string;
+  icon: string;
+  href: string;
+}[] = [
   {label: "工作台首页", icon: "layout-grid.svg", href: "/console/buyer"},
   {label: "我的订单", icon: "clipboard-list.svg", href: "/console/buyer/orders"},
   {label: "账单中心", icon: "credit-card.svg", href: "/console/buyer/billing"},
   {label: "发票管理", icon: "file-check.svg", href: "/console/buyer/invoices"},
   {label: "工单售后", icon: "life-buoy.svg", href: "/console/buyer/tickets"},
-  {label: "个人/企业中心", icon: "building.svg", href: "/auth/verify"},
+  {
+    label: "个人/企业中心",
+    icon: "file-check.svg",
+    href: "/console/buyer/profile",
+  },
+  {label: "成为供给方", icon: "building.svg", href: "/supplier/apply"},
   {label: "消息中心", icon: "message-square.svg", href: "/console/buyer/messages"},
 ];
 
@@ -171,32 +180,33 @@ export function BuyerWorkspaceShell({
               </Sidebar.GroupLabel>
               <Sidebar.Menu aria-label="买家工作台导航" showGuideLines={false}>
                 {navItems.map((item) => {
-                  const isCurrent = item.href
-                    ? pathname === item.href ||
-                      (item.href !== "/console/buyer" && pathname.startsWith(`${item.href}/`))
+                  const href = item.href;
+                  const isCurrent = href
+                    ? pathname === href ||
+                      (href !== "/console/buyer" && pathname.startsWith(`${href}/`))
                     : false;
 
                   return (
                     <Sidebar.MenuItem
-                    aria-disabled={!item.href}
+                    aria-disabled={!href}
                     className={`text-[13px] font-medium [&_[data-slot=sidebar-menu-item-content]]:min-h-0 [&_[data-slot=sidebar-menu-item-content]]:gap-[11px] [&_[data-slot=sidebar-menu-item-content]]:rounded-[14px] [&_[data-slot=sidebar-menu-item-content]]:px-3 [&_[data-slot=sidebar-menu-item-content]]:py-3 [&_[data-slot=sidebar-menu-item-content]]:transition-colors [&_[data-slot=sidebar-menu-item-content]]:duration-150 ${
                       isCurrent
                         ? "[&_[data-slot=sidebar-menu-item-content]]:bg-white/55 [&_[data-slot=sidebar-menu-item-content]]:shadow-[0_7px_9px_rgba(20,79,117,0.11)] hover:[&_[data-slot=sidebar-menu-item-content]]:bg-white/70"
-                        : item.href
+                        : href
                           ? "hover:[&_[data-slot=sidebar-menu-item-content]]:bg-white/45"
                           : "!cursor-not-allowed !opacity-100"
                     }`}
-                    href={item.href}
+                    href={href}
                     id={item.label}
                     isCurrent={isCurrent}
                     key={item.label}
                     textValue={item.label}
                   >
                     <Sidebar.MenuItemContent>
-                      <Sidebar.MenuIcon className={item.href ? "text-[#5e7786]" : "text-[#9cb0ba]"}>
+                      <Sidebar.MenuIcon className={href ? "text-[#5e7786]" : "text-[#9cb0ba]"}>
                         <Image alt="" aria-hidden="true" height={18} src={`/images/buyer-workspace/${item.icon}`} width={18} />
                       </Sidebar.MenuIcon>
-                      <Sidebar.MenuLabel className={item.href ? "text-[#173447]" : "text-[#9cb0ba]"}>
+                      <Sidebar.MenuLabel className={href ? "text-[#173447]" : "text-[#9cb0ba]"}>
                         {item.label}
                       </Sidebar.MenuLabel>
                     </Sidebar.MenuItemContent>

@@ -1,6 +1,7 @@
 "use client";
 
 import {Button, Skeleton} from "@heroui/react";
+import {Bell} from "lucide";
 
 import {ErrorState} from "@/components/system/operation-state";
 import {NotificationCard} from "@/components/workspace/notifications/notification-card";
@@ -128,6 +129,7 @@ export function BuyerMessagesView({
               description={type === "all"
                 ? "订单交付、退款、工单回复和发票进展会第一时间出现在这里。"
                 : "该类型下暂时没有消息。"}
+              icon={Bell}
               title="暂无消息"
             />
           </div>
