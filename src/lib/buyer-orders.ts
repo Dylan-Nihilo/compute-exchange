@@ -310,6 +310,22 @@ export function isBuyerOrderNo(value: string) {
   return /^(?:ORD|REN)[A-Za-z0-9-]{6,29}$/.test(value);
 }
 
+const paymentEnvelopeSchema = z.object({
+  code: z.number(), message: z.string().optional(),
+  data: z.object({pay_url: z.string().url().refine((value) => new URL(value).protocol === "https:"), tx_id: z.string().min(1)}).optional(),
+});
+
+export async function startBuyerOrderPayment(orderNo: string, channel: "wechat" | "alipay" | "bank", fetchImplementation: typeof fetch = fetch) {
+  const response = await fetchImplementation("/api/buyer/payment/pay", {
+    method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({order_no: orderNo, channel}),
+  });
+  const parsed = paymentEnvelopeSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw new Error("支付服务返回格式错误");
+  if (parsed.data.code === 50000) throw new Error("在线支付暂不可用，请稍后重试或联系平台");
+  if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) throw new Error(parsed.data.message || "支付发起失败");
+  return parsed.data.data;
+}
+
 export function summarizeBuyerOrders(
   orders: readonly BuyerOrder[],
   total: number,

@@ -177,7 +177,7 @@ export function MarketProductDetailView({
                 ) : null}
               </div>
               <p className="mt-4 border-t border-border pt-4 text-sm leading-6 text-muted">
-                税费与平台服务费将在订单确认时单独列示，以最终试算为准。
+                平台服务费包含在商品价格内，订单金额以确认页试算为准。
               </p>
               {product.unitPriceMinor && product.status === "active" ? (
                 <Button
@@ -188,6 +188,8 @@ export function MarketProductDetailView({
                 >
                   立即购买
                 </Button>
+              ) : product.status === "active" ? (
+                <Button className="mt-4" fullWidth onPress={() => router.push(`/market/${product.id}/inquiry`)}>申请报价</Button>
               ) : (
                 <p className="mt-4 rounded-xl bg-default/40 px-3.5 py-2.5 text-center text-xs text-muted">
                   {product.status !== "active" ? "该商品暂不可下单" : "该商品仅支持面议, 请联系平台获取报价"}

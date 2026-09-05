@@ -1,18 +1,21 @@
 "use client";
 
-import {useMutation, useQuery} from "@tanstack/react-query";
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Button, Skeleton, Spinner} from "@heroui/react";
 import Image from "next/image";
 import {useParams, useRouter} from "next/navigation";
 import {useState, type ReactNode} from "react";
 
 import {ErrorState} from "@/components/system/operation-state";
+import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {
   buyerOrderStatusCopy,
+  confirmBuyerOrder,
   fetchBuyerOrderCredential,
   fetchBuyerOrderDetail,
   isBuyerOrderNo,
   revealBuyerOrderCredential,
+  startBuyerOrderPayment,
   type BuyerOrderAccessCredential,
   type BuyerOrderDetail,
 } from "@/lib/buyer-orders";
@@ -49,6 +52,7 @@ export default function BuyerOrderDetailPage() {
     enabled: validOrderNo,
     queryKey: ["buyer", "orders", "detail", orderId],
     queryFn: () => fetchBuyerOrderDetail(orderId),
+    refetchInterval: (query) => ["pending_payment", "paid", "provisioning"].includes(query.state.data?.order.status ?? "") ? 5000 : false,
   });
 
   if (orderQuery.isPending && validOrderNo) return <DetailSkeleton />;
@@ -94,6 +98,23 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
   const productName = product.gpu_model || productTypeCopy(product.product_type);
   const statusCopy = buyerOrderStatusCopy[order.status];
   const progress = orderProgress(detail);
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const confirmation = useMutation({
+    mutationFn: () => confirmBuyerOrder(order.order_no),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({queryKey: ["buyer", "orders"]});
+      setConfirming(false);
+      notify.success("已确认签收，订单进入履约中");
+    },
+    onError: (error) => notify.error(error.message),
+  });
+  const [paymentChannel, setPaymentChannel] = useState<"wechat" | "alipay" | "bank">("wechat");
+  const payment = useMutation({
+    mutationFn: () => startBuyerOrderPayment(order.order_no, paymentChannel),
+    onSuccess: ({pay_url}) => window.location.assign(pay_url),
+  });
+  const paymentExpired = !order.payment_expires_at || new Date(order.payment_expires_at).getTime() <= Date.now();
 
   return (
     <section className="mx-auto w-full max-w-[1228px] px-4 pt-8 pb-10 sm:px-6 xl:px-8">
@@ -109,11 +130,16 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
         </div>
 
         <div className="flex flex-wrap gap-2 sm:justify-end">
+          {detail.actions.can_confirm ? <Button onPress={() => setConfirming(true)}>确认签收</Button> : null}
           <ActionButton label="申请发票" onPress={() => router.push(`/console/buyer/invoices?apply=${order.order_no}`)} />
           <ActionButton label="发起工单" onPress={() => router.push(`/console/buyer/tickets?order=${order.order_no}`)} />
           <ActionButton label="申请退款" disabled={!detail.actions.can_refund} />
         </div>
       </header>
+
+      <ConfirmDialog title="确认签收资源" confirmLabel="确认签收" open={confirming} isPending={confirmation.isPending}
+        description={`请确认已核验订单 ${order.order_no} 的资源与访问凭证，确认后开始履约计时。`}
+        onCancel={() => setConfirming(false)} onConfirm={() => confirmation.mutate()} />
 
       <section className={`${cardClass} mt-5 grid gap-5 px-5 py-5 sm:grid-cols-[minmax(0,1.65fr)_repeat(3,minmax(110px,1fr))] sm:items-center sm:px-6`}>
         <div className="min-w-0">
@@ -124,9 +150,27 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
           <p className="mt-2 text-xs text-[#7b929e]">{statusDescription(detail)}</p>
         </div>
         <SummaryMetric label="租赁周期" value={leasePeriod(detail)} />
-        <SummaryMetric label="实付金额" value={money.format(order.total_amount / 100)} />
+        <SummaryMetric label="订单金额" value={money.format(order.total_amount / 100)} />
         <SummaryMetric label="供给方" value={supplierName} />
       </section>
+
+      {order.status === "pending_payment" ? (
+        <section className={`${cardClass} mt-4 px-5 py-4`}>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm text-[#173447]">支付方式
+              <select className="ml-3 rounded-lg border border-[#afc4ce] bg-white px-3 py-2" value={paymentChannel}
+                disabled={payment.isPending || paymentExpired}
+                onChange={(event) => setPaymentChannel(event.target.value as typeof paymentChannel)}>
+                <option value="wechat">微信支付</option><option value="alipay">支付宝</option><option value="bank">银行卡</option>
+              </select>
+            </label>
+            <Button isDisabled={paymentExpired} isPending={payment.isPending} onPress={() => payment.mutate()}>
+              {paymentExpired ? "支付已超时" : "前往支付"}
+            </Button>
+          </div>
+          {payment.isError ? <p className="mt-3 text-sm text-danger" role="alert">{payment.error.message}</p> : null}
+        </section>
+      ) : null}
 
       <div className="mt-5 grid items-start gap-4 lg:grid-cols-[minmax(0,744px)_minmax(320px,404px)]">
         <div className="space-y-4">
@@ -134,7 +178,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
             <InfoItem label="订单编号" value={order.order_no} />
             <InfoItem label="下单时间" value={formatDateTime(order.created_at)} />
             <InfoItem label="商品" value={`${productName} · ${order.quantity}${quantityUnit(product.product_type)} · ${pricingModeCopy[product.pricing_mode] || "按期"}`} />
-            <InfoItem label="实付金额" value={money.format(order.total_amount / 100)} />
+            <InfoItem label="订单金额" value={money.format(order.total_amount / 100)} />
             <InfoItem label="供给方" value={supplierName} />
             <InfoItem label="履约率" value={supplier.credit ? `${supplier.credit.fulfill_rate}%` : "暂无评分"} />
           </InfoCard>

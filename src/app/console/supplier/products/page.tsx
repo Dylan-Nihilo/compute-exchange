@@ -108,6 +108,7 @@ export default function SupplierProductsPage() {
                   <col className="w-[90px]" />
                   <col className="w-[100px]" />
                   <col />
+                  <col className="w-[130px]" />
                 </colgroup>
                 <thead>
                   <tr className="h-11 bg-[#d6f0fb]/45 text-[12px] font-medium text-[#78909c]">
@@ -117,7 +118,8 @@ export default function SupplierProductsPage() {
                     <th className="px-4" scope="col">单价</th>
                     <th className="px-4" scope="col">库存</th>
                     <th className="px-4" scope="col">状态</th>
-                    <th className="rounded-r-[14px] px-4" scope="col">地域</th>
+                    <th className="px-4" scope="col">地域</th>
+                    <th className="rounded-r-[14px] px-4" scope="col">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -149,6 +151,10 @@ export default function SupplierProductsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-[13px] text-[#24495d]">{product.region}</td>
+                      <td className="px-4 py-3.5">
+                        {product.status === "draft" ? <Button size="sm" variant="tertiary" onPress={() => router.push(`/console/supplier/products/${product.id}/edit`)}>修改并重提</Button> : null}
+                        {product.rejected_reason ? <p className="mt-1 text-xs text-[#b63b35]">{product.rejected_reason}</p> : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

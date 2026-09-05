@@ -6,6 +6,7 @@ import {Check, CircleOff, ShieldBan} from "lucide";
 
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {
+  assignAdminLead,
   fetchAdminAuditLogs,
   fetchAdminInvoices,
   fetchAdminLeads,
@@ -21,6 +22,7 @@ import {
   updateAdminOrderStatus,
   updateAdminTicket,
 } from "@/lib/admin-workspace";
+import {useCurrentAccount} from "@/lib/auth/queries";
 import {formatDateTime} from "@/lib/format/date";
 import {notify} from "@/lib/notify";
 import {pricingModeCopy, productTypeCopy} from "@/lib/supplier-workspace";
@@ -103,8 +105,33 @@ export function AdminFinance() {
 }
 
 export function AdminCrm() {
+  const client = useQueryClient();
+  const account = useCurrentAccount().data;
   const query = useQuery({queryKey: ["admin", "leads"], queryFn: () => fetchAdminLeads({pageSize: 100})});
-  return <AdminPage title="CRM 线索" eyebrow="CRM" description="集中查看设备居间与融资租赁需求。"><AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(query, "暂无业务线索", "客户提交需求后会显示在这里。")}>{query.data?.items.length ? <table className={adminTableClass}><caption className="sr-only">CRM 线索</caption><AdminTableHead><th scope="col">联系人</th><th scope="col">类型</th><th scope="col">联系方式</th><th scope="col">需求</th><th scope="col">预算</th><th scope="col">状态</th><th scope="col">提交时间</th></AdminTableHead><tbody>{query.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.contact_name}</th><td>{item.type === "finance_lease" ? "融资租赁" : "设备居间"}</td><td>{item.contact_phone || item.contact_email}</td><td className="max-w-72 truncate">{item.description}</td><td>{item.amount_range || "—"}</td><td><StatusBadge status={item.status} /></td><td>{formatDateTime(item.created_at)}</td></tr>)}</tbody></table> : null}</AdminTableShell></AdminPanel></AdminPage>;
+  const mutation = useMutation({
+    mutationFn: (id: number) => assignAdminLead(id, Number(account?.id)),
+    onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "leads"]}); notify.success("线索已由你跟进"); },
+    onError: (error) => notify.error(messageFor(error)),
+  });
+  return (
+    <AdminPage title="CRM 线索" eyebrow="CRM" description="跟进算力询价、设备居间与融资租赁需求。">
+      <AdminPanel className="overflow-hidden p-3 sm:p-4">
+        <AdminTableShell {...tableState(query, "暂无业务线索", "客户提交需求后会显示在这里。") }>
+          {query.data?.items.length ? <table className={adminTableClass}>
+            <caption className="sr-only">CRM 线索</caption>
+            <AdminTableHead><th scope="col">联系人</th><th scope="col">类型</th><th scope="col">联系方式</th><th scope="col">需求</th><th scope="col">预算</th><th scope="col">状态</th><th scope="col">负责人</th><th scope="col">提交时间</th><th scope="col">操作</th></AdminTableHead>
+            <tbody>{query.data.items.map((item) => <tr key={item.id}>
+              <th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.contact_name}</th>
+              <td>{({compute: "算力询价", finance_lease: "融资租赁", equipment: "设备居间", construction: "机房建设"} as Record<string, string>)[item.type] ?? item.type}</td>
+              <td>{item.contact_phone || item.contact_email}</td><td className="max-w-72 whitespace-pre-wrap break-words">{item.description}</td><td>{item.amount_range || "—"}</td>
+              <td><StatusBadge status={item.status} /></td><td>{item.assignee_id ? String(item.assignee_id) === account?.id ? "我" : `UID-${item.assignee_id}` : "待分配"}</td><td>{formatDateTime(item.created_at)}</td>
+              <td>{item.status === "new" && !item.assignee_id ? <Button size="sm" variant="tertiary" isDisabled={!account} isPending={mutation.isPending} onPress={() => mutation.mutate(item.id)}>由我跟进</Button> : "—"}</td>
+            </tr>)}</tbody>
+          </table> : null}
+        </AdminTableShell>
+      </AdminPanel>
+    </AdminPage>
+  );
 }
 
 export function AdminRisk() {

@@ -82,6 +82,7 @@ const productSchema = z.object({
   region: z.string(),
   status: z.string(),
   self_operated: z.boolean(),
+  rejected_reason: z.string().default(""),
 });
 
 const productGroupSchema = z.object({
@@ -317,6 +318,11 @@ export function createProduct(input: CreateProductInput, fetchImplementation: ty
     {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(input)},
     fetchImplementation,
   );
+}
+
+export function resubmitProduct(id: number, input: CreateProductInput, fetchImplementation: typeof fetch = fetch) {
+  return request(`/api/supplier/products/${id}`, createProductEnvelopeSchema, "商品重新提交失败",
+    {method: "PUT", headers: {"content-type": "application/json"}, body: JSON.stringify(input)}, fetchImplementation);
 }
 
 export function fetchSupplierOrders(

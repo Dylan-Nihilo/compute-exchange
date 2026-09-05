@@ -126,6 +126,9 @@ export function AdminTableShell({
 export function StatusBadge({status}: {status: string}) {
   const copy: Record<string, string> = {
     active: "进行中",
+    new: "待跟进",
+    assigned: "已分配",
+    quoted: "已报价",
     approved: "已通过",
     cancelled: "已取消",
     closed: "已关闭",
@@ -136,6 +139,8 @@ export function StatusBadge({status}: {status: string}) {
     issued: "已开票",
     paid: "已支付",
     pending: "待处理",
+    pending_payment: "待支付",
+    refunded: "已退款",
     processing: "处理中",
     provisioning: "交付中",
     rejected: "已驳回",

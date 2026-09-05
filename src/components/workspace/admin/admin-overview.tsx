@@ -32,8 +32,8 @@ export function AdminOverview() {
     queryFn: () => fetchAdminQualifications(),
   });
   const tickets = useQuery({
-    queryKey: ["admin", "tickets", "overview"],
-    queryFn: () => fetchAdminTickets({pageSize: 5}),
+    queryKey: ["admin", "tickets", "pending"],
+    queryFn: () => fetchAdminTickets({status: "pending", pageSize: 5}),
   });
 
   return (
@@ -56,6 +56,11 @@ export function AdminOverview() {
           ["a", "b", "c", "d"].map((key) => (
             <Skeleton className="h-14 w-[72%] rounded-lg" key={key} />
           ))
+        ) : summary.isError ? (
+          <div className="col-span-full flex min-h-14 items-center justify-between gap-4">
+            <p className="text-sm text-[#5e7786]">运营数据读取失败，请重试。</p>
+            <Button size="sm" variant="tertiary" onPress={() => void summary.refetch()}>重新读取</Button>
+          </div>
         ) : (
           <>
             <AdminMetric label="待审资质" value={summary.data?.pendingQualifications ?? 0} />

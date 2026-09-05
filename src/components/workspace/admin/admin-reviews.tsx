@@ -1,8 +1,8 @@
 "use client";
 
-import {Button} from "@heroui/react";
+import {Button, Drawer} from "@heroui/react";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
-import {Check, FileUp, RotateCcw, X} from "lucide";
+import {Check, Eye, FileUp, RotateCcw, X} from "lucide";
 import {useState} from "react";
 
 import {ConfirmDialog} from "@/components/system/confirm-dialog";
@@ -16,6 +16,7 @@ import {
   rejectAdminInvoice,
   rejectQualification,
   reviewProduct,
+  type AdminProduct,
   type AdminQualification,
 } from "@/lib/admin-workspace";
 import {formatDateTime} from "@/lib/format/date";
@@ -42,29 +43,33 @@ const tabs: readonly {id: ReviewTab; label: string}[] = [
 ];
 
 const money = new Intl.NumberFormat("zh-CN", {currency: "CNY", style: "currency"});
+const deliveryModeCopy: Record<string, string> = {
+  bare_metal: "裸金属",
+  container: "容器",
+  virtual_machine: "虚拟机",
+  whole_rack: "整机柜",
+};
 
 export function AdminReviews() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<ReviewTab>("qualifications");
   const [qualificationView, setQualificationView] = useState<QualificationView>("pending");
   const [decision, setDecision] = useState<Decision>(null);
-  const [rejecting, setRejecting] = useState<{kind: "qualification" | "invoice"; id: number} | null>(null);
+  const [inspecting, setInspecting] = useState<AdminProduct | null>(null);
+  const [rejecting, setRejecting] = useState<{kind: "qualification" | "invoice" | "product"; id: number} | null>(null);
   const [reason, setReason] = useState("");
 
   const qualifications = useQuery({
     queryKey: ["admin", "qualifications", "all"],
     queryFn: () => fetchAdminQualifications("all"),
-    enabled: tab === "qualifications",
   });
   const products = useQuery({
     queryKey: ["admin", "products", "review"],
-    queryFn: () => fetchAdminProducts({pageSize: 100}),
-    enabled: tab === "products",
+    queryFn: () => fetchAdminProducts({status: "pending", pageSize: 100}),
   });
   const invoices = useQuery({
     queryKey: ["admin", "invoices", "pending"],
     queryFn: () => fetchAdminInvoices({status: "pending", pageSize: 100}),
-    enabled: tab === "invoices",
   });
 
   const action = useMutation({
@@ -73,11 +78,12 @@ export function AdminReviews() {
         if (input.decision === "approve") return approveQualification(input.id);
         return rejectQualification(input.id, reason.trim());
       }
-      return reviewProduct(input.id, input.decision);
+      return reviewProduct(input.id, input.decision, reason.trim());
     },
     onSuccess: async (_data, input) => {
       await queryClient.invalidateQueries({queryKey: ["admin"]});
       if (input.kind === "qualification") setQualificationView("history");
+      if (input.kind === "product") setInspecting(null);
       setDecision(null);
       setRejecting(null);
       setReason("");
@@ -100,7 +106,7 @@ export function AdminReviews() {
     onError: (error) => notify.error(messageFor(error)),
   });
 
-  const pendingProducts = products.data?.items.filter(({status}) => status === "pending") ?? [];
+  const pendingProducts = products.data?.items ?? [];
   const pendingQualifications = qualifications.data?.filter(({status}) => status === "pending") ?? [];
   const qualificationHistory = qualifications.data?.filter(({status}) => status !== "pending") ?? [];
 
@@ -114,10 +120,10 @@ export function AdminReviews() {
         {tabs.map((item) => {
           const count =
             item.id === "qualifications"
-              ? pendingQualifications.length
+              ? qualifications.isPending ? undefined : pendingQualifications.length
               : item.id === "products"
-                ? pendingProducts.length
-                : invoices.data?.total;
+                ? products.isPending ? undefined : products.data?.total
+                : invoices.isPending ? undefined : invoices.data?.total;
           return (
             <button
               aria-current={tab === item.id ? "page" : undefined}
@@ -175,7 +181,7 @@ export function AdminReviews() {
             onCancelReject={() => setRejecting(null)}
             onRetry={() => void qualifications.refetch()}
             reason={reason}
-            rejecting={rejecting}
+            rejecting={rejecting?.kind === "qualification" ? {kind: "qualification", id: rejecting.id} : null}
             setReason={setReason}
             submitReject={() => {
               if (!rejecting || !reason.trim()) return;
@@ -210,7 +216,10 @@ export function AdminReviews() {
                       <td>{item.region}</td>
                       <td>
                         <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="tertiary" onPress={() => action.mutate({kind: "product", id: item.id, decision: "reject"})}>
+                          <Button size="sm" variant="tertiary" onPress={() => setInspecting(item)}>
+                            <InteractiveIcon icon={Eye} size={14} />详情
+                          </Button>
+                          <Button size="sm" variant="tertiary" onPress={() => { setRejecting({kind: "product", id: item.id}); setReason(""); }}>
                             <InteractiveIcon icon={X} size={14} />驳回
                           </Button>
                           <Button size="sm" variant="primary" onPress={() => setDecision({kind: "product", id: item.id, label: item.gpu_model || `商品 #${item.id}`})}>
@@ -290,6 +299,23 @@ export function AdminReviews() {
         />
       ) : null}
 
+      <ProductDetailDrawer
+        isPending={action.isPending}
+        onApprove={(item) => {
+          setInspecting(null);
+          setDecision({kind: "product", id: item.id, label: item.gpu_model || `商品 #${item.id}`});
+        }}
+        onClose={() => setInspecting(null)}
+        onReject={(item) => { setInspecting(null); setRejecting({kind: "product", id: item.id}); setReason(""); }}
+        product={inspecting}
+      />
+
+      {rejecting?.kind === "product" ? (
+        <RejectBar title="商品驳回原因" reason={reason} setReason={setReason} isPending={action.isPending}
+          onCancel={() => setRejecting(null)}
+          onSubmit={() => action.mutate({kind: "product", id: rejecting.id, decision: "reject"})} />
+      ) : null}
+
       <ConfirmDialog
         confirmLabel="确认通过"
         description={decision ? `通过“${decision.label}”后，审核状态将立即更新。` : ""}
@@ -300,6 +326,125 @@ export function AdminReviews() {
         title="确认审核通过"
       />
     </AdminPage>
+  );
+}
+
+function ProductDetailDrawer({
+  isPending,
+  onApprove,
+  onClose,
+  onReject,
+  product,
+}: {
+  isPending: boolean;
+  onApprove: (product: AdminProduct) => void;
+  onClose: () => void;
+  onReject: (product: AdminProduct) => void;
+  product: AdminProduct | null;
+}) {
+  const price = product
+    ? product.price_negotiable
+      ? "面议"
+      : `${money.format(product.unit_price / 100)} / ${pricingModeCopy[product.pricing_mode] ?? product.pricing_mode}`
+    : "";
+
+  return (
+    <Drawer.Root isOpen={Boolean(product)} onOpenChange={(isOpen) => { if (!isOpen && !isPending) onClose(); }}>
+      <Drawer.Backdrop isDismissable={!isPending}>
+        <Drawer.Content placement="right">
+          <Drawer.Dialog className="w-full sm:max-w-xl">
+            <Drawer.Header className="border-b border-border px-6 py-5">
+              <div className="min-w-0 pr-8">
+                <p className="text-xs font-medium text-muted">商品 #{product?.id}</p>
+                <Drawer.Heading className="mt-1 truncate text-xl font-semibold tracking-[-0.02em] text-foreground">
+                  {product?.gpu_model || "算力资源"}
+                </Drawer.Heading>
+              </div>
+            </Drawer.Header>
+            <Drawer.Body className="omnis-scrollbar-y px-6 py-6">
+              {product ? (
+                <div className="space-y-7">
+                  <dl className="grid grid-cols-3 gap-x-4 border-b border-border pb-6">
+                    <ProductDetailMetric label="类型" value={productTypeCopy[product.product_type] ?? product.product_type} />
+                    <ProductDetailMetric label="区域" value={product.region || "—"} />
+                    <div>
+                      <dt className="text-xs text-muted">状态</dt>
+                      <dd className="mt-2"><StatusBadge status={product.status} /></dd>
+                    </div>
+                  </dl>
+
+                  <ProductDetailSection title="资源规格">
+                    <ProductDetailRow label="GPU 型号" value={product.gpu_model || "—"} />
+                    <ProductDetailRow label="卡数" value={`${product.card_count} 张`} />
+                    {product.machine_count ? <ProductDetailRow label="机器数量" value={`${product.machine_count} 台`} /> : null}
+                    {product.total_pflops_approx ? <ProductDetailRow label="总算力" value={`${product.total_pflops_approx} PFLOPS`} /> : null}
+                    {product.power_capacity_kw ? <ProductDetailRow label="电力容量" value={`${product.power_capacity_kw} kW`} /> : null}
+                    {product.rack_count ? <ProductDetailRow label="机柜数量" value={`${product.rack_count} 个`} /> : null}
+                    <ProductDetailRow label="CPU" value={product.cpu_spec || "—"} />
+                    <ProductDetailRow label="内存" value={product.memory_spec || "—"} />
+                    <ProductDetailRow label="存储" value={product.storage_spec || "—"} />
+                    <ProductDetailRow label="带宽" value={product.bandwidth_spec || "—"} />
+                    <ProductDetailRow label="交付方式" value={(deliveryModeCopy[product.delivery_mode] ?? product.delivery_mode) || "—"} />
+                  </ProductDetailSection>
+
+                  <ProductDetailSection title="交易条件">
+                    <ProductDetailRow label="计费价格" value={price} />
+                    <ProductDetailRow label="可售库存" value={`${product.stock}`} />
+                    <ProductDetailRow label="最小起订量" value={`${product.min_order}`} />
+                    <ProductDetailRow label="最小计费周期" value={`${product.min_duration}`} />
+                    <ProductDetailRow label="可售时段" value={product.available_hours || "—"} />
+                  </ProductDetailSection>
+
+                  <ProductDetailSection title="提交信息">
+                    <ProductDetailRow label="供给方" value={`#${product.supplier_id}`} />
+                    <ProductDetailRow label="平台自营" value={product.self_operated ? "是" : "否"} />
+                    <ProductDetailRow label="合规承诺" value={product.compliance_agreed ? "已确认" : "未确认"} />
+                    <ProductDetailRow label="提交时间" value={formatDateTime(product.created_at)} />
+                  </ProductDetailSection>
+                </div>
+              ) : null}
+            </Drawer.Body>
+            <Drawer.Footer className="border-t border-border px-6 py-4">
+              <Button isDisabled={isPending} variant="tertiary" onPress={onClose}>关闭</Button>
+              <Button isDisabled={isPending || !product} variant="danger-soft" onPress={() => product && onReject(product)}>
+                <InteractiveIcon icon={X} size={15} />驳回
+              </Button>
+              <Button isDisabled={isPending || !product} variant="primary" onPress={() => product && onApprove(product)}>
+                <InteractiveIcon icon={Check} size={15} />通过
+              </Button>
+            </Drawer.Footer>
+            <Drawer.CloseTrigger />
+          </Drawer.Dialog>
+        </Drawer.Content>
+      </Drawer.Backdrop>
+    </Drawer.Root>
+  );
+}
+
+function ProductDetailSection({children, title}: {children: React.ReactNode; title: string}) {
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-foreground">{title}</h3>
+      <dl className="divide-y divide-border">{children}</dl>
+    </section>
+  );
+}
+
+function ProductDetailRow({label, value}: {label: string; value: string}) {
+  return (
+    <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4 py-2.5 text-sm">
+      <dt className="text-muted">{label}</dt>
+      <dd className="break-words text-right font-medium text-foreground">{value}</dd>
+    </div>
+  );
+}
+
+function ProductDetailMetric({label, value}: {label: string; value: string}) {
+  return (
+    <div>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-2 text-sm font-semibold text-foreground">{value}</dd>
+    </div>
   );
 }
 

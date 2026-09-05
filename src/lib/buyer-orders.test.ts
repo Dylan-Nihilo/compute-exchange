@@ -1,5 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {startBuyerOrderPayment} from "./buyer-orders.ts";
+
+test("payment uses the order identity and rejects unsafe cashier URLs", async () => {
+  const result = await startBuyerOrderPayment("ORDTEST123", "wechat", async (_url, init) => {
+    assert.deepEqual(JSON.parse(String(init?.body)), {order_no: "ORDTEST123", channel: "wechat"});
+    return Response.json({code: 0, message: "success", data: {pay_url: "https://cashier.example.test/pay", tx_id: "TX123"}});
+  });
+  assert.equal(result.pay_url, "https://cashier.example.test/pay");
+  await assert.rejects(startBuyerOrderPayment("ORDTEST123", "wechat", async () => Response.json({code: 0, message: "success", data: {pay_url: "javascript:alert(1)", tx_id: "TX123"}})), /支付服务返回格式错误/);
+});
 
 import {
   confirmBuyerOrder,

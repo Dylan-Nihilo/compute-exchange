@@ -52,7 +52,9 @@ const productSchema = z.object({
   min_duration: z.number().int().positive(),
   region: z.string(),
   status: z.string(),
+  health: z.string().optional(),
   self_operated: z.boolean(),
+  compliance_agreed: z.boolean().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -208,7 +210,7 @@ export type AdminPayment = z.infer<typeof paymentSchema>;
 export type AdminConfig = z.infer<typeof configSchema>;
 export type AdminNotice = z.infer<typeof noticeSchema>;
 
-type FetchPage = {page?: number; pageSize?: number};
+type FetchPage = {page?: number; pageSize?: number; status?: string};
 
 async function request<T extends {code: number; message: string}>(
   url: string,
@@ -231,8 +233,10 @@ async function request<T extends {code: number; message: string}>(
   return parsed.data;
 }
 
-function pageQuery({page = 1, pageSize = 20}: FetchPage = {}) {
-  return `page=${page}&page_size=${pageSize}`;
+function pageQuery({page = 1, pageSize = 20, status}: FetchPage = {}) {
+  const params = new URLSearchParams({page: String(page), page_size: String(pageSize)});
+  if (status) params.set("status", status);
+  return params.toString();
 }
 
 function action(
@@ -276,8 +280,10 @@ export function fetchAdminProducts(query: FetchPage = {}, fetchImplementation: t
     .then(({data}) => ({items: data?.list ?? [], total: data?.total ?? 0}));
 }
 
-export function reviewProduct(id: number, decision: "approve" | "reject", fetchImplementation: typeof fetch = fetch) {
-  return action(`/api/admin/audits/products/${id}/${decision}`, "商品审核失败", {method: "POST"}, fetchImplementation);
+export function reviewProduct(id: number, decision: "approve" | "reject", reason?: string, fetchImplementation: typeof fetch = fetch) {
+  return action(`/api/admin/audits/products/${id}/${decision}`, "商品审核失败", {
+    method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({reason}),
+  }, fetchImplementation);
 }
 
 export function offlineProduct(id: number, fetchImplementation: typeof fetch = fetch) {
@@ -417,13 +423,13 @@ export function fetchAdminNotices(fetchImplementation: typeof fetch = fetch) {
 export async function fetchAdminSummary(fetchImplementation: typeof fetch = fetch) {
   const [qualifications, products, orders, alerts] = await Promise.all([
     fetchAdminQualifications("pending", fetchImplementation),
-    fetchAdminProducts({pageSize: 100}, fetchImplementation),
+    fetchAdminProducts({status: "pending", pageSize: 100}, fetchImplementation),
     fetchAdminOrders({pageSize: 100}, fetchImplementation),
     fetchAdminRiskAlerts({pageSize: 100}, fetchImplementation),
   ]);
   return {
     pendingQualifications: qualifications.filter(({status}) => status === "pending").length,
-    pendingProducts: products.items.filter(({status}) => status === "pending").length,
+    pendingProducts: products.total,
     activeOrders: orders.items.filter(({status}) => !["completed", "cancelled", "refunded"].includes(status)).length,
     openRiskAlerts: alerts.items.filter(({status}) => status === "pending").length,
   };

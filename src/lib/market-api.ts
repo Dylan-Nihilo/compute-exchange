@@ -563,3 +563,13 @@ export async function placeOrder(
   }
   return parsed.data.data;
 }
+
+export async function submitProductInquiry(productId: string, input: {contact_name: string; contact_phone: string; message: string}, fetchImplementation: typeof fetch = fetch) {
+  const response = await fetchImplementation(`/api/market/products/${encodeURIComponent(productId)}/inquiries`, {
+    method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(input),
+  });
+  const parsed = envelopeSchema.extend({data: z.object({id: z.number().int().positive()}).optional()}).safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw new Error("询价服务返回格式错误");
+  if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) throw new Error(parsed.data.message || "询价提交失败");
+  return parsed.data.data;
+}

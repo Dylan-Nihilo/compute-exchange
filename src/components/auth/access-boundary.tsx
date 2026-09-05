@@ -9,8 +9,9 @@ import {useCurrentAccount} from "@/lib/auth/queries";
 import {resolveActiveRole} from "@/lib/auth/session";
 import {useAuthStore} from "@/lib/auth/store";
 import {accessLevelForRoute} from "@/lib/domain/routes";
+import type {Role} from "@/lib/domain/contracts";
 
-export function AccessBoundary({children}: {children: React.ReactNode}) {
+export function AccessBoundary({children, role: requiredRole}: {children: React.ReactNode; role?: Exclude<Role, "guest">}) {
   const pathname = usePathname();
   const router = useRouter();
   const activeRole = useAuthStore((state) => state.activeRole);
@@ -24,7 +25,9 @@ export function AccessBoundary({children}: {children: React.ReactNode}) {
 
   const authorization = useMemo(() => {
     if (!account) return null;
-    const role = resolveActiveRole(account.roles, activeRole);
+    const role = requiredRole && account.roles.includes(requiredRole)
+      ? requiredRole
+      : resolveActiveRole(account.roles, activeRole);
     const qualificationStatus = ["supplier", "vendor", "funder"].includes(role)
       ? "approved"
       : undefined;
@@ -37,7 +40,7 @@ export function AccessBoundary({children}: {children: React.ReactNode}) {
         grants: account.grants,
       }),
     } as const;
-  }, [account, activeRole, pathname]);
+  }, [account, activeRole, pathname, requiredRole]);
 
   useEffect(() => {
     if (!hasHydrated || !accountQuery.isSuccess) return;
