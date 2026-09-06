@@ -1,17 +1,19 @@
 "use client";
 
-import {useMutation, useQueryClient} from "@tanstack/react-query";
-import {Autocomplete, Button, Input, Label, ListBox, SearchField, Select, Spinner} from "@heroui/react";
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {Autocomplete, Button, Input, Label, ListBox, SearchField, Select, Spinner, useFilter} from "@heroui/react";
 import {ArrowLeft, Building2, ChevronDown, Cpu, Search, SendHorizontal, Server, Warehouse} from "lucide";
 import Image from "next/image";
 import {useRouter} from "next/navigation";
-import {useEffect, useState} from "react";
+import {useState} from "react";
+import {Header, Heading} from "react-aria-components";
 
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {GlassCard} from "@/components/workspace/ui/glass-card";
 import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
 import {
-  gpuCatalogResponseSchema,
+  fetchGpuCatalog,
+  gpuVendorIcons,
   type GpuCatalogItem,
 } from "@/lib/gpu-catalog";
 import {notify} from "@/lib/notify";
@@ -69,12 +71,6 @@ const deliveryOptions = [
   {id: "vm", label: "虚拟机"},
   {id: "rack", label: "整机柜"},
 ];
-
-const gpuVendors = [
-  {id: "nvidia", label: "NVIDIA", logo: "/brand/vendors/nvidia.svg", width: 31},
-  {id: "amd", label: "AMD", logo: "/brand/vendors/amd.svg", width: 52},
-  {id: "intel", label: "Intel", logo: "/brand/vendors/intel.svg", width: 44},
-] as const;
 
 const cardCountOptions = ["1", "2", "4", "8", "16", "32", "64"];
 const machineCountOptions = ["1", "2", "4", "8", "16", "32"];
@@ -172,7 +168,7 @@ export function SupplierProductForm({product}: {product?: SupplierProduct}) {
     const isNegotiable = supportsNegotiable && form.priceNegotiable;
     const nextErrors: FormErrors = {};
 
-    if (!isColocation && !form.gpuModel.trim()) nextErrors.gpuModel = "请输入 GPU 型号";
+    if (!isColocation && !form.gpuModel.trim()) nextErrors.gpuModel = "请选择 GPU 型号";
     if (productType === "card_rental" && int(form.cardCount) <= 0) nextErrors.cardCount = "请输入大于 0 的卡数";
     if ((productType === "outright" || productType === "center") && int(form.machineCount) <= 0) nextErrors.machineCount = "请输入大于 0 的台数";
     if (productType === "center" && !form.totalPflops.trim()) nextErrors.totalPflops = "请输入中心约算力";
@@ -445,49 +441,34 @@ function GpuModelField({
   onChange: (value: string) => void;
   value: string;
 }) {
-  const [vendor, setVendor] = useState<(typeof gpuVendors)[number]["id"]>("nvidia");
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [items, setItems] = useState<GpuCatalogItem[]>([]);
-  const [selectedGpu, setSelectedGpu] = useState<GpuCatalogItem | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "empty" | "error">("loading");
-
-  useEffect(() => {
-    const search = query.trim();
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      setItems([]);
-      setStatus("loading");
-      try {
-        const params = new URLSearchParams({vendor});
-        if (search.length >= 2) params.set("q", search);
-        const response = await fetch(`/api/catalog/gpu-models?${params}`, {
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error("GPU catalog unavailable");
-        const payload = gpuCatalogResponseSchema.parse(await response.json());
-        setItems(payload.data.list);
-        setStatus(payload.data.list.length ? "ready" : "empty");
-      } catch (requestError) {
-        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
-        setItems([]);
-        setStatus("error");
-      }
-    }, search.length >= 2 ? 220 : 0);
-
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query, vendor]);
-
+  const {contains} = useFilter({sensitivity: "base"});
+  const catalog = useQuery({
+    queryKey: ["gpu-catalog"],
+    queryFn: ({signal}) => fetchGpuCatalog(fetch, signal),
+    retry: false,
+  });
+  const items = catalog.isError ? [] : catalog.data ?? [];
+  const selectedGpu = items.find((gpu) => gpu.model_name === value);
+  const groups = [
+    {id: "domestic", label: "国产", items: items.filter((gpu) => gpu.origin === "domestic")},
+    {id: "international", label: "海外", items: items.filter((gpu) => gpu.origin === "international")},
+  ].filter((group) => group.items.length > 0);
+  const open = (next: boolean) => {
+    setIsOpen(next);
+    if (next) {
+      setQuery("");
+      void catalog.refetch();
+    }
+  };
   const details = selectedGpu
     ? [
-        ["系列", selectedGpu.generation],
-        ["架构", selectedGpu.architecture],
-        ["显存", selectedGpu.memorySizeGb ? `${selectedGpu.memorySizeGb}GB ${selectedGpu.memoryType ?? ""}`.trim() : undefined],
-        ["接口", selectedGpu.busInterface ?? selectedGpu.formFactor],
-        ["功耗", selectedGpu.tdpWatts ? `${selectedGpu.tdpWatts}W` : undefined],
+        ["厂商", selectedGpu.vendor],
+        ["类型", selectedGpu.grade === "datacenter" ? "数据中心" : "消费级"],
+        ["单卡显存", selectedGpu.vram_gb === null ? undefined : `${selectedGpu.vram_gb}GB ${selectedGpu.vram_type ?? ""}`.trim()],
+        ["FP16 稠密 Tensor", selectedGpu.fp16_tflops === null ? undefined : `${selectedGpu.fp16_tflops} TFLOPS`],
+        ["互联", selectedGpu.interconnect],
       ].filter((detail): detail is [string, string] => Boolean(detail[1]))
     : [];
 
@@ -499,12 +480,10 @@ function GpuModelField({
           aria-label="GPU 型号"
           fullWidth
           isOpen={isOpen}
-          onOpenChange={setIsOpen}
+          onOpenChange={open}
           onChange={(key) => {
-            const selected = items.find((item) => item.id === key);
-            if (!selected) return;
-            setSelectedGpu(selected);
-            onChange(selected.name);
+            const selected = items.find((gpu) => gpu.id === key);
+            if (selected) onChange(selected.model_name);
           }}
           placeholder="选择 GPU 型号"
           value={selectedGpu?.id ?? null}
@@ -519,7 +498,7 @@ function GpuModelField({
               id="product-gpuModel"
               onClick={(event) => {
                 event.stopPropagation();
-                setIsOpen(!isOpen);
+                open(!isOpen);
               }}
               type="button"
             >
@@ -531,95 +510,63 @@ function GpuModelField({
             </button>
           </Autocomplete.Trigger>
           <Autocomplete.Popover className="w-[var(--trigger-width)] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-[#dce9ee] bg-white p-0 shadow-[0_16px_44px_rgba(36,73,93,0.16)]">
-            <div aria-label="按 GPU 厂商筛选" className="flex gap-1 border-b border-[#dce9ee] bg-[#f5fafc] p-2" role="group">
-              {gpuVendors.map((option) => (
-                <button
-                  aria-pressed={vendor === option.id}
-                  className={`flex min-h-9 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#5f8fa3] ${vendor === option.id ? "bg-white text-[#173447] shadow-sm" : "text-[#5e7786] hover:bg-white/70"}`}
-                  key={option.id}
-                  onClick={() => {
-                    if (vendor === option.id) return;
-                    setVendor(option.id);
-                    setQuery("");
-                    setItems([]);
-                  }}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <Autocomplete.Filter inputValue={query} onInputChange={setQuery}>
+            <Heading slot="title" className="sr-only">选择 GPU 型号</Heading>
+            <Autocomplete.Filter filter={contains} inputValue={query} onInputChange={setQuery}>
               <SearchField aria-label="搜索 GPU 型号" className="px-3 pt-3 pb-1" autoFocus>
                 <SearchField.Group className="h-10 rounded-lg border border-[#dce9ee] bg-[#f5fafc] shadow-none">
                   <SearchField.SearchIcon />
-                  <SearchField.Input placeholder="搜索型号，如 H200、MI300X" />
+                  <SearchField.Input placeholder="搜索型号或厂商，如 昇腾、H100" />
                   <SearchField.ClearButton aria-label="清空搜索" />
                 </SearchField.Group>
               </SearchField>
-              <ListBox<GpuCatalogItem>
+              <ListBox
                 aria-label="GPU 型号列表"
-                items={items}
-                className="max-h-64 overflow-y-auto p-1.5 outline-none"
+                className="max-h-72 overflow-y-auto p-1.5 outline-none"
                 renderEmptyState={() => (
-                  <div className="flex min-h-12 items-center justify-center gap-2 px-4 py-3 text-xs text-[#78909c]" role="status">
-                    {status === "loading" ? (
-                      <><Spinner aria-hidden="true" color="current" size="sm" />正在读取 {gpuVendors.find((item) => item.id === vendor)?.label} 型号</>
-                    ) : status === "error" ? (
-                      "型号库暂不可用，可继续手动填写"
+                  <div className="flex min-h-14 items-center justify-center gap-2 px-4 py-3 text-xs text-[#78909c]" role="status">
+                    {catalog.isFetching ? (
+                      <><Spinner aria-hidden="true" color="current" size="sm" />正在读取型号</>
+                    ) : catalog.isError ? (
+                      <><span>型号库暂不可用</span><Button size="sm" variant="tertiary" onPress={() => { void catalog.refetch(); }}>重试</Button></>
                     ) : (
-                      "没有匹配型号，可继续手动填写"
+                      query ? "没有匹配型号，请更换关键词或联系平台补充" : "暂无可选型号，请联系平台补充"
                     )}
                   </div>
                 )}
               >
-                {(gpu) => {
-                  const gpuVendor = gpuVendors.find((option) => option.id === gpu.vendorId);
-                  return (
-                    <ListBox.Item
-                      className="group flex cursor-default items-center justify-between gap-4 rounded-lg px-3 py-2.5 outline-none transition-colors data-[focused]:bg-[#edf5f7] data-[selected]:bg-[#e5f0f4]"
-                      id={gpu.id}
-                      textValue={gpu.name}
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        {gpuVendor ? (
-                          <span className="hidden h-8 w-14 shrink-0 items-center justify-center rounded-lg border border-[#dce9ee]/70 bg-white/80 sm:flex">
-                            <Image alt="" height={18} src={gpuVendor.logo} width={gpuVendor.width} />
+                {groups.map((group) => (
+                  <ListBox.Section key={group.id} id={group.id} aria-label={group.label}>
+                    <Header className="px-3 pt-3 pb-1.5 text-xs font-medium text-[#78909c]">{group.label}</Header>
+                    {group.items.map((gpu) => (
+                      <ListBox.Item
+                        className="group flex cursor-default items-center justify-between gap-3 rounded-lg px-3 py-2.5 outline-none transition-colors data-[focused]:bg-[#edf5f7] data-[selected]:bg-[#e5f0f4]"
+                        key={gpu.id}
+                        id={gpu.id}
+                        textValue={`${gpu.vendor} ${gpu.model_name}`}
+                      >
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-9 w-14 shrink-0 items-center justify-center rounded-lg border border-[#dce9ee]/70 bg-white px-1.5">
+                            {gpuVendorIcons[gpu.vendor] ? (
+                              <Image alt="" className="h-7 w-full object-contain" height={28} src={gpuVendorIcons[gpu.vendor]} width={48} />
+                            ) : <InteractiveIcon aria-hidden="true" icon={Cpu} size={20} />}
                           </span>
-                        ) : null}
-                        <span className="min-w-0">
-                          <span className="block break-words text-sm font-medium text-[#173447] sm:truncate">{gpu.name}</span>
-                          <span className="mt-0.5 block truncate text-xs text-[#78909c]">
-                            {gpu.architecture}
-                            {gpu.memorySizeGb ? <span className="sm:hidden">{gpu.architecture ? " · " : ""}{gpu.memorySizeGb}GB {gpu.memoryType}</span> : null}
+                          <span className="min-w-0">
+                            <span className="block break-words text-sm font-medium text-[#173447]">{gpu.model_name}</span>
+                            <span className="mt-0.5 block text-xs text-[#78909c]">
+                              {gpu.vendor}{gpu.vram_gb !== null ? ` · ${gpu.vram_gb}GB ${gpu.vram_type ?? ""}` : ""}
+                            </span>
                           </span>
                         </span>
-                      </span>
-                      {gpu.memorySizeGb ? (
-                        <span className="hidden shrink-0 rounded-full bg-[#edf5f7] px-2 py-1 text-[11px] font-medium text-[#477084] sm:inline">
-                          {gpu.memorySizeGb}GB{gpu.memoryType ? ` ${gpu.memoryType}` : ""}
-                        </span>
-                      ) : null}
-                    </ListBox.Item>
-                  );
-                }}
+                        {gpu.secure_certified ? <span className="shrink-0 rounded-full bg-[#edf5f7] px-2 py-1 text-[10px] font-medium text-[#477084]">安可认证</span> : null}
+                      </ListBox.Item>
+                    ))}
+                  </ListBox.Section>
+                ))}
               </ListBox>
             </Autocomplete.Filter>
-            {query.trim() && !items.some((item) => item.name.toLocaleLowerCase() === query.trim().toLocaleLowerCase()) ? (
-              <div className="border-t border-[#dce9ee] p-2">
-                <Button className="h-auto min-h-9 w-full justify-start whitespace-normal break-all text-left text-xs" variant="tertiary" onPress={() => {
-                  setSelectedGpu(null);
-                  onChange(query.trim());
-                  setIsOpen(false);
-                }}>
-                  使用自定义型号“{query.trim()}”
-                </Button>
-              </div>
-            ) : null}
           </Autocomplete.Popover>
         </Autocomplete>
       </Field>
-
       {details.length ? (
         <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2 border-t border-[#dce9ee]/80 pt-3">
           {details.map(([label, detail]) => (
