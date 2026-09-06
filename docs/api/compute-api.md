@@ -45,6 +45,10 @@ curl "http://localhost:8080/api/v1/products?q=H100&product_type=card_rental&regi
 
 ## GET /products/:id · 商品详情（公开）
 
+仅返回 `active`（在售）商品，与公开市场列表保持一致。不存在或处于 `draft`（含审核驳回）、`pending`、`sold_out`、`offline`、`frozen` 等非在售状态时，统一返回 HTTP 200、`code: 40400`、`message: "商品不存在"`，不含 `data`，避免暴露商品或供给方信用资料。`getMarketProduct` 将 `40400` 转为 `null`，市场详情页据此显示 404，结算页显示商品不可下单。
+
+供给方仍通过 `/supplier/products` 查看自己的商品，运营通过 `/admin/products` 审核；买家历史订单通过 `/orders/:order_no` 获取商品资料，不受公开可见性限制影响。
+
 ```
 curl http://localhost:8080/api/v1/products/1
 ```
