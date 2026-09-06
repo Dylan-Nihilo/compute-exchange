@@ -1,5 +1,7 @@
 "use client";
 
+import {LegalLink} from "@/components/legal/legal-link";
+
 import {
   Button,
   Checkbox,
@@ -141,7 +143,7 @@ export function RegisterForm({wechatBinding = false}: {wechatBinding?: boolean} 
             <Checkbox.Control className="size-4 rounded-[5px] before:bg-[#c4ec68]">
               <Checkbox.Indicator />
             </Checkbox.Control>
-            我同意平台服务条款与隐私规则
+            <span>我已阅读并同意<LegalLink document="terms" />和<LegalLink document="privacy" /></span>
           </Checkbox.Content>
         </Checkbox>
         <Button

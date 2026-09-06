@@ -38,3 +38,11 @@ test("supplier onboarding stays protected outside the auth route group", () => {
     "http://localhost:3000/auth/login?next=%2Fsupplier%2Fapply",
   );
 });
+
+
+test("legal documents stay publicly readable with a version link", () => {
+  for (const path of ["terms", "privacy", "resource-listing-rules", "resource-usage-rules"]) {
+    const response = middleware(new NextRequest(`http://localhost:3000/${path}?version=2026-09-06.1`));
+    assert.equal(response.headers.get("x-middleware-next"), "1", path);
+  }
+});

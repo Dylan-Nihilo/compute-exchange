@@ -1,5 +1,7 @@
 "use client";
 
+import {LegalLink} from "@/components/legal/legal-link";
+
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Autocomplete, Button, Input, Label, ListBox, SearchField, Select, Spinner, useFilter} from "@heroui/react";
 import {ArrowLeft, Building2, ChevronDown, Cpu, Search, SendHorizontal, Server, Warehouse} from "lucide";
@@ -410,7 +412,7 @@ export function SupplierProductForm({product}: {product?: SupplierProduct}) {
               />
               <span>
                 我承诺所发布资源来源合法、权属清晰，不用于虚拟货币挖矿等违规用途，
-                并同意平台《算力资源上架规范》。
+                并已阅读、同意<LegalLink document="resource-listing-rules" />。
               </span>
             </label>
             {errors.complianceAgreed ? (

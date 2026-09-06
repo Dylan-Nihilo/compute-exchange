@@ -8,6 +8,8 @@ import {
 } from "motion/react";
 import Link from "next/link";
 
+import {legalDocuments, legalHref, type LegalDocumentKey} from "@/lib/legal";
+
 const footerGroups = [
   {
     label: "平台",
@@ -27,7 +29,7 @@ const footerGroups = [
     label: "支持",
     links: [
       ["平台网络", "#network"],
-      ["合规说明", "#network"],
+      ["合规说明", "/resource-usage-rules"],
     ],
   },
   {
@@ -150,6 +152,12 @@ export function LandingFooter() {
             ))}
           </motion.nav>
         </div>
+
+        <nav aria-label="协议与规则" className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-xs text-white/70">
+          {(Object.keys(legalDocuments) as LegalDocumentKey[]).map((key) => (
+            <Link className="py-1 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4" href={legalHref(key)} key={key}>{legalDocuments[key]}</Link>
+          ))}
+        </nav>
 
         <div className="mt-14 flex flex-col gap-3 border-t border-white/15 pt-6 text-xs text-white/50 sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 ComputeSpot. All rights reserved.</p>

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createProduct,
+  resubmitProduct,
   deliverOrder,
   fetchMyProductGroups,
   fetchMyQualifications,
@@ -187,4 +188,17 @@ test("submitPassiveResourceSync posts absolute stock and surfaces errors", async
     ),
     /stock_after 必填/,
   );
+});
+
+
+test("publishing and resubmitting include the explicitly accepted document version", async () => {
+  const input = {product_type: "card_rental" as const, pricing_mode: "hourly" as const, price_negotiable: false, stock: 2, region: "北京", compliance_agreed: true};
+  const transport: typeof fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    assert.equal(body.compliance_agreed, true);
+    assert.equal(body.compliance_version, "2026-09-06.1");
+    return Response.json({code: 0, message: "success", data: {id: 7}});
+  };
+  await createProduct(input, transport);
+  await resubmitProduct(7, input, transport);
 });

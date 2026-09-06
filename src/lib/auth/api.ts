@@ -1,5 +1,7 @@
 import {z} from "zod";
 
+import {LEGAL_VERSION} from "../legal.ts";
+
 import {roleSchema, type VerificationStatus} from "../domain/contracts.ts";
 import {
   verificationInputSchema,
@@ -119,6 +121,8 @@ export async function registerSmsApi(
       phone: input.phoneNumber,
       sms_code: input.code,
       agree_tos: input.agreeTos,
+      terms_version: LEGAL_VERSION,
+      privacy_version: LEGAL_VERSION,
       remember: input.remember,
     },
     sessionEnvelopeSchema,

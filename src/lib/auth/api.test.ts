@@ -144,6 +144,8 @@ describe("authentication API adapter", () => {
       phone: "13800138000",
       sms_code: "123456",
       agree_tos: true,
+      terms_version: "2026-09-06.1",
+      privacy_version: "2026-09-06.1",
       remember: true,
     });
     assert.equal(result.id, "8");

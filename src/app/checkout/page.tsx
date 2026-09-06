@@ -1,5 +1,7 @@
 "use client";
 
+import {LegalLink} from "@/components/legal/legal-link";
+
 import {useMutation, useQuery} from "@tanstack/react-query";
 import {Button, Card, Chip, Skeleton, Spinner} from "@heroui/react";
 import Link from "next/link";
@@ -238,7 +240,7 @@ function CheckoutPage() {
                 type="checkbox"
               />
               <span>
-                我已阅读并同意《算力资源使用规范》, 承诺资源不用于虚拟货币挖矿等违规用途,
+                我已阅读并同意<LegalLink document="resource-usage-rules" />， 承诺资源不用于虚拟货币挖矿等违规用途,
                 并知悉订单需在 15 分钟内完成支付。
               </span>
             </label>

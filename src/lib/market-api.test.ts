@@ -260,7 +260,7 @@ describe("checkout", () => {
     },
   );
   assert.deepEqual(JSON.parse(requestBody), {
-    product_id: 7, quantity: 2, duration: 24, compliance_agreed: true,
+    product_id: 7, quantity: 2, duration: 24, compliance_agreed: true, compliance_version: "2026-09-06.1",
   });
   assert.equal(result.order_no, "ORD20260827120000a1b2c3");
   assert.equal(result.status, "pending_payment");

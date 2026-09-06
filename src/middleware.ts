@@ -1,5 +1,7 @@
 import {NextResponse, type NextRequest} from "next/server.js";
 
+import {legalDocuments} from "./lib/legal.ts";
+
 const SESSION_COOKIE_NAMES = [
   "omnis_access_token",
   "omnis_refresh_token",
@@ -34,6 +36,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
   if (
+    Object.hasOwn(legalDocuments, pathname.slice(1)) ||
     pathname === "/landing" ||
     pathname.startsWith("/landing/") ||
     pathname === "/market" ||

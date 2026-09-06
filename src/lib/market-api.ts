@@ -1,3 +1,4 @@
+import {LEGAL_VERSION} from "./legal.ts";
 import {z} from "zod";
 
 import {
@@ -549,7 +550,7 @@ export async function placeOrder(
     response = await fetchImplementation("/api/checkout/orders", {
       method: "POST",
       headers: {"content-type": "application/json"},
-      body: JSON.stringify(input),
+      body: JSON.stringify({...input, compliance_version: LEGAL_VERSION}),
     });
   } catch {
     throw new Error("订单服务暂不可用");

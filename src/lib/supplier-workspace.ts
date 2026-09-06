@@ -1,3 +1,4 @@
+import {LEGAL_VERSION} from "./legal.ts";
 import {z} from "zod";
 
 // ===== 类型与文案 =====
@@ -315,14 +316,14 @@ export function createProduct(input: CreateProductInput, fetchImplementation: ty
     "/api/supplier/products",
     createProductEnvelopeSchema,
     "商品发布失败",
-    {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(input)},
+    {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({...input, compliance_version: LEGAL_VERSION})},
     fetchImplementation,
   );
 }
 
 export function resubmitProduct(id: number, input: CreateProductInput, fetchImplementation: typeof fetch = fetch) {
   return request(`/api/supplier/products/${id}`, createProductEnvelopeSchema, "商品重新提交失败",
-    {method: "PUT", headers: {"content-type": "application/json"}, body: JSON.stringify(input)}, fetchImplementation);
+    {method: "PUT", headers: {"content-type": "application/json"}, body: JSON.stringify({...input, compliance_version: LEGAL_VERSION})}, fetchImplementation);
 }
 
 export function fetchSupplierOrders(

@@ -7,6 +7,8 @@ export async function POST(request: Request) {
       phone: body.phone,
       sms_code: body.sms_code,
       agree_tos: body.agree_tos,
+      terms_version: body.terms_version,
+      privacy_version: body.privacy_version,
     });
     return authSessionResponse(payload, status, body.remember === true);
   } catch {
