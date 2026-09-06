@@ -352,3 +352,26 @@ describe("authentication API adapter", () => {
     assert.equal(requests, 0);
   });
 });
+
+it("binds WeChat after SMS authentication and preserves the existing supplier account", async () => {
+  const paths: string[] = [];
+  const user = {id: 7, phone: "138****8000", roles: ["buyer", "supplier"]};
+  const fetcher: typeof fetch = async (input, init) => {
+    paths.push(String(input));
+    if (String(input) === "/api/auth/wechat/bind") {
+      assert.deepEqual(JSON.parse(String(init?.body)), {});
+      return Response.json({code: 0, message: "success"});
+    }
+    if (String(input) === "/api/auth/me") return Response.json({code: 0, message: "success", data: user});
+    if (String(input) === "/api/auth/kyc/status") return Response.json({code: 0, message: "success", data: {personal: {status: "none"}, enterprise: {status: "verified"}}});
+    return Response.json({code: 0, message: "success", data: {user}});
+  };
+  const account = await smsLoginApi({phoneNumber: "13800138000", code: "123456", remember: true, wechatBinding: true}, fetcher);
+  assert.equal(account.id, "7");
+  assert.deepEqual(account.roles, ["buyer", "supplier"]);
+  assert.deepEqual(paths, ["/api/auth/sms/login", "/api/auth/wechat/bind", "/api/auth/me", "/api/auth/kyc/status"]);
+  await assert.rejects(registerSmsApi({phoneNumber: "13800138000", code: "123456", agreeTos: true, remember: true, wechatBinding: true}, async (input) => {
+    if (String(input) === "/api/auth/wechat/bind") return Response.json({code: 40900, message: "微信已绑定其他账户"});
+    return Response.json({code: 0, message: "success", data: {user}});
+  }), /微信已绑定其他账户/);
+});

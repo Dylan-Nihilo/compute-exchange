@@ -89,7 +89,7 @@ export async function requestSmsCodeApi(
 }
 
 export async function smsLoginApi(
-  input: {phoneNumber: string; code: string; remember: boolean},
+  input: {phoneNumber: string; code: string; remember: boolean; wechatBinding?: boolean},
   fetchImplementation: typeof fetch = fetch,
 ): Promise<SessionAccount> {
   const result = await post(
@@ -99,6 +99,7 @@ export async function smsLoginApi(
     fetchImplementation,
   );
   if (!result.data) throw new Error("认证服务返回格式错误");
+  if (input.wechatBinding) await post("/api/auth/wechat/bind", {}, operationEnvelopeSchema, fetchImplementation);
   return readEstablishedAccount(result.data.user.id, fetchImplementation);
 }
 
@@ -108,6 +109,7 @@ export async function registerSmsApi(
     code: string;
     agreeTos: boolean;
     remember: boolean;
+    wechatBinding?: boolean;
   },
   fetchImplementation: typeof fetch = fetch,
 ): Promise<SessionAccount> {
@@ -123,6 +125,7 @@ export async function registerSmsApi(
     fetchImplementation,
   );
   if (!result.data) throw new Error("注册服务返回格式错误");
+  if (input.wechatBinding) await post("/api/auth/wechat/bind", {}, operationEnvelopeSchema, fetchImplementation);
   return readEstablishedAccount(result.data.user.id, fetchImplementation);
 }
 

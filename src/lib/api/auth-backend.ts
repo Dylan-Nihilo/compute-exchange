@@ -66,7 +66,7 @@ export async function proxyAuthenticatedBackend(
   }
 }
 
-async function requestAuthBackend(path: string, init: RequestInit) {
+export async function requestAuthBackend(path: string, init: RequestInit) {
   const apiBaseUrl =
     process.env.AUTH_API_BASE_URL || publicEnv.NEXT_PUBLIC_API_BASE_URL;
   if (!apiBaseUrl) throw new Error("Authentication API is not configured");

@@ -21,7 +21,7 @@ import {resolvePostAuthDestination, safeNextPath} from "@/lib/auth/session";
 import {useAuthStore} from "@/lib/auth/store";
 import {FormError, FormHeading, VerificationCodeField} from "./form-parts";
 
-export function RegisterForm() {
+export function RegisterForm({wechatBinding = false}: {wechatBinding?: boolean} = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const smsRegisterMutation = useRegisterSms();
@@ -51,6 +51,7 @@ export function RegisterForm() {
         code: verificationCode,
         agreeTos,
         remember: true,
+        wechatBinding,
       })
       .catch(() => null);
     if (!account) return;
@@ -76,8 +77,8 @@ export function RegisterForm() {
     <>
       <FormHeading
         compact
-        description="验证手机号后创建平台账户"
-        title="注册"
+        description={wechatBinding ? "验证手机号，创建账户并绑定微信" : "验证手机号后创建平台账户"}
+        title={wechatBinding ? "绑定新账户" : "注册"}
       />
       <Segment
         aria-label="注册验证方式"
@@ -157,7 +158,7 @@ export function RegisterForm() {
               正在创建
             </>
           ) : (
-            "创建账户"
+            wechatBinding ? "创建账户并绑定微信" : "创建账户"
           )}
         </Button>
       </Form>
@@ -166,7 +167,7 @@ export function RegisterForm() {
         已有账户？{" "}
         <Link
           className="font-medium text-[#2c6b88]"
-          href={nextPath ? `/auth/login?next=${encodeURIComponent(nextPath)}` : "/auth/login"}
+          href={wechatBinding ? `/auth/wechat/bind?mode=login${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}` : nextPath ? `/auth/login?next=${encodeURIComponent(nextPath)}` : "/auth/login"}
         >
           登录
         </Link>
