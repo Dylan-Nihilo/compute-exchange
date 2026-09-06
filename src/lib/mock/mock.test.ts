@@ -500,6 +500,7 @@ describe("mock authentication service", () => {
         legalName: "林晓",
         identityNumber: "110105199001011234",
         faceVerified: true,
+        sensitiveDataAgreed: true,
       },
       storage,
     );
@@ -537,6 +538,7 @@ describe("mock authentication service", () => {
       account.id,
       {
         kind: "enterprise",
+        sensitiveDataAgreed: true,
         companyName: "北辰科技有限公司",
         creditCode: "91310110MA1ABCDE12",
         representative: "林晓",
@@ -592,6 +594,7 @@ describe("mock authentication service", () => {
         legalName: "林晓",
         identityNumber: "110105199001011234",
         faceVerified: true,
+        sensitiveDataAgreed: true,
       },
       storage,
     );

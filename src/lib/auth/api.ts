@@ -178,10 +178,12 @@ export async function verifyAccountApi(
   }
 
   const {kind} = parsed.data;
-  let body: Record<string, string> | FormData;
+  let body: Record<string, string | boolean> | FormData;
   if (kind === "personal") {
     body = {
       real_name: parsed.data.legalName,
+      sensitive_data_agreed: parsed.data.sensitiveDataAgreed,
+      privacy_version: LEGAL_VERSION,
       id_card: parsed.data.identityNumber,
     };
   } else {
@@ -189,6 +191,8 @@ export async function verifyAccountApi(
       throw new Error("请选择营业执照文件");
     }
     const formData = new FormData();
+    formData.set("sensitive_data_agreed", String(parsed.data.sensitiveDataAgreed));
+    formData.set("privacy_version", LEGAL_VERSION);
     formData.set("enterprise_name", parsed.data.companyName);
     formData.set("uscc", parsed.data.creditCode);
     formData.set("legal_person", parsed.data.representative);

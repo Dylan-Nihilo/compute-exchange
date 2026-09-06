@@ -230,6 +230,7 @@ describe("authentication API adapter", () => {
         legalName: "测试用户",
         identityNumber: "110101199001011234",
         faceVerified: true,
+        sensitiveDataAgreed: true,
       },
       "9",
       async (input, init) => {
@@ -260,7 +261,7 @@ describe("authentication API adapter", () => {
 
     assert.deepEqual(requests.find(({path}) => path === "/api/auth/kyc/personal"), {
       path: "/api/auth/kyc/personal",
-      body: {real_name: "测试用户", id_card: "110101199001011234"},
+      body: {real_name: "测试用户", id_card: "110101199001011234", sensitive_data_agreed: true, privacy_version: "2026-09-06.1"},
     });
     assert.equal(result.verificationStatus, "verified");
   });
@@ -273,6 +274,7 @@ describe("authentication API adapter", () => {
     await verifyAccountApi(
       {
         kind: "enterprise",
+        sensitiveDataAgreed: true,
         companyName: "测试企业",
         creditCode: "91110000123456789X",
         representative: "测试法人",
@@ -308,6 +310,8 @@ describe("authentication API adapter", () => {
     );
 
     assert.ok(requestBody instanceof FormData);
+    assert.equal(requestBody.get("sensitive_data_agreed"), "true");
+    assert.equal(requestBody.get("privacy_version"), "2026-09-06.1");
     assert.equal(requestBody.get("enterprise_name"), "测试企业");
     assert.equal(requestBody.get("uscc"), "91110000123456789X");
     assert.equal(requestBody.get("legal_person"), "测试法人");
@@ -329,6 +333,7 @@ describe("authentication API adapter", () => {
     };
     const validInput = {
       kind: "enterprise" as const,
+      sensitiveDataAgreed: true as const,
       companyName: "测试企业",
       creditCode: "91110000123456789X",
       representative: "测试法人",
@@ -376,4 +381,15 @@ it("binds WeChat after SMS authentication and preserves the existing supplier ac
     if (String(input) === "/api/auth/wechat/bind") return Response.json({code: 40900, message: "微信已绑定其他账户"});
     return Response.json({code: 0, message: "success", data: {user}});
   }), /微信已绑定其他账户/);
+});
+
+
+it("does not send KYC data without separate sensitive-data consent", async () => {
+  let calls = 0;
+  const input = {kind: "personal", legalName: "Consent test", identityNumber: "110101199001011234", faceVerified: true} as Parameters<typeof verifyAccountApi>[0];
+  await assert.rejects(verifyAccountApi(input, "9", async () => {
+    calls += 1;
+    return Response.json({code: 0, message: "unexpected"});
+  }), /请单独同意/);
+  assert.equal(calls, 0);
 });

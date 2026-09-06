@@ -25,12 +25,14 @@ const businessLicenseFile = z
 export const verificationInputSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("personal"),
+    sensitiveDataAgreed: z.literal(true, {error: "请单独同意认证所需的敏感个人信息处理"}),
     legalName: requiredText,
     identityNumber: identityDocumentNumber,
     faceVerified: z.literal(true, {error: "请确认身份信息真实有效"}),
   }),
   z.object({
     kind: z.literal("enterprise"),
+    sensitiveDataAgreed: z.literal(true, {error: "请单独同意认证所需的敏感个人信息处理"}),
     companyName: requiredText,
     creditCode,
     representative: requiredText,

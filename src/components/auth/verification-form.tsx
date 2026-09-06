@@ -24,6 +24,7 @@ import {
 import {useRouter, useSearchParams} from "next/navigation";
 import {useEffect, useState} from "react";
 
+import {LegalLink} from "@/components/legal/legal-link";
 import {useCurrentAccount, useVerifyAccount} from "@/lib/auth/queries";
 import {
   completedVerificationDestination,
@@ -63,6 +64,7 @@ export function VerificationForm() {
   const mutation = useVerifyAccount(account?.id ?? null);
   const activeRole = useAuthStore((state) => state.activeRole);
   const shouldReduceMotion = useReducedMotion();
+  const [sensitiveDataAgreed, setSensitiveDataAgreed] = useState(false);
   const [kind, setKind] = useState<"personal" | "enterprise">("personal");
   const [companyName, setCompanyName] = useState("");
   const [creditCode, setCreditCode] = useState("");
@@ -134,6 +136,7 @@ export function VerificationForm() {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    if (!sensitiveDataAgreed) return;
     const faceVerified = form.get("faceVerified") === "on";
     if (kind === "personal" && !faceVerified) return;
     if (kind === "enterprise" && !licenseFile) {
@@ -145,12 +148,14 @@ export function VerificationForm() {
       kind === "personal"
         ? {
             kind,
+            sensitiveDataAgreed: true as const,
             legalName: String(form.get("legalName")),
             identityNumber: String(form.get("identityNumber")),
             faceVerified: true as const,
           }
         : {
             kind,
+            sensitiveDataAgreed: true as const,
             companyName: String(form.get("companyName")),
             creditCode: String(form.get("creditCode")),
             representative: String(form.get("representative")),
@@ -195,6 +200,7 @@ export function VerificationForm() {
           className="w-full rounded-[14px] border border-border bg-surface-secondary p-1.5 [&_[data-slot=segment-indicator]]:rounded-[10px] [&_[data-slot=segment-indicator]]:border [&_[data-slot=segment-indicator]]:border-border [&_[data-slot=segment-indicator]]:bg-surface [&_[data-slot=segment-indicator]]:shadow-sm [&_[data-slot=segment-item]]:h-11 [&_[data-slot=segment-item]]:flex-1 [&_[data-slot=segment-item]]:gap-2 [&_[data-slot=segment-item]]:rounded-[10px] [&_[data-slot=segment-item]]:text-sm [&_[data-slot=segment-item]]:font-medium"
           onSelectionChange={(key) => {
             setKind(key as "personal" | "enterprise");
+            setSensitiveDataAgreed(false);
             setLicenseError("");
             mutation.reset();
           }}
@@ -515,6 +521,21 @@ export function VerificationForm() {
             </motion.div>
           )}
         </AnimatePresence>
+        <section aria-labelledby="kyc-privacy-title" className="mt-7 border-t border-border pt-5">
+          <h2 className="text-sm font-semibold" id="kyc-privacy-title">认证信息处理告知</h2>
+          <p className="mt-3 text-sm leading-7 text-muted">
+            {kind === "personal" ? "个人认证需要处理您的姓名和身份证号。" : "企业认证需要处理企业及法定代表人信息、身份证号、营业执照和银行账户资料；请确认已取得相关人员授权。"}
+            身份证号等敏感个人信息用于核对申请主体和管理交易权限，泄露或滥用可能影响人身、财产安全。
+            拒绝处理将无法完成本项认证，但不影响浏览公开商品。处理范围及您的权利见<LegalLink document="privacy" />。
+          </p>
+          <Checkbox className="mt-4 text-sm" isRequired isSelected={sensitiveDataAgreed} onChange={setSensitiveDataAgreed} variant="secondary">
+            <Checkbox.Content>
+              <Checkbox.Control><Checkbox.Indicator /></Checkbox.Control>
+              <span>我已阅读上述告知，单独同意为本项认证处理所提交的敏感个人信息</span>
+            </Checkbox.Content>
+            <FieldError />
+          </Checkbox>
+        </section>
         <footer className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
           <Link
             className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] px-3 text-sm font-medium text-muted no-underline transition-colors duration-200 hover:bg-surface-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
