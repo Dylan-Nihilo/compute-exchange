@@ -1,140 +1,132 @@
 "use client";
 
 import Image from "next/image";
-import {useEffect, useRef, useState, type CSSProperties} from "react";
+import {useEffect, useRef, useState} from "react";
 
 const STILL = "/compute-spot/hero-motion-poster-ec8e5d92.webp";
 const VIDEO = "/compute-spot/hero-motion-4k-88aaafcc.mp4";
-const HERO_READY_EVENT = "omnis:hero-ready";
-const LOADER_LETTERS = [..."OMNIS"];
-const LOADER_BLINDS = Array.from({length: 12});
+// The unchanged 7.42 MB / 4.5 s clip needs more time than a compressed preview.
+const MEDIA_TIMEOUT_MS = 20_000;
 
-type LoaderDelayStyle = CSSProperties & {
-  "--loader-delay": string;
-};
-
-function startPlayback(video: HTMLVideoElement | null) {
-  if (video) void video.play().catch(() => undefined);
-}
-
-/**
- * Hero backdrop: looping motion video lifted from Figma node 373:759,
- * with a matching first-frame poster while playback starts.
- */
 export function HeroBackground() {
   const posterRef = useRef<HTMLImageElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [motionEnabled, setMotionEnabled] = useState<boolean | null>(null);
+  const [motionEnabled, setMotionEnabled] = useState(false);
   const [posterReady, setPosterReady] = useState(false);
-  const [videoState, setVideoState] = useState<
-    "pending" | "playing" | "failed"
-  >("pending");
+  const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const connection = (navigator as Navigator & {connection?: {saveData?: boolean}}).connection;
+    const update = () => setMotionEnabled(!preference.matches && !connection?.saveData);
+    update();
     setPosterReady(Boolean(posterRef.current?.complete));
-    setMotionEnabled(
-      !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    );
-  }, []);
-
-  useEffect(() => {
-    if (motionEnabled) startPlayback(videoRef.current);
-  }, [motionEnabled]);
-
-  const mediaReady =
-    posterReady &&
-    (motionEnabled === false || videoState !== "pending");
-
-  useEffect(() => {
-    if (mediaReady) window.dispatchEvent(new Event(HERO_READY_EVENT));
-  }, [mediaReady]);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden">
-      <div aria-hidden className="absolute inset-0">
-        <Image
-          ref={posterRef}
-          alt=""
-          className="object-cover"
-          fill
-          onError={() => setPosterReady(true)}
-          onLoad={() => setPosterReady(true)}
-          priority
-          sizes="100vw"
-          src={STILL}
-        />
-        {motionEnabled ? (
-          <video
-            ref={videoRef}
-            data-hero-motion-video
-            className={`absolute inset-0 size-full object-cover transition-opacity duration-500 motion-reduce:transition-none ${
-              videoState === "playing" ? "opacity-100" : "opacity-0"
-            }`}
-            autoPlay
-            muted
-            loop
-            onCanPlay={() => startPlayback(videoRef.current)}
-            onError={() => setVideoState("failed")}
-            onPlaying={() => setVideoState("playing")}
-            playsInline
-            preload="auto"
-          >
-            <source src={VIDEO} type="video/mp4" />
-          </video>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-export function HeroSpectrumLoader() {
-  // 无入场下限: hero 媒体就绪(poster 加载完 + 视频起播/失败/reduced-motion)即隐藏,
-  // 不保证字母动画播完一轮。
-  const [heroReady, setHeroReady] = useState(false);
-  const isReady = heroReady;
-
-  useEffect(() => {
-    const handleReady = () => setHeroReady(true);
-    window.addEventListener(HERO_READY_EVENT, handleReady, {once: true});
-
+    // A stalled poster must not hold the independent video request indefinitely.
+    const posterDeadline = window.setTimeout(() => setPosterReady(true), 2_000);
+    preference.addEventListener("change", update);
     return () => {
-      window.removeEventListener(HERO_READY_EVENT, handleReady);
+      window.clearTimeout(posterDeadline);
+      preference.removeEventListener("change", update);
     };
   }, []);
 
+  useEffect(() => {
+    setPlaying(false);
+    const element = videoRef.current;
+    if (!motionEnabled || !posterReady || !element) return;
+    const video = element;
+
+    const controller = new AbortController();
+    let disposed = false;
+    let objectUrl: string | undefined;
+    let frame: number | undefined;
+    let revealed = false;
+    const timer = window.setTimeout(fail, MEDIA_TIMEOUT_MS);
+
+    function cleanup() {
+      if (disposed) return;
+      disposed = true;
+      controller.abort();
+      window.clearTimeout(timer);
+      if (frame !== undefined) video.cancelVideoFrameCallback(frame);
+      video.removeEventListener("playing", firstFrame);
+      video.removeEventListener("timeupdate", fallbackFrame);
+      video.removeEventListener("error", fail);
+      document.removeEventListener("visibilitychange", visibility);
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    }
+    function fail() {
+      if (disposed) return;
+      setPlaying(false);
+      cleanup();
+    }
+    function reveal() {
+      if (disposed || video.paused || document.hidden) return;
+      revealed = true;
+      window.clearTimeout(timer);
+      setPlaying(true);
+    }
+    function firstFrame() {
+      if (revealed || disposed) return;
+      if (typeof video.requestVideoFrameCallback === "function") {
+        if (frame !== undefined) video.cancelVideoFrameCallback(frame);
+        frame = video.requestVideoFrameCallback(reveal);
+      }
+    }
+    function fallbackFrame() {
+      if (typeof video.requestVideoFrameCallback !== "function" && video.currentTime > 0 && video.readyState >= 2) reveal();
+    }
+    function visibility() {
+      if (document.hidden) video.pause();
+      else if (objectUrl && !disposed) void video.play().catch(() => { if (!document.hidden) fail(); });
+    }
+
+    video.addEventListener("playing", firstFrame);
+    video.addEventListener("timeupdate", fallbackFrame);
+    video.addEventListener("error", fail);
+    document.addEventListener("visibilitychange", visibility);
+    // ponytail: one short 7.42 MB clip in memory; revisit full-file buffering for longer videos.
+    void (async () => {
+      const response = await fetch(VIDEO, {signal: controller.signal});
+      if (!response.ok) throw new Error("Video unavailable");
+      const blob = await response.blob();
+      if (disposed) return;
+      if (!blob.size) throw new Error("Empty video");
+      objectUrl = URL.createObjectURL(blob);
+      video.src = objectUrl;
+      visibility();
+    })().catch(fail);
+
+    return cleanup;
+  }, [motionEnabled, posterReady]);
+
   return (
-    <div
-      aria-hidden={isReady}
-      className="hero-spectrum-loader"
-      data-state={isReady ? "ready" : "loading"}
-    >
-      <div aria-hidden className="hero-spectrum-loader__curtain">
-        {LOADER_BLINDS.map((_, index) => (
-          <span
-            className="hero-spectrum-loader__blind"
-            key={index}
-            style={{"--loader-delay": `${index * 18}ms`} as LoaderDelayStyle}
-          />
-        ))}
-      </div>
-      <div
-        aria-label="正在加载首页"
-        aria-live="polite"
-        className="hero-spectrum-loader__signal"
-        role="status"
-      >
-        <div aria-hidden className="hero-spectrum-loader__spectrum" />
-        {LOADER_LETTERS.map((letter, index) => (
-          <span
-            aria-hidden
-            className="hero-spectrum-loader__letter"
-            key={letter}
-            style={{"--loader-delay": `${index * 90}ms`} as LoaderDelayStyle}
-          >
-            {letter}
-          </span>
-        ))}
-      </div>
+    <div aria-hidden className="absolute inset-0 overflow-hidden">
+      <Image
+        ref={posterRef}
+        alt=""
+        className="object-cover"
+        fill
+        onError={() => setPosterReady(true)}
+        onLoad={() => setPosterReady(true)}
+        priority
+        sizes="100vw"
+        src={STILL}
+      />
+      {motionEnabled ? (
+        <video
+          ref={videoRef}
+          data-hero-motion-video
+          className={`absolute inset-0 size-full object-cover transition-opacity duration-250 motion-reduce:transition-none ${playing ? "opacity-100" : "opacity-0"}`}
+          muted
+          loop
+          playsInline
+          preload="none"
+        />
+      ) : null}
     </div>
   );
 }

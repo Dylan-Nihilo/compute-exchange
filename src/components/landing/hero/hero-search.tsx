@@ -28,13 +28,16 @@ export function HeroSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const prefersReducedMotion = useReducedMotion();
   const [isFocused, setIsFocused] = useState(false);
+  const [motionReady, setMotionReady] = useState(false);
   const [hasValue, setHasValue] = useState(false);
   const [exampleIndex, setExampleIndex] = useState(0);
 
   const showAnimatedPlaceholder =
-    !prefersReducedMotion && !isFocused && !hasValue;
+    motionReady && !prefersReducedMotion && !isFocused && !hasValue;
   const showStaticPlaceholder =
-    !hasValue && (isFocused || prefersReducedMotion);
+    !hasValue && (!motionReady || isFocused || prefersReducedMotion);
+
+  useEffect(() => setMotionReady(true), []);
 
   useEffect(() => {
     if (!showAnimatedPlaceholder) return;
@@ -56,6 +59,7 @@ export function HeroSearch() {
 
   return (
     <form
+      action={search.target}
       role="search"
       onSubmit={handleSubmit}
       className="flex h-[3.25rem] w-full max-w-[33.125rem] items-center rounded-[2.1875rem] border border-cs-ink/5 bg-white/80 p-1.5 backdrop-blur-sm"
@@ -116,7 +120,7 @@ export function HeroSearch() {
             <motion.div
               key="static-placeholder"
               aria-hidden
-              initial={{opacity: 0}}
+              initial={false}
               animate={{opacity: 1}}
               exit={{opacity: 0}}
               transition={{
