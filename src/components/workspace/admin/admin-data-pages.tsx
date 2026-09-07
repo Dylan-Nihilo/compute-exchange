@@ -3,6 +3,7 @@
 import {Button} from "@heroui/react";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Check, CircleOff, ShieldBan} from "lucide";
+import Link from "next/link";
 
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {
@@ -25,7 +26,7 @@ import {
 import {useCurrentAccount} from "@/lib/auth/queries";
 import {formatDateTime} from "@/lib/format/date";
 import {notify} from "@/lib/notify";
-import {pricingModeCopy, productTypeCopy} from "@/lib/supplier-workspace";
+import {pricingModeCopy, productStatusCopy, productTypeCopy} from "@/lib/supplier-workspace";
 
 import {
   AdminPage,
@@ -47,7 +48,7 @@ export function AdminProducts() {
     onError: (error) => notify.error(messageFor(error)),
   });
   return (
-    <AdminPage title="商品管理" eyebrow="Catalog" description="查看平台商品状态，并对在售商品执行下架。">
+    <AdminPage title="商品管理" eyebrow="Catalog" description="查看商品规格与状态，审核待上架商品或下架在售商品。">
       <AdminPanel className="overflow-hidden p-3 sm:p-4">
         <AdminTableShell {...tableState(query, "暂无商品", "供给方发布的商品会显示在这里。") }>
           {query.data?.items.length ? <table className={adminTableClass}>
@@ -56,10 +57,10 @@ export function AdminProducts() {
             <tbody>{query.data.items.map((item) => <tr key={item.id}>
               <th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.gpu_model || `资源 #${item.id}`}</th>
               <td>UID-{item.supplier_id}</td><td>{productTypeCopy[item.product_type] ?? item.product_type}</td>
-              <td>{item.card_count ? `${item.card_count} 卡` : `${item.rack_count ?? 0} 机柜`}</td>
+              <td>{item.product_type === "card_rental" ? `${item.card_count} 卡` : item.product_type === "colocation" ? `${item.rack_count ?? "—"} 机柜` : `${item.machine_count ?? "—"} 台`}</td>
               <td>{item.price_negotiable ? "面议" : `${money.format(item.unit_price / 100)} / ${pricingModeCopy[item.pricing_mode] ?? item.pricing_mode}`}</td>
-              <td><StatusBadge status={item.status} /></td>
-              <td className="text-right">{item.status === "active" ? <Button isPending={mutation.isPending} size="sm" variant="tertiary" onPress={() => mutation.mutate(item.id)}><InteractiveIcon icon={CircleOff} size={14} />下架</Button> : "—"}</td>
+              <td><StatusBadge status={item.status} label={productStatusCopy[item.status]} /></td>
+              <td className="text-right">{item.status === "pending" ? <Link className="inline-flex min-h-9 items-center rounded-lg px-3 text-sm font-medium text-accent focus-visible:outline-2 focus-visible:outline-offset-2" href="/admin/reviews?tab=products">去审核</Link> : item.status === "active" ? <Button isPending={mutation.isPending} size="sm" variant="tertiary" onPress={() => mutation.mutate(item.id)}><InteractiveIcon icon={CircleOff} size={14} />下架</Button> : "—"}</td>
             </tr>)}</tbody>
           </table> : null}
         </AdminTableShell>

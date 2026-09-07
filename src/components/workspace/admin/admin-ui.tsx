@@ -123,7 +123,7 @@ export function AdminTableShell({
   return <div className="omnis-scrollbar-x overflow-x-auto">{children}</div>;
 }
 
-export function StatusBadge({status}: {status: string}) {
+export function StatusBadge({status, label}: {status: string; label?: string}) {
   const copy: Record<string, string> = {
     active: "进行中",
     new: "待跟进",
@@ -157,7 +157,7 @@ export function StatusBadge({status}: {status: string}) {
         : "bg-[#edf2f4] text-[#647c88]";
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${tone}`}>
-      {copy[status] ?? status}
+      {label ?? copy[status] ?? status}
     </span>
   );
 }

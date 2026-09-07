@@ -15,14 +15,10 @@ const input = {
   bankName: "招商银行上海张江支行",
   accountName: "万象算力（上海）测试有限公司",
   accountNumber: "6225888888888888",
-  facilityAddress: "上海市浦东新区张江路 88 号",
-  hasIdcLicense: true as const,
-  powerDescription: "双路市电与 UPS 保障",
-  coolingDescription: "液冷与风冷混合系统",
 };
 
 describe("supplier application API", () => {
-  it("submits the application through the authenticated BFF", async () => {
+  it("submits supplier certification without facility registration through the authenticated BFF", async () => {
     await submitSupplierApplication(input, "12", async (request, init) => {
       if (String(request) === "/api/auth/me") {
         return Response.json({
@@ -35,6 +31,7 @@ describe("supplier application API", () => {
       assert.equal(init?.method, "POST");
       assert.ok(init?.body instanceof FormData);
       assert.equal(init.body.get("company_name"), input.companyName);
+      for (const key of ["facility_address", "has_idc_license", "power_description", "cooling_description"]) assert.equal(init.body.has(key), false);
       const file = init.body.get("business_license");
       assert.ok(file instanceof File);
       assert.equal(await file.text(), "supplier-license");

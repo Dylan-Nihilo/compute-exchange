@@ -613,10 +613,6 @@ describe("mock authentication service", () => {
         bankName: "示例银行",
         accountName: "北辰智算有限公司",
         accountNumber: "6222021234567890123",
-        facilityAddress: "上海市嘉定区算力路 1 号",
-        hasIdcLicense: true,
-        powerDescription: "双路市电与 UPS",
-        coolingDescription: "液冷与风冷混合",
       },
       storage,
     );
@@ -631,7 +627,7 @@ describe("mock authentication service", () => {
       qualification?.legalRepresentative?.idDocumentHint,
       "110***********1234",
     );
-    assert.equal(qualification?.facilityProfile?.hasIdcLicense, true);
+    assert.equal(qualification?.facilityProfile, null);
     assert.equal(qualification?.settlementAccount?.accountNumberHint, "****0123");
     assert.deepEqual(database.accounts.find(({id}) => id === account.id)?.roles, ["buyer"]);
     assert.equal(JSON.stringify(qualification).includes("110105199001011234"), false);
@@ -650,10 +646,6 @@ describe("mock authentication service", () => {
           bankName: "示例银行",
           accountName: "北辰智算有限公司",
           accountNumber: "6222021234567890123",
-          facilityAddress: "上海市嘉定区算力路 1 号",
-          hasIdcLicense: true,
-          powerDescription: "双路市电与 UPS",
-          coolingDescription: "液冷与风冷混合",
         },
         storage,
       ),
@@ -688,10 +680,6 @@ describe("mock authentication service", () => {
         bankName: "招商银行股份有限公司上海张江支行",
         accountName: "万象算力（上海）测试有限公司",
         accountNumber: "3105012345678901234",
-        facilityAddress: "上海市浦东新区张江路 88 号 A1 数据中心",
-        hasIdcLicense: true,
-        powerDescription: "10kV 双路市电，2N UPS 冗余",
-        coolingDescription: "冷冻水精密空调，N+1 冗余",
       },
       storage,
     );

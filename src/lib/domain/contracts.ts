@@ -218,17 +218,6 @@ export const qualificationSchema = z
       });
     }
     if (
-      qualification.kind === "supplier" &&
-      (!qualification.facilityProfile ||
-        !qualification.facilityProfile.hasIdcLicense)
-    ) {
-      context.addIssue({
-        code: "custom",
-        message: "Approved suppliers require a licensed facility profile",
-        path: ["facilityProfile"],
-      });
-    }
-    if (
       (qualification.kind === "supplier" || qualification.kind === "vendor") &&
       (!qualification.legalRepresentative || !qualification.settlementAccount)
     ) {

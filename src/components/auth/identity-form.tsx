@@ -9,7 +9,6 @@ import {
   Label,
   Link,
   Spinner,
-  TextArea,
   TextField,
   Typography,
 } from "@heroui/react";
@@ -41,7 +40,6 @@ const fieldClassName = "gap-2";
 const labelClassName = "text-[13px] font-semibold text-foreground";
 const inputClassName =
   "min-h-12 rounded-[12px] border border-border bg-surface-secondary/55 px-3.5 text-[15px] text-foreground shadow-none outline-none transition-[border-color,background-color,box-shadow] duration-200 hover:border-border-secondary focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent/10 data-[invalid]:border-danger data-[invalid]:bg-danger/5";
-const textAreaClassName = `${inputClassName} min-h-[104px] py-3`;
 const checkboxClassName =
   "rounded-[12px] border border-border bg-surface-secondary/55 px-4 py-3.5 text-sm text-foreground transition-colors hover:border-border-secondary";
 const motionEase = [0.22, 1, 0.36, 1] as const;
@@ -83,8 +81,6 @@ export function IdentityForm() {
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licenseFileName, setLicenseFileName] = useState("");
   const [licenseError, setLicenseError] = useState("");
-  const [hasIdcLicense, setHasIdcLicense] = useState(false);
-  const [idcLicenseError, setIdcLicenseError] = useState("");
   const scrollY = useMotionValue(0);
   const titleScale = useTransform(
     scrollY,
@@ -212,12 +208,6 @@ export function IdentityForm() {
       document.getElementById("identity-license")?.focus();
       return;
     }
-    if (!hasIdcLicense) {
-      setIdcLicenseError("请确认已具备 IDC 经营资质");
-      document.getElementById("has-idc-license")?.focus();
-      return;
-    }
-
     const common = {
       companyName: String(form.get("companyName")),
       creditCode: String(form.get("creditCode")),
@@ -233,10 +223,6 @@ export function IdentityForm() {
     const input: IdentityApplicationInput = {
       ...common,
       requestedRole: "supplier",
-      facilityAddress: String(form.get("facilityAddress")),
-      hasIdcLicense: true,
-      powerDescription: String(form.get("powerDescription")),
-      coolingDescription: String(form.get("coolingDescription")),
     };
 
     await mutation
@@ -256,7 +242,7 @@ export function IdentityForm() {
             className="text-[28px] leading-10 tracking-[-0.035em] text-[#0b263a]"
             type="h1"
           >
-            成为供给方
+            供给方认证
           </Typography>
         </motion.div>
       </header>
@@ -272,7 +258,7 @@ export function IdentityForm() {
             <header className="mb-5 flex items-center gap-2.5">
               <InteractiveIcon icon={ServerCog} size={18} />
               <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
-                供给方资料
+                企业资料
               </h2>
             </header>
             <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
@@ -500,116 +486,6 @@ export function IdentityForm() {
               )}
             </div>
           </section>
-
-          <motion.section
-            animate={{opacity: 1, y: 0}}
-            className="mt-8 border-t border-border pt-6"
-            initial={{opacity: 0, y: shouldReduceMotion ? 0 : 8}}
-            transition={{
-              duration: shouldReduceMotion ? 0.1 : 0.28,
-              ease: motionEase,
-            }}
-          >
-            <header className="mb-5 flex items-center gap-2.5">
-              <InteractiveIcon icon={ServerCog} size={18} />
-              <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
-                机房能力
-              </h2>
-            </header>
-            <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">
-              <TextField
-                className={`${fieldClassName} sm:col-span-2`}
-                fullWidth
-                isRequired
-                name="facilityAddress"
-                onChange={resetSubmitError}
-                validate={requiredField("机房地址")}
-                variant="secondary"
-              >
-                <Label className={labelClassName}>机房地址</Label>
-                <Input
-                  autoComplete="street-address"
-                  className={inputClassName}
-                  id="facility-address"
-                  placeholder="请输入机房详细地址"
-                />
-                <FieldError />
-              </TextField>
-              <div className="sm:col-span-2">
-                <Checkbox
-                  aria-describedby={
-                    idcLicenseError ? "has-idc-license-error" : undefined
-                  }
-                  aria-invalid={Boolean(idcLicenseError)}
-                  className={`${checkboxClassName} w-full ${
-                    idcLicenseError ? "border-danger/50 bg-danger/5" : ""
-                  }`}
-                  id="has-idc-license"
-                  isRequired
-                  isSelected={hasIdcLicense}
-                  name="hasIdcLicense"
-                  onChange={(selected) => {
-                    setHasIdcLicense(selected);
-                    setIdcLicenseError("");
-                    resetSubmitError();
-                  }}
-                  variant="secondary"
-                >
-                  <Checkbox.Content>
-                    <Checkbox.Control>
-                      <Checkbox.Indicator />
-                    </Checkbox.Control>
-                    <span>我确认已具备 IDC 经营资质</span>
-                  </Checkbox.Content>
-                </Checkbox>
-                {idcLicenseError ? (
-                  <p
-                    className="mt-2 text-xs leading-5 text-danger"
-                    id="has-idc-license-error"
-                    role="alert"
-                  >
-                    {idcLicenseError}
-                  </p>
-                ) : null}
-              </div>
-              <TextField
-                className={fieldClassName}
-                fullWidth
-                isRequired
-                name="powerDescription"
-                onChange={resetSubmitError}
-                validate={requiredField("供配电说明")}
-                variant="secondary"
-              >
-                <Label className={labelClassName}>供配电说明</Label>
-                <TextArea
-                  className={textAreaClassName}
-                  id="power-description"
-                  placeholder="容量、冗余与供电等级"
-                  rows={3}
-                />
-                <FieldError />
-              </TextField>
-              <TextField
-                className={fieldClassName}
-                fullWidth
-                isRequired
-                name="coolingDescription"
-                onChange={resetSubmitError}
-                validate={requiredField("制冷说明")}
-                variant="secondary"
-              >
-                <Label className={labelClassName}>制冷说明</Label>
-                <TextArea
-                  className={textAreaClassName}
-                  id="cooling-description"
-                  placeholder="制冷方式与保障能力"
-                  rows={3}
-                />
-                <FieldError />
-              </TextField>
-            </div>
-          </motion.section>
 
           <footer className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
             <Link

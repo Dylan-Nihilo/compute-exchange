@@ -482,7 +482,7 @@ describe("domain contract validation", () => {
         id: "qualification-2",
         accountId: "supplier-2",
         kind: "supplier",
-        subjectName: "无证机房",
+        subjectName: "算力供应企业",
         unifiedSocialCreditCode: "91310000NOIDC",
         region: "上海",
         contactName: "李四",
@@ -492,16 +492,11 @@ describe("domain contract validation", () => {
           idDocumentHint: "310***********001",
         },
         settlementAccount: {
-          accountName: "无证机房",
+          accountName: "算力供应企业",
           bankName: "示例银行",
           accountNumberHint: "****0001",
         },
-        facilityProfile: {
-          address: "上海市",
-          hasIdcLicense: false,
-          powerDescription: "双路供电",
-          coolingDescription: "风冷",
-        },
+        facilityProfile: null,
         documents: [
           {
             kind: "营业执照",
@@ -519,7 +514,7 @@ describe("domain contract validation", () => {
         merchantOnboardingStatus: "pending",
         expiresAt: null,
       }).success,
-      false,
+      true,
     );
   });
 

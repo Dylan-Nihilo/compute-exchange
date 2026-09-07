@@ -21,7 +21,7 @@ import {
 } from "@/lib/admin-workspace";
 import {formatDateTime} from "@/lib/format/date";
 import {notify} from "@/lib/notify";
-import {pricingModeCopy, productTypeCopy} from "@/lib/supplier-workspace";
+import {pricingModeCopy, productStatusCopy, productTypeCopy} from "@/lib/supplier-workspace";
 
 import {
   AdminPage,
@@ -50,9 +50,9 @@ const deliveryModeCopy: Record<string, string> = {
   whole_rack: "整机柜",
 };
 
-export function AdminReviews() {
+export function AdminReviews({initialTab = "qualifications"}: {initialTab?: ReviewTab}) {
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<ReviewTab>("qualifications");
+  const [tab, setTab] = useState<ReviewTab>(initialTab);
   const [qualificationView, setQualificationView] = useState<QualificationView>("pending");
   const [decision, setDecision] = useState<Decision>(null);
   const [inspecting, setInspecting] = useState<AdminProduct | null>(null);
@@ -369,13 +369,13 @@ function ProductDetailDrawer({
                     <ProductDetailMetric label="区域" value={product.region || "—"} />
                     <div>
                       <dt className="text-xs text-muted">状态</dt>
-                      <dd className="mt-2"><StatusBadge status={product.status} /></dd>
+                      <dd className="mt-2"><StatusBadge status={product.status} label={productStatusCopy[product.status]} /></dd>
                     </div>
                   </dl>
 
                   <ProductDetailSection title="资源规格">
                     <ProductDetailRow label="GPU 型号" value={product.gpu_model || "—"} />
-                    <ProductDetailRow label="卡数" value={`${product.card_count} 张`} />
+                    {product.product_type === "card_rental" ? <ProductDetailRow label="卡数" value={`${product.card_count} 张`} /> : null}
                     {product.machine_count ? <ProductDetailRow label="机器数量" value={`${product.machine_count} 台`} /> : null}
                     {product.total_pflops_approx ? <ProductDetailRow label="总算力" value={`${product.total_pflops_approx} PFLOPS`} /> : null}
                     {product.power_capacity_kw ? <ProductDetailRow label="电力容量" value={`${product.power_capacity_kw} kW`} /> : null}
@@ -504,10 +504,10 @@ function QualificationQueue({
                       <dl className="mt-4 grid gap-x-8 gap-y-3 rounded-[14px] bg-[#f3f8fa] p-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
                         <div><dt className="text-xs text-[#8aa0ab]">法定代表人</dt><dd className="mt-1 text-[#35566a]">{item.application.representative}</dd></div>
                         <div><dt className="text-xs text-[#8aa0ab]">业务联系人</dt><dd className="mt-1 text-[#35566a]">{item.application.contact_method}</dd></div>
-                        <div><dt className="text-xs text-[#8aa0ab]">机房地址</dt><dd className="mt-1 text-[#35566a]">{item.application.facility_address}</dd></div>
+                        {item.application.facility_address ? <div><dt className="text-xs text-[#8aa0ab]">机房地址</dt><dd className="mt-1 text-[#35566a]">{item.application.facility_address}</dd></div> : null}
                         <div><dt className="text-xs text-[#8aa0ab]">开户银行</dt><dd className="mt-1 text-[#35566a]">{item.application.bank_name}</dd></div>
-                        <div><dt className="text-xs text-[#8aa0ab]">供电说明</dt><dd className="mt-1 text-[#35566a]">{item.application.power_description}</dd></div>
-                        <div><dt className="text-xs text-[#8aa0ab]">散热说明</dt><dd className="mt-1 text-[#35566a]">{item.application.cooling_description}</dd></div>
+                        {item.application.power_description ? <div><dt className="text-xs text-[#8aa0ab]">供电说明</dt><dd className="mt-1 text-[#35566a]">{item.application.power_description}</dd></div> : null}
+                        {item.application.cooling_description ? <div><dt className="text-xs text-[#8aa0ab]">散热说明</dt><dd className="mt-1 text-[#35566a]">{item.application.cooling_description}</dd></div> : null}
                       </dl>
                     ) : null}
                     {item.cert_url ? (
@@ -587,7 +587,7 @@ function RejectBar({
 
 function qualificationType(value: string) {
   const copy: Record<string, string> = {
-    supplier_onboarding: "供给方入驻",
+    supplier_onboarding: "供给方认证",
     idc_license: "IDC 经营许可证",
     telecom_license: "电信业务资质",
     power_cooling: "电力与散热说明",

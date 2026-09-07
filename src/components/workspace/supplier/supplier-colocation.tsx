@@ -170,7 +170,7 @@ export function SupplierColocation({
         </div>
         <Link
           className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-[#caf842] px-5 text-sm font-medium text-[#10202b] transition-colors hover:bg-[#b8e63d]"
-          href="/console/supplier/products/new"
+          href="/console/supplier/colocation/new"
         >
           发布空心机房
         </Link>

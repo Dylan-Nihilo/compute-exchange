@@ -5,7 +5,7 @@ import {AuthFrame} from "@/components/auth/auth-frame";
 import {AuthRouteBoundary} from "@/components/auth/auth-session";
 import {IdentityForm} from "@/components/auth/identity-form";
 
-export const metadata: Metadata = {title: "成为供给方"};
+export const metadata: Metadata = {title: "供给方认证"};
 
 export default function SupplierApplicationPage() {
   return (

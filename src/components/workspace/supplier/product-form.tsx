@@ -112,11 +112,15 @@ type ProductForm = {
 
 type FormErrors = Partial<Record<keyof ProductForm, string>>;
 
-export function SupplierProductForm({product}: {product?: SupplierProduct}) {
+export function SupplierProductForm({product, category}: {product?: SupplierProduct; category?: "center" | "colocation"}) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [productType, setProductType] = useState<ProductType>((product?.product_type as ProductType) ?? "card_rental");
-  const [pricingMode, setPricingMode] = useState(product?.pricing_mode ?? "hourly");
+  const options = typeOptions.filter(({id}) => product ? id === product.product_type : category ? id === category : id === "card_rental" || id === "outright");
+  const initialType = options[0].id;
+  const [productType, setProductType] = useState<ProductType>(initialType);
+  const [pricingMode, setPricingMode] = useState(product?.pricing_mode ?? pricingByType[initialType][0]?.id ?? "monthly");
+  const returnPath = initialType === "center" ? "/console/supplier/centers" : initialType === "colocation" ? "/console/supplier/colocation" : "/console/supplier/products";
+  const title = initialType === "center" ? "发布算力中心" : initialType === "colocation" ? "登记空心机房" : "发布算力";
   const [form, setForm] = useState<ProductForm>(() => ({
     gpuModel: product?.gpu_model ?? "", cardCount: String(product?.card_count || ""),
     machineCount: String(product?.machine_count ?? ""), totalPflops: product?.total_pflops_approx ?? "",
@@ -126,7 +130,7 @@ export function SupplierProductForm({product}: {product?: SupplierProduct}) {
     deliveryMode: product?.delivery_mode || "bare_metal", availableHours: product?.available_hours ?? "全天 24h",
     unitPrice: product ? String(product.unit_price / 100) : "", stock: String(product?.stock ?? ""),
     minOrder: String(product?.min_order ?? 1), minDuration: String(product?.min_duration ?? 1),
-    region: product?.region ?? "北京", priceNegotiable: product?.price_negotiable ?? false, complianceAgreed: false,
+    region: product?.region ?? "北京", priceNegotiable: product?.price_negotiable ?? initialType === "colocation", complianceAgreed: false,
   }));
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -135,7 +139,7 @@ export function SupplierProductForm({product}: {product?: SupplierProduct}) {
     onSuccess: async () => {
       await queryClient.invalidateQueries({queryKey: ["supplier", "products"]});
       notify.success("商品已提交, 等待平台审核上架");
-      router.push("/console/supplier/products");
+      router.push(returnPath);
     },
     onError: (error) =>
       notify.error(error instanceof Error ? error.message : "商品发布失败"),
@@ -197,11 +201,11 @@ export function SupplierProductForm({product}: {product?: SupplierProduct}) {
       power_capacity_kw: int(form.powerCapacityKw) || undefined,
       rack_count: int(form.rackCount) || undefined,
       price_negotiable: isNegotiable,
-      cpu_spec: form.cpuSpec.trim() || undefined,
-      memory_spec: form.memorySpec.trim() || undefined,
-      storage_spec: form.storageSpec.trim() || undefined,
+      cpu_spec: isColocation ? undefined : form.cpuSpec.trim() || undefined,
+      memory_spec: isColocation ? undefined : form.memorySpec.trim() || undefined,
+      storage_spec: isColocation ? undefined : form.storageSpec.trim() || undefined,
       bandwidth_spec: form.bandwidthSpec.trim() || undefined,
-      delivery_mode: form.deliveryMode,
+      delivery_mode: isColocation ? undefined : form.deliveryMode,
       pricing_mode: pricingMode,
       unit_price: isNegotiable ? 0 : Math.round(Number(form.unitPrice) * 100),
       available_hours: form.availableHours.trim() || undefined,
@@ -228,12 +232,12 @@ export function SupplierProductForm({product}: {product?: SupplierProduct}) {
     <section className="mx-auto flex w-full max-w-[1040px] flex-col gap-5 px-4 pt-6 pb-8 sm:px-6 lg:px-8">
       <WorkspacePageHeader
         actions={(
-          <Button onPress={() => router.push("/console/supplier/products")} variant="tertiary">
+          <Button onPress={() => router.push(returnPath)} variant="tertiary">
             <InteractiveIcon icon={ArrowLeft} size={16} />
             返回商品
           </Button>
         )}
-        title={product ? "修改算力商品" : "发布算力"}
+        title={product ? "修改算力商品" : title}
       />
 
       {product?.rejected_reason ? (
@@ -243,7 +247,7 @@ export function SupplierProductForm({product}: {product?: SupplierProduct}) {
       <fieldset className="min-w-0">
         <legend className="mb-3 text-[13px] font-medium text-[#24495d]">商品类型</legend>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          {typeOptions.map((option) => (
+          {options.map((option) => (
             <button
               aria-pressed={productType === option.id}
               className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#5f8fa3] focus-visible:ring-offset-2 ${
@@ -312,17 +316,19 @@ export function SupplierProductForm({product}: {product?: SupplierProduct}) {
               </Field>
             </>
           ) : null}
-          <PresetField id="product-cpuSpec" label="CPU 规格" onChange={(value) => set("cpuSpec", value)} options={cpuOptions} placeholder="填写 CPU 规格" value={form.cpuSpec} />
-          <PresetField id="product-memorySpec" label="主机内存" onChange={(value) => set("memorySpec", value)} options={memoryOptions} placeholder="填写主机内存" value={form.memorySpec} />
-          <PresetField id="product-storageSpec" label="本地存储" onChange={(value) => set("storageSpec", value)} options={storageOptions} placeholder="填写存储规格" value={form.storageSpec} />
+          {!showColocation ? <>
+            <PresetField id="product-cpuSpec" label="CPU 规格" onChange={(value) => set("cpuSpec", value)} options={cpuOptions} placeholder="填写 CPU 规格" value={form.cpuSpec} />
+            <PresetField id="product-memorySpec" label="主机内存" onChange={(value) => set("memorySpec", value)} options={memoryOptions} placeholder="填写主机内存" value={form.memorySpec} />
+            <PresetField id="product-storageSpec" label="本地存储" onChange={(value) => set("storageSpec", value)} options={storageOptions} placeholder="填写存储规格" value={form.storageSpec} />
+          </> : null}
           <PresetField id="product-bandwidthSpec" label="网络带宽" onChange={(value) => set("bandwidthSpec", value)} options={bandwidthOptions} placeholder="填写网络带宽" value={form.bandwidthSpec} />
-          <Field label="交付方式">
+          {!showColocation ? <Field label="交付方式">
             <div className="flex flex-wrap gap-2 pt-1">
               {deliveryOptions.map((option) => (
                 <ChipButton active={form.deliveryMode === option.id} key={option.id} label={option.label} onClick={() => set("deliveryMode", option.id)} />
               ))}
             </div>
-          </Field>
+          </Field> : null}
           <PresetField id="product-availableHours" label="可售时段" onChange={(value) => set("availableHours", value)} options={availableHourOptions} placeholder="填写可售时段" value={form.availableHours} />
           <Field label="地域 *">
             <div className="flex flex-wrap gap-2 pt-1">
@@ -420,7 +426,7 @@ export function SupplierProductForm({product}: {product?: SupplierProduct}) {
             ) : null}
           </div>
           <div className="flex justify-end gap-3">
-            <Button onPress={() => router.push("/console/supplier/products")} variant="tertiary">
+            <Button onPress={() => router.push(returnPath)} variant="tertiary">
               取消
             </Button>
             <Button isPending={createMutation.isPending} onPress={submit} variant="primary">

@@ -32,10 +32,6 @@ export async function submitSupplierApplication(
   body.set("bank_name", data.bankName);
   body.set("account_name", data.accountName);
   body.set("account_number", data.accountNumber);
-  body.set("facility_address", data.facilityAddress);
-  body.set("has_idc_license", String(data.hasIdcLicense));
-  body.set("power_description", data.powerDescription);
-  body.set("cooling_description", data.coolingDescription);
   await assertAuthenticatedAccountApi(expectedAccountId, fetchImplementation);
   const result = await request("/api/supplier-applications", itemEnvelope, {
     method: "POST",

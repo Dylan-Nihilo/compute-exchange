@@ -82,9 +82,9 @@ const authStages = [
   },
   {
     path: "/supplier/apply",
-    eyebrow: "供给方入驻",
+    eyebrow: "供给方认证",
     title: ["发布资源，", "连接算力需求"],
-    description: "提交机房与经营资质，申请开通供给方工作台。",
+    description: "提交企业资质与结算资料，审核通过后开通供给方工作台。",
     visual: {
       background: "#f4f0e9",
       colors: ["#f5f0e9", "#fbfaf7", "#b68762", "#dfcdb9", "#bdc9a2", "#728a9b"],

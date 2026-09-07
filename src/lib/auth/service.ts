@@ -681,15 +681,7 @@ function createIdentityQualification(
       bankName: input.bankName,
       accountNumberHint: maskAccountNumber(input.accountNumber),
     },
-    facilityProfile:
-      input.requestedRole === "supplier"
-        ? {
-            address: input.facilityAddress,
-            hasIdcLicense: input.hasIdcLicense,
-            powerDescription: input.powerDescription,
-            coolingDescription: input.coolingDescription,
-          }
-        : null,
+    facilityProfile: null,
     documents: [
       {
         kind: "businessLicense",

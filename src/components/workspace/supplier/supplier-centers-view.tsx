@@ -118,7 +118,7 @@ export function SupplierCentersView({
         </div>
         <Button
           className="h-10 min-w-[136px] rounded-xl bg-[#caf842] px-4 text-sm font-medium text-[#10202b] transition-colors hover:bg-[#b8e643]"
-          onPress={() => router.push("/console/supplier/products/new")}
+          onPress={() => router.push("/console/supplier/centers/new")}
         >
           发布算力中心
         </Button>
@@ -287,7 +287,7 @@ export function SupplierCentersView({
             </div>
           ) : (
             <EmptyState
-              description="点击右上角「发布算力中心」, 选择「成熟算力中心」类型提交整站资源。"
+              description="点击右上角「发布算力中心」提交整站资源。"
               title="还没有成熟算力中心"
             />
           )}

@@ -94,7 +94,7 @@ export function SupplierHome({
         <ItemCard>
           <ItemCard.Content>
             <ItemCard.Title>发布算力商品</ItemCard.Title>
-            <ItemCard.Description>零租按卡 / 零售买断 / 算力中心 / 空心机房</ItemCard.Description>
+            <ItemCard.Description>零租按卡 / 零售买断</ItemCard.Description>
           </ItemCard.Content>
           <ItemCard.Action>
             <Link href="/console/supplier/products/new">打开发布页</Link>
