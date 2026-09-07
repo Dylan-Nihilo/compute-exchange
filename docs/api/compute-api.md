@@ -7,24 +7,19 @@
 ## GET /products · 商品列表（公开）
 
 ```
-curl "http://localhost:8080/api/v1/products?q=H100&product_type=card_rental&region=北京&pricing_mode=hourly&sort=price_asc&page=1&page_size=20"
+curl "http://localhost:8080/api/v1/products?gpu_model=H100&region=北京&pricing_mode=hourly&sort=price_asc&page=1&page_size=20"
 ```
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|:--:|------|
-| q | string | — | 关键词，匹配 GPU、显存/内存、地域、网络和可售时段；最多 100 字符 |
-| product_type | string | — | card_rental / outright / center / colocation |
 | gpu_model | string | — | NVIDIA H100 / 华为昇腾910B 等 |
 | region | string | — | 北京/上海/深圳等 |
-| delivery_mode | string | — | bare_metal / container / vm / rack |
-| pricing_mode | string | — | hourly / daily / weekly / monthly / perpetual |
-| available_hours | string | — | 可售时段关键词，如“夜间” |
+| pricing_mode | string | — | hourly / weekly / monthly |
 | price_min | int | — | 最低单价(分) |
 | price_max | int | — | 最高单价(分) |
-| card_count_min | int | — | 最少卡数 |
-| sort | string | — | created_at_desc / price_asc / price_desc / stock_desc |
+| sort | string | — | price_asc / price_desc / created_at_desc |
 | page | int | — | 默认 1 |
-| page_size | int | — | 默认 20，最大 100 |
+| page_size | int | — | 默认 20 |
 
 **响应**
 ```json
@@ -45,7 +40,7 @@ curl "http://localhost:8080/api/v1/products?q=H100&product_type=card_rental&regi
 
 ## GET /products/:id · 商品详情（公开）
 
-仅返回 `active`（在售）商品，与公开市场列表保持一致。不存在或处于 `draft`（含审核驳回）、`pending`、`sold_out`、`offline`、`frozen` 等非在售状态时，统一返回 HTTP 200、`code: 40400`、`message: "商品不存在"`，不含 `data`，避免暴露商品或供给方信用资料。`getMarketProduct` 将 `40400` 转为 `null`，市场详情页据此显示 404，结算页显示商品不可下单。
+仅返回 `active`（在售）商品，与公开市场列表保持一致。不存在或处于 `draft`（含审核驳回）、`pending`、`sold_out`、`offline`、`frozen` 等非在售状态时，统一返回 HTTP 200、`code: 40400`、`message: "商品不存在"`，不含 `data`，避免暴露商品或供给方信用资料。
 
 供给方仍通过 `/supplier/products` 查看自己的商品，运营通过 `/admin/products` 审核；买家历史订单通过 `/orders/:order_no` 获取商品资料，不受公开可见性限制影响。
 
@@ -83,19 +78,6 @@ curl -X POST http://localhost:8080/api/v1/supplier/products \
 | region | string | ✅ | 地域 |
 | compliance_agreed | bool | ✅ | 合规承诺（必须为 true） |
 | compliance_version | string | ✅ | 当前规范版本：`2026-09-06.1`；发布为上架规范，下单为使用规范 |
-
----
-
-## GET /supplier-applications · 我的供给方入驻申请 ✅ authenticated
-
-## POST /supplier-applications · 提交供给方入驻申请 ✅ authenticated + KYC
-
-供给方认证独立于机房登记。必填企业名称、统一社会信用代码、法定代表人及证件号、营业执照、业务联系人、开户银行、账户名称和银行账号；不再要求或接收机房地址、IDC 确认、供配电和制冷说明。历史申请中的机房字段保留可读，不影响审核。
-
-发布入口按模块区分：`/console/supplier/products/new` 仅零租与买断，`/console/supplier/centers/new` 仅成熟算力中心，`/console/supplier/colocation/new` 仅空心机房。共用服务端商品接口与类型校验；编辑重提保留原商品类型。运营商品管理的待审核条目链接至 `/admin/reviews?tab=products`，复用通过／驳回流程。
-
-
-供给方身份不能由用户直接添加。POST 使用 `multipart/form-data`，`business_license` 必须为 PDF/JPG/PNG 且不超过 5MB；完整字段和文件内容写入 MySQL。申请进入审核队列，Admin 通过后由服务端授予 `supplier` 角色并写入审计日志。
 
 ---
 
@@ -145,7 +127,25 @@ curl "http://localhost:8080/api/v1/orders?status=active&order_no=20260711&page=1
 | page | int | 否 | 默认 1，最大 1000000 |
 | page_size | int | 否 | 默认 20，最大 100 |
 
-列表保留完整订单字段，并追加 `product_type`、`gpu_model`、`pricing_mode`、`self_operated`、`supplier_name` 商品/供给方摘要。金额单位仍为分；自营供给方名称为“平台自营”，非自营仅返回已认证企业名称，无资料时为空串。
+列表保留完整订单字段，并追加商品/供给方摘要，金额单位仍为分：
+
+```json
+{"code":0,"message":"success","data":{
+  "list":[{
+    "id":1,"order_no":"ORD20260711001","buyer_id":42,"product_id":9,
+    "quantity":8,"duration":1,"unit_price":2520000,"total_amount":20160000,
+    "platform_fee":1008000,"status":"active",
+    "payment_expires_at":null,"lease_start_at":"2026-07-11T02:00:00Z",
+    "lease_end_at":"2026-08-11T02:00:00Z","compliance_agreed":true,
+    "created_at":"2026-07-11T01:30:00Z","updated_at":"2026-07-11T02:00:00Z",
+    "gpu_model":"H100","product_type":"card_rental","pricing_mode":"monthly","self_operated":false,
+    "supplier_name":"中联数据"
+  }],
+  "total":1,"page":1,"page_size":20
+},"request_id":"req_xxx"}
+```
+
+`supplier_name`：自营商品固定返回“平台自营”；非自营仅返回已认证企业名称，没有可用资料时为空串。
 
 ---
 
@@ -199,6 +199,10 @@ curl http://localhost:8080/api/v1/orders/ORD20260713001 \
 
 路径参数必须传 `order_no`，无需请求体。仅订单本人可以确认 `provisioning` 且访问凭证状态为 `generated` 的订单；成功后订单转为 `active`，凭证转为 `delivered`。
 
+```json
+{"code":0,"message":"success","request_id":"req_xxx"}
+```
+
 - 非订单本人：`code=40300`
 - 状态不允许、尚未生成凭证或重复签收：`code=40900`
 - 订单不存在：`code=40400`
@@ -217,6 +221,18 @@ curl http://localhost:8080/api/v1/orders/ORD20260713001 \
 {"ip_address":"10.0.1.128","ssh_port":22,"username":"root","credential_note":"密码已私信"}
 ```
 交付信息与访问凭证均使用 AES-256-GCM 加密存储；未配置 `security.credential_key` 时明确失败，不降级为明文。
+
+---
+
+## GET /supplier-applications · 我的供给方入驻申请 ✅ authenticated
+## POST /supplier-applications · 提交供给方入驻申请 ✅ authenticated + KYC
+
+供给方认证独立于机房登记。必填企业名称、统一社会信用代码、法定代表人及证件号、营业执照、业务联系人、开户银行、账户名称和银行账号；不再要求或接收机房地址、IDC 确认、供配电和制冷说明。历史申请中的机房字段保留可读，不影响审核。
+
+发布入口按模块区分：`/console/supplier/products/new` 仅零租与买断，`/console/supplier/centers/new` 仅成熟算力中心，`/console/supplier/colocation/new` 仅空心机房。共用服务端商品接口与类型校验；编辑重提保留原商品类型。运营商品管理的待审核条目链接至 `/admin/reviews?tab=products`，复用通过／驳回流程。
+
+
+POST 使用 `multipart/form-data`，`business_license` 必须为 PDF/JPG/PNG 且不超过 5MB；完整字段和文件内容写入 MySQL。审核通过后，服务端在同一事务中将申请置为 `verified`、授予 `supplier` 角色并写入审计日志。用户不能通过通用角色接口绕过审核。
 
 ---
 

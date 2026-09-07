@@ -1,6 +1,6 @@
 # 认证 Auth API
 
-> 当前实现说明：手机号短信验证码注册、登录已进入联调；邮箱验证码保持待开放；微信扫码已接入，未配置时禁用，详见 [微信登录](wechat-login-api.md)。账号密码与企业微信后置。
+微信网站扫码登录、首次手机号绑定和配置见 [微信登录](wechat-login-api.md)。
 
 **Base**: `http://localhost:8080/api/v1` | **Auth**: `/auth/me` 需 `Bearer <token>`
 
@@ -11,34 +11,31 @@
 登录用途下，未注册手机号在通过 Cap 后返回业务码 `40400`，提示「该手机号尚未注册，请先注册」，不发送验证码。该请求仍受手机号冷却与 IP 频率限制；前端显示错误并保留注册入口，不开始发送成功倒计时。注册用途的已存在账户仍返回 `40900`。
 
 
-短信供应商、Cap Siteverify 与 Redis 验证码存储必须完成配置。`captcha_token` 由 Cap programmatic mode 生成，只能在本接口消费一次。
+`captcha_token` 由 Cap programmatic mode 生成，只能在本接口消费一次。
 
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/sms/code \
-  -H "Content-Type: application/json" \
-  -d '{"phone":"13800138000","purpose":"register","captcha_token":"..."}'
+```json
+{"phone":"13800138000","purpose":"login","captcha_token":"..."}
 ```
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|:--:|------|
-| phone | string | ✅ | 中国大陆手机号 |
-| purpose | string | ✅ | `register` 或 `login` |
-| captcha_token | string | ✅ | 未消费的 Cap token |
 
 **成功** `200`
 ```json
 {"code":0,"message":"success","data":{"expires_in":300,"resend_after":60}}
 ```
 
-本地 Docker 的 debug preview 模式会额外返回 `data.preview_code`。前端开发环境会显示并自动填入该验证码；生产响应不得包含此字段。
+本地 Docker 的 debug preview 模式会额外返回 `data.preview_code`，用于本地联调；release 模式会拒绝启用该能力。
+
+注册用途的手机号已存在时不会发送验证码，并返回：
+```json
+{"code":40900,"message":"用户已存在"}
+```
 
 `expires_in` 是验证码有效期，`resend_after` 是可重新获取的倒计时，两者不可混用。
 
 ---
 
-## POST /auth/register · 手机号注册并建立会话
+## POST /auth/register · 手机号验证码注册并建立会话
 
-```bash
+```
 curl -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"phone":"13800138000","sms_code":"123456","agree_tos":true,"terms_version":"2026-09-06.1","privacy_version":"2026-09-06.1"}'
@@ -64,7 +61,7 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 
 ## POST /auth/sms/login · 手机号验证码登录
 
-```bash
+```
 curl -X POST http://localhost:8080/api/v1/auth/sms/login \
   -H "Content-Type: application/json" \
   -d '{"phone":"13800138000","sms_code":"123456"}'
@@ -82,15 +79,13 @@ curl -X POST http://localhost:8080/api/v1/auth/sms/login \
   "user":{"id":1,"phone":"138****8000","roles":["buyer"]}
 }}
 ```
-> 浏览器前端通过同源 BFF 将 token 写入 HttpOnly Cookie，不把 token 暴露给客户端状态或 localStorage。
-
-`POST /auth/login` 账号密码登录尚未开放公开路由，不属于当前前端入口。
+> 浏览器前端通过同源 BFF 将 token 写入 HttpOnly Cookie，不把 token 暴露给客户端状态或 localStorage。账号密码登录尚未开放公开路由。
 
 ---
 
 ## POST /auth/refresh · 刷新 Token
 
-`refresh_token` 仅能成功使用一次；每次成功刷新都会返回新的 `refresh_token`，并立即使旧 token 失效。
+`refresh_token` 仅能成功使用一次，刷新后必须使用新 token。
 
 ```
 curl -X POST http://localhost:8080/api/v1/auth/refresh \
@@ -108,8 +103,6 @@ curl -X POST http://localhost:8080/api/v1/auth/logout \
   -H "Content-Type: application/json" \
   -d '{"refresh_token":"eyJ..."}'
 ```
-
-浏览器端 BFF 会同时撤销 access/refresh token，随后清除全部认证 Cookie。该接口支持幂等登出；access token 已过期时仍可用签名有效的 `refresh_token` 完成撤销。
 
 ---
 
@@ -129,9 +122,22 @@ curl http://localhost:8080/api/v1/auth/me \
 
 ## POST /user/kyc/enterprise · 企业认证
 
-前端通过同源 `/api/auth/kyc/enterprise` BFF，以 `multipart/form-data` 向后端提交企业主体、法定代表人、对公账户和营业执照文件。文件支持 PDF/JPG/PNG，最大 5MB；BFF 只转发 HttpOnly Cookie 对应的 Bearer token，不在浏览器状态中保存 token。
+使用 `multipart/form-data` 提交企业名称、统一社会信用代码、法定代表人及证件号、对公账户信息和营业执照文件。营业执照支持 PDF/JPG/PNG，最大 5MB；完整申请资料与文件写入 MySQL。试运行阶段不调用外部核验服务，提交后状态直接写为 `verified`。
 
-试运行阶段审核结果仍自动通过，但表单字段和执照文件均持久化到本地 MySQL，不再只保存文件名。
+```bash
+curl -X POST http://localhost:8080/api/v1/user/kyc/enterprise \
+  -H "Authorization: Bearer <access_token>" \
+  -F 'enterprise_name=某科技有限公司' \
+  -F 'uscc=91110108MA0123456X' \
+  -F 'legal_person=张三' \
+  -F 'legal_person_id_card=110101199001011234' \
+  -F 'bank_name=招商银行北京中关村支行' \
+  -F 'bank_account_name=某科技有限公司' \
+  -F 'bank_account_number=6225888888888888' \
+  -F 'sensitive_data_agreed=true' \
+  -F 'privacy_version=2026-09-06.1' \
+  -F 'business_license=@./license.pdf'
+```
 
 ---
 
