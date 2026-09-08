@@ -1,4 +1,5 @@
 export type MarketSupply = {
+  health?: "unknown" | "healthy" | "degraded" | "offline";
   id: string;
   name: string;
   gpuModel: string;

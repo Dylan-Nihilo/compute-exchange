@@ -385,7 +385,7 @@ export function fetchAdminAuditLogs(query: FetchPage = {}, fetchImplementation: 
 
 export function fetchAdminConfig(fetchImplementation: typeof fetch = fetch) {
   return request("/api/admin/config", envelope(configSchema), "系统配置读取失败", undefined, fetchImplementation)
-    .then(({data}) => data ?? {fee_rate: 0, trading_enabled: false});
+    .then(({data}) => { if (!data) throw new Error("系统配置读取失败"); return data; });
 }
 
 export function updateAdminConfig(key: string, value: string, fetchImplementation: typeof fetch = fetch) {

@@ -63,19 +63,19 @@ export function AdminSettings() {
       if (!Number.isInteger(parsed) || parsed < 0 || parsed > 10000) throw new Error("费率需为 0–10000 的整数基点");
       await updateAdminConfig("fee_rate", feeRate);
     },
-    onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "config"]}); notify.success("系统配置已保存"); },
+    onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "config"]}); await client.invalidateQueries({queryKey: ["trading-config"]}); notify.success("系统配置已保存"); },
     onError: (error) => notify.error(messageFor(error)),
   });
   const tradingMutation = useMutation({
     mutationFn: (enabled: boolean) => updateAdminConfig("trading_enabled", String(enabled)),
-    onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "config"]}); notify.success("交易开关已更新"); },
+    onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "config"]}); await client.invalidateQueries({queryKey: ["trading-config"]}); notify.success("交易开关已更新"); },
     onError: (error) => notify.error(messageFor(error)),
   });
   return (
     <AdminPage title="系统设置" eyebrow="System" description="调整影响平台交易的全局参数。">
       <AdminPanel className="max-w-3xl divide-y divide-[#dce9ee]/70">
-        <div className="flex items-center justify-between gap-4 p-5 sm:p-6"><div><h2 className="text-sm font-semibold text-[#173447]">允许创建交易</h2><p className="mt-1 text-xs text-[#78909c]">关闭后应阻止新的交易进入。</p></div><button aria-checked={query.data?.trading_enabled ?? false} className={`relative h-7 w-12 rounded-full transition-colors ${query.data?.trading_enabled ? "bg-[#78ad27]" : "bg-[#bdcbd1]"}`} disabled={query.isPending || tradingMutation.isPending} role="switch" type="button" onClick={() => tradingMutation.mutate(!(query.data?.trading_enabled ?? false))}><span className={`absolute top-1 left-1 size-5 rounded-full bg-white shadow-sm transition-transform ${query.data?.trading_enabled ? "translate-x-5" : "translate-x-0"}`} /></button></div>
-        <div className="p-5 sm:p-6"><label className="text-sm font-semibold text-[#173447]" htmlFor="admin-fee-rate">平台费率（基点）</label><div className="mt-3 flex max-w-md gap-2"><input className={inputClass} id="admin-fee-rate" inputMode="numeric" min="0" max="10000" value={feeRate} onChange={(event) => setFeeRate(event.target.value)} /><Button isPending={mutation.isPending} variant="primary" onPress={() => mutation.mutate()}><InteractiveIcon icon={Save} size={15} />保存</Button></div></div>
+        <div className="flex items-center justify-between gap-4 p-5 sm:p-6"><div><h2 className="text-sm font-semibold text-[#173447]">允许创建交易</h2><p className="mt-1 text-xs text-[#78909c]">关闭后暂停新订单，已有订单可继续履约。</p></div><button aria-checked={query.data?.trading_enabled ?? false} className={`relative h-7 w-12 rounded-full transition-colors ${query.data?.trading_enabled ? "bg-[#78ad27]" : "bg-[#bdcbd1]"}`} disabled={query.isPending || query.isError || tradingMutation.isPending} role="switch" type="button" onClick={() => tradingMutation.mutate(!(query.data?.trading_enabled ?? false))}><span className={`absolute top-1 left-1 size-5 rounded-full bg-white shadow-sm transition-transform ${query.data?.trading_enabled ? "translate-x-5" : "translate-x-0"}`} /></button></div>
+        <div className="p-5 sm:p-6"><label className="text-sm font-semibold text-[#173447]" htmlFor="admin-fee-rate">平台费率（基点）</label><p className="mt-1 text-xs text-muted">100 基点 = 1%，调整仅影响新订单。</p><div className="mt-3 flex max-w-md gap-2"><input className={inputClass} id="admin-fee-rate" inputMode="numeric" min="0" max="10000" value={feeRate} onChange={(event) => setFeeRate(event.target.value)} /><Button isDisabled={query.isPending || query.isError} isPending={mutation.isPending} variant="primary" onPress={() => mutation.mutate()}><InteractiveIcon icon={Save} size={15} />保存</Button></div></div>
       </AdminPanel>
     </AdminPage>
   );

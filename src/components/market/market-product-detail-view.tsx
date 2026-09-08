@@ -6,6 +6,7 @@ import {KPIGroup} from "@heroui-pro/react/kpi-group";
 
 import {useRouter} from "next/navigation";
 
+import {ProductHealth} from "./product-health";
 import {AnimatedNumber} from "@/components/system/animated-number";
 import type {MarketProductDetail} from "@/lib/market-api";
 
@@ -65,6 +66,7 @@ export function MarketProductDetailView({
       <header className="mt-6 border-b border-border pb-6">
         <div className="mb-4 flex flex-wrap gap-2">
           <Chip variant="soft">{product.productTypeLabel}</Chip>
+          <ProductHealth health={product.health} />
           <Chip
             color={product.status === "active" ? "success" : "default"}
             variant="soft"
@@ -182,11 +184,12 @@ export function MarketProductDetailView({
               {product.unitPriceMinor && product.status === "active" ? (
                 <Button
                   className="mt-4"
+                  isDisabled={product.health === "offline"}
                   fullWidth
                   onPress={() => router.push(`/checkout?product=${product.id}`)}
                   variant="primary"
                 >
-                  立即购买
+                  {product.health === "offline" ? "暂不可下单" : "立即购买"}
                 </Button>
               ) : product.status === "active" ? (
                 <Button className="mt-4" fullWidth onPress={() => router.push(`/market/${product.id}/inquiry`)}>申请报价</Button>
