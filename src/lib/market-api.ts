@@ -35,6 +35,7 @@ const productSchema = z.object({
   min_order: z.number().int().positive().optional(),
   min_duration: z.number().int().positive().optional(),
   self_operated: z.boolean().optional(),
+  health: z.enum(["unknown", "healthy", "degraded", "offline"]).optional(),
 });
 
 const productDetailSchema = productSchema.extend({
@@ -230,6 +231,7 @@ export function mapComputeProduct(product: ComputeProduct): MarketSupply {
     region: product.region,
     totalUnits: Math.max(listedUnits ?? 0, product.stock),
     availableUnits: product.stock,
+    health: product.health ?? "unknown",
     unitLabel,
     deliveryMode:
       deliveryModeLabels[product.delivery_mode] ?? "协商交付",
@@ -534,11 +536,21 @@ export type PlaceOrderResult = {
 };
 
 // 价格试算与后端 CalcOrderAmount 同口径: total = 单价(分) × 数量 × 计费周期数。
-export function calcOrderPreview(unitPriceMinor: number, quantity: number, duration: number) {
-  return {
-    totalMinor: unitPriceMinor * quantity * duration,
-    feeMinor: Math.floor((unitPriceMinor * quantity * duration * 5) / 100),
-  };
+export function calcOrderPreview(unitPriceMinor: number, quantity: number, duration: number, feeRate: number) {
+  if (![unitPriceMinor, quantity, duration, feeRate].every(Number.isSafeInteger) ||
+      unitPriceMinor < 0 || quantity < 1 || duration < 1 || feeRate < 0 || feeRate > 10000) {
+    throw new Error("订单参数无效");
+  }
+  const total = BigInt(unitPriceMinor) * BigInt(quantity) * BigInt(duration);
+  if (total > 1_000_000_000_000n) throw new Error("订单金额超出上限");
+  return {totalMinor: Number(total), feeMinor: Number(total * BigInt(feeRate) / 10000n)};
+}
+
+export async function getTradingConfig(client: ApiClient | null = apiClient) {
+  if (!client) throw new Error("交易配置暂不可用");
+  const response = await client.request("/trading-config", envelopeSchema, {cache: "no-store"});
+  if (response.code !== 0) throw new Error(response.message || "交易配置暂不可用");
+  return z.object({trading_enabled: z.boolean(), fee_rate: z.number().int().min(0).max(10000)}).parse(response.data);
 }
 
 export async function placeOrder(

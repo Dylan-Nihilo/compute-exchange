@@ -1,5 +1,6 @@
 "use client";
 
+import {ProductHealth} from "@/components/market/product-health";
 import {LegalLink} from "@/components/legal/legal-link";
 
 import {useMutation, useQuery} from "@tanstack/react-query";
@@ -14,6 +15,7 @@ import {useAuthStore} from "@/lib/auth/store";
 import {
   calcOrderPreview,
   getMarketProduct,
+  getTradingConfig,
   placeOrder,
 } from "@/lib/market-api";
 import {notify} from "@/lib/notify";
@@ -37,6 +39,8 @@ function CheckoutPage() {
     queryFn: () => getMarketProduct(productId),
   });
   const product = productQuery.data ?? null;
+  const policyQuery = useQuery({queryKey: ["trading-config"], queryFn: () => getTradingConfig(), staleTime: 0, refetchInterval: 30_000});
+  const policy = policyQuery.data;
 
   const [quantity, setQuantity] = useState<number | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
@@ -50,9 +54,10 @@ function CheckoutPage() {
   const effectiveDuration = isPerpetual ? 1 : (duration ?? minDuration);
 
   const preview = useMemo(() => {
-    if (!product?.unitPriceMinor) return null;
-    return calcOrderPreview(product.unitPriceMinor, effectiveQuantity, effectiveDuration);
-  }, [product, effectiveQuantity, effectiveDuration]);
+    if (!product?.unitPriceMinor || !policy) return null;
+    try { return calcOrderPreview(product.unitPriceMinor, effectiveQuantity, effectiveDuration, policy.fee_rate); }
+    catch { return null; }
+  }, [product, policy, effectiveQuantity, effectiveDuration]);
 
   const orderMutation = useMutation({
     mutationFn: () =>
@@ -176,6 +181,7 @@ function CheckoutPage() {
                   : "暂无历史履约数据"}
               />
             </dl>
+            <ProductHealth health={product.health} />
             {product.selfOperated ? (
               <Chip color="accent" variant="soft">平台自营</Chip>
             ) : null}
@@ -219,7 +225,7 @@ function CheckoutPage() {
                 </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-muted">其中平台服务费(5%, 内含)</dt>
+                <dt className="text-muted">其中平台服务费({policy ? `${policy.fee_rate / 100}%` : "—"}, 内含)</dt>
                 <dd className="text-muted">
                   {preview ? money.format(preview.feeMinor / 100) : "—"}
                 </dd>
@@ -231,6 +237,16 @@ function CheckoutPage() {
                 </dd>
               </div>
             </dl>
+
+            {policyQuery.isError ? (
+              <div role="alert" className="text-sm text-danger">
+                交易配置暂不可用，请重试。
+                <Button size="sm" variant="ghost" onPress={() => void policyQuery.refetch()}>重试</Button>
+              </div>
+            ) : policyQuery.isPending ? <p role="status" className="text-sm text-muted">正在读取交易配置…</p>
+              : !policy?.trading_enabled ? <p role="status" className="text-sm text-warning">平台暂时停止创建交易，请稍后再试。</p>
+              : product.health === "offline" ? <p role="status" className="text-sm text-muted">该商品节点已离线，暂不可下单。</p>
+              : !preview ? <p role="alert" className="text-sm text-danger">请检查购买数量和计费周期，订单金额不能超过上限。</p> : null}
 
             <label className="flex items-start gap-2.5 text-[13px] leading-5 text-foreground">
               <input
@@ -247,7 +263,7 @@ function CheckoutPage() {
 
             <Button
               fullWidth
-              isDisabled={!agreed || maxQuantity < minOrder}
+              isDisabled={!agreed || maxQuantity < minOrder || !preview || !policy?.trading_enabled || policyQuery.isError || product.health === "offline"}
               isPending={orderMutation.isPending}
               onPress={() => orderMutation.mutate()}
               variant="primary"

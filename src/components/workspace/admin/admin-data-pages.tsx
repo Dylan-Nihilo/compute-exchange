@@ -4,9 +4,12 @@ import {Button} from "@heroui/react";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Check, CircleOff, ShieldBan} from "lucide";
 import Link from "next/link";
+import {useState} from "react";
+import {ConfirmDialog} from "@/components/system/confirm-dialog";
 
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {
+  type AdminRiskAlert,
   assignAdminLead,
   fetchAdminAuditLogs,
   fetchAdminInvoices,
@@ -137,9 +140,12 @@ export function AdminCrm() {
 
 export function AdminRisk() {
   const client = useQueryClient();
+  const [freezing, setFreezing] = useState<AdminRiskAlert | null>(null);
   const query = useQuery({queryKey: ["admin", "risk"], queryFn: () => fetchAdminRiskAlerts({pageSize: 100})});
-  const mutation = useMutation({mutationFn: ({id, decision}: {id: number; decision: "freeze" | "dismiss"}) => resolveRiskAlert(id, decision), onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "risk"]}); notify.success("告警已处置"); }, onError: (error) => notify.error(messageFor(error))});
-  return <AdminPage title="风控工作台" eyebrow="Risk" description="处置交易、账户与履约风险告警。"><AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(query, "暂无风险告警", "当前没有待处置告警。")}>{query.data?.items.length ? <table className={adminTableClass}><caption className="sr-only">风险告警</caption><AdminTableHead><th scope="col">等级</th><th scope="col">类型</th><th scope="col">对象</th><th scope="col">触发规则</th><th scope="col">状态</th><th scope="col">时间</th><th className="text-right" scope="col">操作</th></AdminTableHead><tbody>{query.data.items.map((item) => <tr key={item.id}><td>{item.level}</td><th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.alert_type}</th><td>{item.target_type} #{item.target_id}</td><td>{item.rule_detail}</td><td><StatusBadge status={item.status} /></td><td>{formatDateTime(item.created_at)}</td><td><div className="flex justify-end gap-2">{item.status === "pending" ? <><Button size="sm" variant="tertiary" onPress={() => mutation.mutate({id: item.id, decision: "dismiss"})}>忽略</Button><Button size="sm" variant="danger-soft" onPress={() => mutation.mutate({id: item.id, decision: "freeze"})}><InteractiveIcon icon={ShieldBan} size={14} />冻结</Button></> : "—"}</div></td></tr>)}</tbody></table> : null}</AdminTableShell></AdminPanel></AdminPage>;
+  const mutation = useMutation({mutationFn: ({id, decision}: {id: number; decision: "freeze" | "dismiss"}) => resolveRiskAlert(id, decision), onSuccess: async () => { setFreezing(null); await client.invalidateQueries({queryKey: ["admin", "risk"]}); notify.success("告警已处置"); }, onError: async (error) => { setFreezing(null); await client.invalidateQueries({queryKey: ["admin", "risk"]}); notify.error(messageFor(error)); }});
+  return <AdminPage title="风控工作台" eyebrow="Risk" description="处置交易、账户与履约风险告警。"><AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(query, "暂无风险告警", "当前没有待处置告警。")}>{query.data?.items.length ? <table className={adminTableClass}><caption className="sr-only">风险告警</caption><AdminTableHead><th scope="col">等级</th><th scope="col">类型</th><th scope="col">对象</th><th scope="col">触发规则</th><th scope="col">状态</th><th scope="col">时间</th><th className="text-right" scope="col">操作</th></AdminTableHead><tbody>{query.data.items.map((item) => <tr key={item.id}><td>{item.level}</td><th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.alert_type}</th><td>{item.target_type} #{item.target_id}</td><td>{item.rule_detail}</td><td><StatusBadge status={item.status} /></td><td>{formatDateTime(item.created_at)}</td><td><div className="flex justify-end gap-2">{["pending", "processing"].includes(item.status) ? <><Button isDisabled={mutation.isPending || item.status === "processing"} size="sm" variant="tertiary" onPress={() => mutation.mutate({id: item.id, decision: "dismiss"})}>忽略</Button><Button isDisabled={mutation.isPending || !["order", "user", "account"].includes(item.target_type) || item.target_id <= 0} size="sm" variant="danger-soft" onPress={() => setFreezing(item)}><InteractiveIcon icon={ShieldBan} size={14} />{item.status === "processing" ? "重试冻结" : "冻结"}</Button></> : "—"}</div></td></tr>)}</tbody></table> : null}</AdminTableShell></AdminPanel><ConfirmDialog open={Boolean(freezing)} title="确认冻结" confirmLabel="确认冻结" isDestructive isPending={mutation.isPending}
+ description={freezing ? `${freezing.target_type === "order" ? "订单" : "账户"} #${freezing.target_id} 冻结后，${freezing.target_type === "order" ? "该订单的访问凭证将被吊销" : "该账户将无法继续访问平台"}。` : ""}
+ onCancel={() => setFreezing(null)} onConfirm={() => freezing && mutation.mutate({id: freezing.id, decision: "freeze"})} /></AdminPage>;
 }
 
 export function AdminTickets() {

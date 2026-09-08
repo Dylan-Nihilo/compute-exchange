@@ -4,6 +4,7 @@ import {Button, Card, Chip} from "@heroui/react";
 import {EmptyState} from "@heroui-pro/react/empty-state";
 import {useRouter} from "next/navigation";
 
+import {ProductHealth} from "./product-health";
 import type {MarketSupply} from "@/components/market/market-data";
 
 const priceFormatter = new Intl.NumberFormat("zh-CN", {
@@ -54,7 +55,8 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
   return (
     <Card
       aria-label={`${supply.name} 算力商品`}
-      className="relative overflow-hidden rounded-[22px] border border-white/70 bg-white/82 p-0 shadow-[0_16px_36px_rgba(6,37,59,0.08)] backdrop-blur-xl"
+      className="relative data-[offline=true]:bg-default/40 overflow-hidden rounded-[22px] border border-white/70 bg-white/82 p-0 shadow-[0_16px_36px_rgba(6,37,59,0.08)] backdrop-blur-xl"
+      data-offline={supply.health === "offline"}
       role="article"
     >
       <div
@@ -65,7 +67,8 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
         <div className="min-w-0 space-y-4">
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[340px_396px_172px] xl:gap-6">
             <div className="min-w-0">
-              <div className="flex h-7 flex-wrap items-center gap-2">
+              <div className="flex min-h-7 flex-wrap items-center gap-2">
+                <ProductHealth health={supply.health} />
                 <span className="text-[13px] font-medium text-[#244b61]">
                   {supply.productTypeLabel ?? "算力供给"}
                 </span>

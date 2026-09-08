@@ -7,6 +7,7 @@ import {
   calcOrderPreview,
   defaultMarketQuery,
   getMarketProduct,
+  getTradingConfig,
   getMarketSupplies,
   parseMarketQuery,
   placeOrder,
@@ -83,6 +84,7 @@ describe("compute market API", () => {
         region: "乌兰察布",
         totalUnits: 8,
         availableUnits: 6,
+        health: "unknown",
         unitLabel: "GPU",
         deliveryMode: "容器",
         deliveryModeCode: "container",
@@ -175,6 +177,7 @@ describe("compute market API", () => {
               min_duration: 4,
               region: "乌兰察布",
               status: "active",
+              health: "offline",
               self_operated: false,
             },
             credit: {
@@ -191,6 +194,7 @@ describe("compute market API", () => {
     const detail = await getMarketProduct("7", client);
 
     assert.equal(detail?.supplierId, "12");
+    assert.equal(detail?.health, "offline");
     assert.equal(detail?.minimumOrder, 2);
     assert.equal(detail?.statusLabel, "在售");
     assert.deepEqual(detail?.credit, {
@@ -236,9 +240,9 @@ describe("compute market API", () => {
 
 describe("checkout", () => {
   it("calcOrderPreview matches backend CalcOrderAmount semantics", () => {
-    const preview = calcOrderPreview(3500, 2, 24);
+    const preview = calcOrderPreview(3500, 2, 24, 650);
     assert.equal(preview.totalMinor, 168000);
-    assert.equal(preview.feeMinor, 8400);
+    assert.equal(preview.feeMinor, 10920);
   });
 
   it("placeOrder posts the payload and returns the created order", async () => {
@@ -272,5 +276,26 @@ describe("checkout", () => {
     ),
     /insufficient stock/,
     );
+  });
+});
+
+describe("trading policy", () => {
+  it("reads the live public policy without cache and rejects missing or invalid data", async () => {
+    const client = (data: unknown, code = 0) => createApiClient({baseUrl: "https://api.example.test/api/v1", fetchImplementation: async (input, init) => {
+      assert.equal(String(input), "https://api.example.test/api/v1/trading-config");
+      assert.equal(init?.cache, "no-store");
+      return Response.json({code, message: "policy unavailable", data});
+    }});
+    assert.deepEqual(await getTradingConfig(client({trading_enabled: false, fee_rate: 650})), {trading_enabled: false, fee_rate: 650});
+    for (const data of [null, {trading_enabled: true}, {trading_enabled: true, fee_rate: 10001}]) await assert.rejects(getTradingConfig(client(data)));
+    await assert.rejects(getTradingConfig(client({}, 50000)), /policy unavailable/);
+    await assert.rejects(getTradingConfig(null));
+  });
+  it("calculates basis points exactly and rejects unsafe amounts", () => {
+    assert.deepEqual(calcOrderPreview(1, 1, 1, 650), {totalMinor: 1, feeMinor: 0});
+    assert.deepEqual(calcOrderPreview(1_000_000_000_000, 1, 1, 9999), {totalMinor: 1_000_000_000_000, feeMinor: 999_900_000_000});
+    assert.equal(calcOrderPreview(2300, 2, 3, 0).feeMinor, 0);
+    assert.throws(() => calcOrderPreview(1_000_000_000_000, 2, 1, 650));
+    assert.throws(() => calcOrderPreview(100, 1, 1, 10001));
   });
 });
