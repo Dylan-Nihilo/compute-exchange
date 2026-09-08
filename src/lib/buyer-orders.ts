@@ -1,4 +1,5 @@
 import {z} from "zod";
+import {LEGAL_VERSION} from "./legal.ts";
 
 export const buyerOrderStatuses = [
   "pending_payment",
@@ -55,7 +56,14 @@ const actionEnvelopeSchema = z.object({
 });
 
 const buyerOrderDetailSchema = z.object({
+  pending_renewal_order_no: z.string().optional(),
+  renewal: z.object({
+    parent_order_no: z.string(), mode: z.enum(["extend", "restart"]), pricing_mode: z.string(),
+    lease_end_at: z.string(), renewed_until: z.string().nullable(), applied_at: z.string().nullable(),
+    confirmed_at: z.string().nullable(),
+  }).nullable().optional(),
   order: z.object({
+    parent_order_no: z.string().optional(),
     order_no: z.string().min(1),
     status: orderStatusSchema,
     quantity: z.number().int().positive(),
@@ -71,6 +79,7 @@ const buyerOrderDetailSchema = z.object({
     updated_at: z.string(),
   }),
   product: z.object({
+    min_duration: z.number().int().positive().optional(),
     id: z.number().int().positive(),
     product_type: z.string(),
     gpu_model: z.string(),
@@ -247,12 +256,24 @@ export async function confirmBuyerOrder(
   orderNo: string,
   fetchImplementation: typeof fetch = fetch,
 ) {
+  return requestBuyerOrderAction(orderNo, "confirm", fetchImplementation);
+}
+
+export function cancelBuyerOrder(orderNo: string, fetchImplementation: typeof fetch = fetch) {
+  return requestBuyerOrderAction(orderNo, "cancel", fetchImplementation);
+}
+
+export function refundBuyerOrder(orderNo: string, fetchImplementation: typeof fetch = fetch) {
+  return requestBuyerOrderAction(orderNo, "refund", fetchImplementation);
+}
+
+async function requestBuyerOrderAction(orderNo: string, action: "confirm" | "cancel" | "refund", fetchImplementation: typeof fetch) {
   if (!isBuyerOrderNo(orderNo)) throw new Error("订单编号无效");
 
   let response: Response;
   try {
     response = await fetchImplementation(
-      `/api/buyer/orders/${encodeURIComponent(orderNo)}/confirm`,
+      `/api/buyer/orders/${encodeURIComponent(orderNo)}/${action}`,
       {method: "POST"},
     );
   } catch {
@@ -263,8 +284,45 @@ export async function confirmBuyerOrder(
   );
   if (!parsed.success) throw new Error("订单服务返回格式错误");
   if (!response.ok || parsed.data.code !== 0) {
-    throw new Error(parsed.data.message || "确认签收失败");
+    throw new Error(parsed.data.message || "订单操作失败");
   }
+}
+
+const renewalQuoteSchema = z.object({
+  parent_order_no: z.string().refine(isBuyerOrderNo), mode: z.enum(["extend", "restart"]),
+  quantity: z.number().int().positive(), duration: z.number().int().positive(),
+  pricing_mode: z.enum(["hourly", "daily", "weekly", "monthly"]),
+  min_duration: z.number().int().positive(), max_duration: z.number().int().positive(),
+  unit_price: z.number().int().positive(), total_amount: z.number().int().positive(),
+  platform_fee: z.number().int().nonnegative(), fee_rate: z.number().int().min(0).max(10000),
+  lease_end_at: z.string().datetime({offset: true}), renewed_until: z.string().datetime({offset: true}).nullable(),
+});
+export type BuyerOrderRenewalQuote = z.infer<typeof renewalQuoteSchema>;
+
+export async function fetchBuyerOrderRenewalQuote(orderNo: string, duration: number, fetchImplementation: typeof fetch = fetch) {
+  if (!isBuyerOrderNo(orderNo) || !Number.isSafeInteger(duration) || duration < 1) throw new Error("续租参数无效");
+  const response = await fetchImplementation(`/api/buyer/orders/${encodeURIComponent(orderNo)}/renewal-quote?duration=${duration}`, {cache: "no-store"});
+  const parsed = actionEnvelopeSchema.extend({data: renewalQuoteSchema.optional()}).safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw new Error("续租报价格式错误");
+  if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) throw new Error(parsed.data.message || "续租报价读取失败");
+  return parsed.data.data;
+}
+
+export async function renewBuyerOrder(quote: BuyerOrderRenewalQuote, requestID: string, agreed: boolean, fetchImplementation: typeof fetch = fetch) {
+  if (!agreed) throw new Error("请阅读并同意算力资源使用规范");
+  const response = await fetchImplementation(`/api/buyer/orders/${encodeURIComponent(quote.parent_order_no)}/renew`, {
+    method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({
+      duration: quote.duration, request_id: requestID, compliance_agreed: agreed, compliance_version: LEGAL_VERSION,
+      expected_lease_end_at: quote.lease_end_at, expected_renewed_until: quote.renewed_until,
+      expected_total_amount: quote.total_amount, expected_platform_fee: quote.platform_fee,
+    }),
+  });
+  const parsed = actionEnvelopeSchema.extend({data: z.object({
+    order_no: z.string().refine(isBuyerOrderNo), total_amount: z.number().int().positive(), platform_fee: z.number().int().nonnegative(),
+  }).optional()}).safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw new Error("续租订单格式错误");
+  if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) throw new Error(parsed.data.message || "续租订单创建失败");
+  return parsed.data.data;
 }
 
 export async function fetchBuyerOrderDetail(

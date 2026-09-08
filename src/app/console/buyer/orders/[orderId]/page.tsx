@@ -3,14 +3,18 @@
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Button, Skeleton, Spinner} from "@heroui/react";
 import Image from "next/image";
+import Link from "next/link";
 import {useParams, useRouter} from "next/navigation";
 import {useState, type ReactNode} from "react";
 
+import {OrderRenewal} from "@/components/workspace/buyer/order-renewal";
 import {ErrorState} from "@/components/system/operation-state";
 import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {
   buyerOrderStatusCopy,
   confirmBuyerOrder,
+  cancelBuyerOrder,
+  refundBuyerOrder,
   fetchBuyerOrderCredential,
   fetchBuyerOrderDetail,
   isBuyerOrderNo,
@@ -29,12 +33,7 @@ const money = new Intl.NumberFormat("zh-CN", {
   maximumFractionDigits: 2,
   style: "currency",
 });
-const shortDate = new Intl.DateTimeFormat("zh-CN", {
-  day: "2-digit",
-  month: "2-digit",
-  timeZone: "Asia/Shanghai",
-  year: "numeric",
-});
+
 
 const pricingModeCopy: Record<string, string> = {
   daily: "按天",
@@ -52,7 +51,7 @@ export default function BuyerOrderDetailPage() {
     enabled: validOrderNo,
     queryKey: ["buyer", "orders", "detail", orderId],
     queryFn: () => fetchBuyerOrderDetail(orderId),
-    refetchInterval: (query) => ["pending_payment", "paid", "provisioning"].includes(query.state.data?.order.status ?? "") ? 5000 : false,
+    refetchInterval: (query) => (query.state.data?.pending_renewal_order_no || ["pending_payment", "paid", "provisioning"].includes(query.state.data?.order.status ?? "")) ? 5000 : false,
   });
 
   if (orderQuery.isPending && validOrderNo) return <DetailSkeleton />;
@@ -109,6 +108,16 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
     },
     onError: (error) => notify.error(error.message),
   });
+  const [orderAction, setOrderAction] = useState<"cancel" | "refund" | null>(null);
+  const action = useMutation({
+    mutationFn: () => orderAction === "cancel" ? cancelBuyerOrder(order.order_no) : refundBuyerOrder(order.order_no),
+    onSuccess: async () => {
+      setOrderAction(null);
+      await queryClient.invalidateQueries({queryKey: ["buyer", "orders"]});
+      notify.success("订单状态已更新");
+    },
+    onError: (error) => notify.error(error.message),
+  });
   const [paymentChannel, setPaymentChannel] = useState<"wechat" | "alipay" | "bank">("wechat");
   const payment = useMutation({
     mutationFn: () => startBuyerOrderPayment(order.order_no, paymentChannel),
@@ -133,10 +142,14 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
           {detail.actions.can_confirm ? <Button onPress={() => setConfirming(true)}>确认签收</Button> : null}
           <ActionButton label="申请发票" onPress={() => router.push(`/console/buyer/invoices?apply=${order.order_no}`)} />
           <ActionButton label="发起工单" onPress={() => router.push(`/console/buyer/tickets?order=${order.order_no}`)} />
-          <ActionButton label="申请退款" disabled={!detail.actions.can_refund} />
+          <ActionButton label="申请退款" disabled={!detail.actions.can_refund} onPress={() => setOrderAction("refund")} />
         </div>
       </header>
 
+      <ConfirmDialog title={orderAction === "cancel" ? "取消待支付订单" : "申请退款"}
+        confirmLabel={orderAction === "cancel" ? "确认取消订单" : "提交退款申请"} open={orderAction !== null} isPending={action.isPending}
+        description={orderAction === "cancel" ? "取消后无法继续支付，本订单预留的资源将释放。" : "提交后订单进入退款处理中，实际到账以平台处理结果为准。续租仅支持尚未使用且未被后续租期覆盖的部分。"}
+        onCancel={() => setOrderAction(null)} onConfirm={() => action.mutate()} />
       <ConfirmDialog title="确认签收资源" confirmLabel="确认签收" open={confirming} isPending={confirmation.isPending}
         description={`请确认已核验订单 ${order.order_no} 的资源与访问凭证，确认后开始履约计时。`}
         onCancel={() => setConfirming(false)} onConfirm={() => confirmation.mutate()} />
@@ -145,7 +158,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone(order.status)}`}>{statusCopy}</span>
-            <h2 className="truncate text-lg font-semibold text-[#173447]">{statusHeadline(order.status)}</h2>
+            <h2 className="truncate text-lg font-semibold text-[#173447]">{detail.renewal && order.status === "completed" ? "续租订单已支付" : statusHeadline(order.status)}</h2>
           </div>
           <p className="mt-2 text-xs text-[#7b929e]">{statusDescription(detail)}</p>
         </div>
@@ -153,6 +166,13 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
         <SummaryMetric label="订单金额" value={money.format(order.total_amount / 100)} />
         <SummaryMetric label="供给方" value={supplierName} />
       </section>
+
+      {detail.renewal ? <section className={`${cardClass} mt-4 px-5 py-4 text-sm`}>
+        <p>原订单：<Link className="break-all underline underline-offset-4" href={`/console/buyer/orders/${detail.renewal.parent_order_no}`}>{detail.renewal.parent_order_no}</Link></p>
+        <p className="mt-2">本次续租 {order.duration} {({hourly: "小时", daily: "天", weekly: "周", monthly: "个月"} as Record<string, string>)[detail.renewal.pricing_mode]}，含平台服务费 {money.format(order.platform_fee / 100)}。</p>
+        <p className="mt-2">{detail.renewal.mode === "extend" ? `预计续租后到期：${dateOrDash(detail.renewal.renewed_until)}` : "支付后需在原订单重新交付并确认签收，开始新的租期。"}</p>
+        {detail.renewal.applied_at ? <Link className="mt-3 inline-block underline underline-offset-4" href={`/console/buyer/orders/${detail.renewal.parent_order_no}`}>查看原订单当前租期与交付</Link> : null}
+      </section> : <OrderRenewal detail={detail} />}
 
       {order.status === "pending_payment" ? (
         <section className={`${cardClass} mt-4 px-5 py-4`}>
@@ -167,12 +187,13 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
             <Button isDisabled={paymentExpired} isPending={payment.isPending} onPress={() => payment.mutate()}>
               {paymentExpired ? "支付已超时" : "前往支付"}
             </Button>
+            <Button variant="outline" isDisabled={payment.isPending} onPress={() => setOrderAction("cancel")}>取消订单</Button>
           </div>
           {payment.isError ? <p className="mt-3 text-sm text-danger" role="alert">{payment.error.message}</p> : null}
         </section>
       ) : null}
 
-      <div className="mt-5 grid items-start gap-4 lg:grid-cols-[minmax(0,744px)_minmax(320px,404px)]">
+      <div className="mt-5 grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,744px)_minmax(320px,404px)]">
         <div className="space-y-4">
           <InfoCard icon="receipt.svg" title="订单信息">
             <InfoItem label="订单编号" value={order.order_no} />
@@ -183,14 +204,14 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
             <InfoItem label="履约率" value={supplier.credit ? `${supplier.credit.fulfill_rate}%` : "暂无评分"} />
           </InfoCard>
 
-          <InfoCard icon="server.svg" title="交付信息">
+          {!detail.renewal ? <><InfoCard icon="server.svg" title="交付信息">
             <InfoItem label="访问状态" value={delivery ? accessStatusCopy(delivery.access_status) : "尚未生成"} />
             <InfoItem label="买家确认" value={delivery?.confirmed_by_buyer ? "已确认" : "待确认"} />
             <InfoItem label="确认时间" value={dateOrDash(delivery?.buyer_confirmed_at)} />
             <InfoItem label="凭证有效期" value={dateOrDash(delivery?.access_expires_at)} />
           </InfoCard>
 
-          <AccessCredentialCard detail={detail} />
+          <AccessCredentialCard detail={detail} /></> : null}
         </div>
 
         <section className={`${cardClass} min-h-[520px] p-5 lg:min-h-[724px]`}>
@@ -385,6 +406,8 @@ function DetailSkeleton() {
 
 function orderProgress(detail: BuyerOrderDetail) {
   const items = [{at: detail.order.created_at, description: `#${detail.order.order_no}`, title: "订单创建"}];
+  if (detail.renewal?.applied_at) items.push({at: detail.renewal.applied_at, title: "续租支付已确认", description: detail.renewal.mode === "extend" ? "原租期已延长" : "等待原订单重新交付资源"});
+  if (detail.renewal?.confirmed_at) items.push({at: detail.renewal.confirmed_at, title: "续租资源已签收", description: "新租期已开始"});
   if (detail.delivery) {
     items.push({
       at: detail.delivery.created_at,
@@ -427,7 +450,8 @@ function statusHeadline(status: BuyerOrderDetail["order"]["status"]) {
 
 function statusDescription(detail: BuyerOrderDetail) {
   const {order} = detail;
-  if (order.status === "active" && order.lease_end_at) return `履约至 ${shortDate.format(new Date(order.lease_end_at))}`;
+  if (detail.renewal && order.status === "completed") return detail.renewal.mode === "extend" ? "续租已生效，请在原订单查看当前租期与访问凭证" : "请在原订单查看重新交付与当前租期";
+  if (order.status === "active" && order.lease_end_at) return `履约至 ${formatDateTime(order.lease_end_at)}`;
   if (order.status === "pending_payment" && order.payment_expires_at) return `请在 ${formatDateTime(order.payment_expires_at)} 前完成支付`;
   return {
     active: "算力资源已开通，当前正在履约",
@@ -452,7 +476,7 @@ function statusTone(status: BuyerOrderDetail["order"]["status"]) {
 
 function leasePeriod(detail: BuyerOrderDetail) {
   const {lease_end_at, lease_start_at} = detail.order;
-  if (lease_start_at && lease_end_at) return `${shortDate.format(new Date(lease_start_at))} — ${shortDate.format(new Date(lease_end_at))}`;
+  if (lease_start_at && lease_end_at) return `${formatDateTime(lease_start_at)} — ${formatDateTime(lease_end_at)}`;
   return `${detail.order.duration} ${durationUnit(detail.product.pricing_mode)}`;
 }
 

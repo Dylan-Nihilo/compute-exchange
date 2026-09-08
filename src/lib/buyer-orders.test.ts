@@ -1,6 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {startBuyerOrderPayment} from "./buyer-orders.ts";
+import {fetchBuyerOrderRenewalQuote, renewBuyerOrder} from "./buyer-orders.ts";
+
+test("renewal preserves the accepted quote, consent and retry identity", async () => {
+  const quote = {
+    parent_order_no: "ORDTEST123", mode: "extend", quantity: 2, duration: 2,
+    pricing_mode: "hourly", min_duration: 1, max_duration: 8760, unit_price: 3000,
+    total_amount: 12000, platform_fee: 780, fee_rate: 650,
+    lease_end_at: "2026-09-08T12:00:00+08:00", renewed_until: "2026-09-08T14:00:00+08:00",
+  };
+  const loaded = await fetchBuyerOrderRenewalQuote("ORDTEST123", 2, async (url) => {
+    assert.equal(url, "/api/buyer/orders/ORDTEST123/renewal-quote?duration=2");
+    return Response.json({code: 0, message: "success", data: quote});
+  });
+  const requestID = "b3c317f1-9e05-4b31-806b-5b6ac98ca96f";
+  const requests: unknown[] = [];
+  const upstream: typeof fetch = async (_url, init) => {
+    requests.push(JSON.parse(String(init?.body)));
+    return Response.json({code: 0, message: "success", data: {order_no: "RENTEST123", total_amount: 12000, platform_fee: 780}});
+  };
+  await assert.rejects(renewBuyerOrder(loaded, requestID, false, upstream), /同意/);
+  assert.equal(requests.length, 0);
+  for (let attempt = 0; attempt < 2; attempt++) await renewBuyerOrder(loaded, requestID, true, upstream);
+  assert.deepEqual(requests[0], {
+    duration: 2, request_id: requestID, compliance_agreed: true, compliance_version: "2026-09-06.1",
+    expected_lease_end_at: quote.lease_end_at, expected_renewed_until: quote.renewed_until,
+    expected_total_amount: 12000, expected_platform_fee: 780,
+  });
+  assert.deepEqual(requests[0], requests[1]);
+  await assert.rejects(renewBuyerOrder(loaded, requestID, true, async () => Response.json({code: 40900, message: "报价已变化"})), /报价已变化/);
+});
 
 test("payment uses the order identity and rejects unsafe cashier URLs", async () => {
   const result = await startBuyerOrderPayment("ORDTEST123", "wechat", async (_url, init) => {
