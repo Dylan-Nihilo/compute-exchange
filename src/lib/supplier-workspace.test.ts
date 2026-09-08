@@ -9,6 +9,7 @@ import {
   fetchMyQualifications,
   fetchResourceSyncs,
   fetchSupplierOrders,
+  isSupplierOrderStatusFilter,
   fetchSupplierSettlements,
   fetchSupplierSettlementSummary,
   submitPassiveResourceSync,
@@ -91,6 +92,7 @@ test("fetchSupplierOrders forwards filters and parses page", async () => {
       list: [{
         id: 1, order_no: "ORD-1", buyer_id: 3, product_id: 7, quantity: 1,
         duration: 24, unit_price: 3500, total_amount: 84000, platform_fee: 4200,
+        current_lease: {order_no: "REN-2", duration: 2, pricing_mode: "hourly"},
         status: "provisioning", payment_expires_at: null, lease_start_at: null,
         lease_end_at: null, compliance_agreed: true,
         created_at: "2026-08-26T09:00:00Z", updated_at: "2026-08-26T09:00:00Z",
@@ -102,6 +104,7 @@ test("fetchSupplierOrders forwards filters and parses page", async () => {
   assert.equal(requestedUrl, "/api/supplier/orders?status=provisioning&page=2&page_size=10");
   assert.equal(page.orders.length, 1);
   assert.equal(page.orders[0].gpu_model, "NVIDIA H100");
+  assert.deepEqual(page.orders[0].current_lease, {order_no: "REN-2", duration: 2, pricing_mode: "hourly"});
   assert.equal(page.total, 11);
   assert.deepEqual(page.statusCounts, {provisioning: 3, active: 8});
 });
@@ -201,4 +204,9 @@ test("publishing and resubmitting include the explicitly accepted document versi
   };
   await createProduct(input, transport);
   await resubmitProduct(7, input, transport);
+});
+
+test("supplier order tabs accept status groups and reject invalid members", () => {
+  for (const value of ["", "paid,provisioning", "completed,refunded,cancelled,frozen", "active"]) assert.equal(isSupplierOrderStatusFilter(value), true);
+  for (const value of ["paid,unknown", "paid,", ",active"]) assert.equal(isSupplierOrderStatusFilter(value), false);
 });

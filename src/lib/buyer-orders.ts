@@ -55,7 +55,12 @@ const actionEnvelopeSchema = z.object({
   message: z.string(),
 });
 
+export const currentLeaseSchema = z.object({
+  order_no: z.string(), duration: z.number().int().positive(), pricing_mode: z.string(),
+});
+
 const buyerOrderDetailSchema = z.object({
+  current_lease: currentLeaseSchema.nullable().optional(),
   pending_renewal_order_no: z.string().optional(),
   renewal: z.object({
     parent_order_no: z.string(), mode: z.enum(["extend", "restart"]), pricing_mode: z.string(),
@@ -312,7 +317,7 @@ export async function renewBuyerOrder(quote: BuyerOrderRenewalQuote, requestID: 
   if (!agreed) throw new Error("请阅读并同意算力资源使用规范");
   const response = await fetchImplementation(`/api/buyer/orders/${encodeURIComponent(quote.parent_order_no)}/renew`, {
     method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({
-      duration: quote.duration, request_id: requestID, compliance_agreed: agreed, compliance_version: LEGAL_VERSION,
+      duration: quote.duration, request_id: requestID, expected_pricing_mode: quote.pricing_mode, compliance_agreed: agreed, compliance_version: LEGAL_VERSION,
       expected_lease_end_at: quote.lease_end_at, expected_renewed_until: quote.renewed_until,
       expected_total_amount: quote.total_amount, expected_platform_fee: quote.platform_fee,
     }),

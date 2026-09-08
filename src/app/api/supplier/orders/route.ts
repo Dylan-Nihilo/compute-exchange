@@ -1,7 +1,7 @@
 import {NextResponse} from "next/server";
 
 import {proxyAuthenticatedBackend} from "@/lib/api/auth-backend";
-import {buyerOrderStatuses} from "@/lib/buyer-orders";
+import {isSupplierOrderStatusFilter} from "@/lib/supplier-workspace";
 
 export function GET(request: Request) {
   const source = new URL(request.url).searchParams;
@@ -10,7 +10,7 @@ export function GET(request: Request) {
   const pageSize = source.get("page_size") ?? "20";
 
   if (
-    (status && !buyerOrderStatuses.some((value) => value === status)) ||
+    !isSupplierOrderStatusFilter(status) ||
     !/^[1-9]\d*$/.test(page) ||
     !/^[1-9]\d*$/.test(pageSize) ||
     Number(pageSize) > 100

@@ -167,6 +167,11 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
         <SummaryMetric label="供给方" value={supplierName} />
       </section>
 
+      {detail.current_lease ? <section className="mt-4 rounded-xl border border-border bg-surface px-5 py-4 text-sm">
+        <p>本次交付周期：{detail.current_lease.duration} {durationUnit(detail.current_lease.pricing_mode)}</p>
+        <Link className="mt-2 inline-block break-all underline underline-offset-4" href={`/console/buyer/orders/${detail.current_lease.order_no}`}>查看本次续租订单与退款状态：{detail.current_lease.order_no}</Link>
+      </section> : null}
+
       {detail.renewal ? <section className={`${cardClass} mt-4 px-5 py-4 text-sm`}>
         <p>原订单：<Link className="break-all underline underline-offset-4" href={`/console/buyer/orders/${detail.renewal.parent_order_no}`}>{detail.renewal.parent_order_no}</Link></p>
         <p className="mt-2">本次续租 {order.duration} {({hourly: "小时", daily: "天", weekly: "周", monthly: "个月"} as Record<string, string>)[detail.renewal.pricing_mode]}，含平台服务费 {money.format(order.platform_fee / 100)}。</p>
@@ -477,7 +482,7 @@ function statusTone(status: BuyerOrderDetail["order"]["status"]) {
 function leasePeriod(detail: BuyerOrderDetail) {
   const {lease_end_at, lease_start_at} = detail.order;
   if (lease_start_at && lease_end_at) return `${formatDateTime(lease_start_at)} — ${formatDateTime(lease_end_at)}`;
-  return `${detail.order.duration} ${durationUnit(detail.product.pricing_mode)}`;
+  return `${detail.current_lease?.duration ?? detail.order.duration} ${durationUnit(detail.current_lease?.pricing_mode ?? detail.renewal?.pricing_mode ?? detail.product.pricing_mode)}`;
 }
 
 function copyText(value: string) {

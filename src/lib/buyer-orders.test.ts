@@ -24,7 +24,7 @@ test("renewal preserves the accepted quote, consent and retry identity", async (
   assert.equal(requests.length, 0);
   for (let attempt = 0; attempt < 2; attempt++) await renewBuyerOrder(loaded, requestID, true, upstream);
   assert.deepEqual(requests[0], {
-    duration: 2, request_id: requestID, compliance_agreed: true, compliance_version: "2026-09-06.1",
+    duration: 2, request_id: requestID, expected_pricing_mode: "hourly", compliance_agreed: true, compliance_version: "2026-09-06.1",
     expected_lease_end_at: quote.lease_end_at, expected_renewed_until: quote.renewed_until,
     expected_total_amount: 12000, expected_platform_fee: 780,
   });
@@ -212,6 +212,7 @@ test("fetchBuyerOrderDetail validates and reads the dedicated detail endpoint", 
         code: 0,
         message: "success",
         data: {
+          current_lease: {order_no: "RENTEST123", duration: 2, pricing_mode: "hourly"},
           order: {
             order_no: "ORD20260823120000a1b2c3",
             status: "active",
@@ -260,6 +261,7 @@ test("fetchBuyerOrderDetail validates and reads the dedicated detail endpoint", 
 
   assert.equal(requestedUrl, "/api/buyer/orders/ORD20260823120000a1b2c3");
   assert.equal(detail.product.gpu_model, "NVIDIA H100");
+  assert.deepEqual(detail.current_lease, {order_no: "RENTEST123", duration: 2, pricing_mode: "hourly"});
   assert.equal(isBuyerOrderNo("ORD" + "a".repeat(30)), false);
 });
 
