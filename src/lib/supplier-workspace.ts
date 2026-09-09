@@ -35,6 +35,8 @@ export const productStatusCopy: Record<string, string> = {
 export const qualificationStatusCopy: Record<string, string> = {
   pending: "审核中",
   approved: "已通过",
+  expiring: "即将到期",
+  expired: "已过期",
   rejected: "已驳回",
 };
 
@@ -55,13 +57,18 @@ const qualificationSchema = z.object({
   cert_number: z.string(),
   cert_url: z.string(),
   expires_at: z.string().nullable(),
+  expires_in_days: z.number().int().nullable().optional(),
   status: z.string(),
   rejected_reason: z.string().optional(),
   created_at: z.string(),
-}).transform((qualification) => ({
-  ...qualification,
-  status: qualification.status === "verified" ? "approved" : qualification.status,
-}));
+}).transform((qualification) => {
+  let status = qualification.status;
+  if (status === "verified") {
+    const days = qualification.expires_in_days;
+    status = days == null ? "approved" : days < 0 ? "expired" : days <= 30 ? "expiring" : "approved";
+  }
+  return {...qualification, status};
+});
 
 const productSchema = z.object({
   id: z.number().int().positive(),
@@ -255,6 +262,7 @@ export type CreateProductInput = {
 };
 
 export type SubmitQualificationInput = {
+  expires_at?: string | null;
   qual_type: string;
   cert_name: string;
   cert_number: string;

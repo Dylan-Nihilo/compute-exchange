@@ -39,13 +39,14 @@ test("fetchMyQualifications normalizes empty and populated lists", async () => {
 test("submitQualification posts payload and surfaces backend errors", async () => {
   let requestBody = "";
   await submitQualification(
-    {qual_type: "idc_license", cert_name: "IDC 许可证", cert_number: "B1", cert_url: "https://example.com/c.pdf"},
+    {qual_type: "idc_license", cert_name: "IDC 许可证", cert_number: "B1", cert_url: "https://example.com/c.pdf", expires_at: "2027-09-30"},
     async (_input, init) => {
       requestBody = String(init?.body);
       return Response.json({code: 0, message: "success"});
     },
   );
   assert.equal(JSON.parse(requestBody).qual_type, "idc_license");
+  assert.equal(JSON.parse(requestBody).expires_at, "2027-09-30");
 
   await assert.rejects(
     submitQualification(
@@ -209,4 +210,18 @@ test("publishing and resubmitting include the explicitly accepted document versi
 test("supplier order tabs accept status groups and reject invalid members", () => {
   for (const value of ["", "paid,provisioning", "completed,refunded,cancelled,frozen", "active"]) assert.equal(isSupplierOrderStatusFilter(value), true);
   for (const value of ["paid,unknown", "paid,", ",active"]) assert.equal(isSupplierOrderStatusFilter(value), false);
+});
+
+test("qualification expiry status follows server calendar days and preserves review states", async () => {
+  const cases = [
+    ["verified", 31, "approved"], ["verified", 30, "expiring"], ["verified", 0, "expiring"],
+    ["verified", -1, "expired"], ["expired", -1, "expired"], ["pending", -1, "pending"],
+    ["rejected", 5, "rejected"], ["verified", null, "approved"],
+  ] as const;
+  const list = await fetchMyQualifications(async () => Response.json({code: 0, message: "success", data: cases.map(([status, days], i) => ({
+    id: i + 1, user_id: 2, qual_type: "idc_license", cert_name: "License", cert_number: "TEST",
+    cert_url: "https://example.test/c.pdf", expires_at: days === null ? null : "2026-09-30T00:00:00+08:00",
+    expires_in_days: days, status, created_at: "2026-08-25T10:00:00Z",
+  }))}));
+  assert.deepEqual(list.map((q) => q.status), cases.map((c) => c[2]));
 });

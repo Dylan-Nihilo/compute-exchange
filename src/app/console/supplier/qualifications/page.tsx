@@ -2,7 +2,7 @@
 
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Button, Chip, Input, Label, Skeleton, TextField} from "@heroui/react";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 
 import {ErrorState} from "@/components/system/operation-state";
 import {EmptyState} from "@/components/workspace/ui/empty-state";
@@ -32,6 +32,8 @@ const inputClass =
 const statusTone = {
   pending: "warning",
   approved: "success",
+  expiring: "warning",
+  expired: "danger",
   rejected: "danger",
 } as const;
 
@@ -41,12 +43,20 @@ export default function SupplierQualificationsPage() {
   const [certName, setCertName] = useState("");
   const [certNumber, setCertNumber] = useState("");
   const [certUrl, setCertUrl] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
   const listQuery = useQuery({
     queryKey: qualificationsKey,
     queryFn: () => fetchMyQualifications(),
   });
+
+  useEffect(() => {
+    if (!listQuery.data || !window.location.hash.startsWith("#qualification-")) return;
+    const target = document.getElementById(window.location.hash.slice(1));
+    target?.scrollIntoView({block: "center"});
+    target?.focus({preventScroll: true});
+  }, [listQuery.data]);
 
   const submitMutation = useMutation({
     mutationFn: (input: SubmitQualificationInput) => submitQualification(input),
@@ -55,6 +65,7 @@ export default function SupplierQualificationsPage() {
       setCertName("");
       setCertNumber("");
       setCertUrl("");
+      setExpiresAt("");
       setFormError(null);
       notify.success("资质已提交, 请等待平台审核");
     },
@@ -72,6 +83,7 @@ export default function SupplierQualificationsPage() {
       cert_name: certName.trim(),
       cert_number: certNumber.trim(),
       cert_url: certUrl.trim(),
+      expires_at: expiresAt || null,
     });
   };
 
@@ -118,6 +130,18 @@ export default function SupplierQualificationsPage() {
             <Label className="text-[13px] font-medium text-[#24495d]">附件链接</Label>
             <Input autoComplete="off" className={inputClass} placeholder="https://…(证照扫描件地址)" />
           </TextField>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-medium text-foreground" htmlFor="qualification-expiry">有效期至</label>
+            <input
+              className="h-10 w-full rounded-xl border border-border bg-surface px-3.5 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              id="qualification-expiry"
+              type="date"
+              value={expiresAt}
+              onChange={(event) => setExpiresAt(event.target.value)}
+              aria-describedby="qualification-expiry-help"
+            />
+            <p className="text-xs text-muted" id="qualification-expiry-help">按证照填写到期日，无到期日可留空。</p>
+          </div>
         </div>
         {formError ? (
           <p className="mt-3 text-xs text-[#c4392f]" role="alert">{formError}</p>
@@ -148,7 +172,9 @@ export default function SupplierQualificationsPage() {
               {list.map((item) => (
                 <li
                   className="flex flex-wrap items-center gap-3 rounded-xl border border-[#dce9ee] bg-white/55 px-4 py-3"
+                  id={`qualification-${item.id}`}
                   key={item.id}
+                  tabIndex={-1}
                 >
                   <Chip color={statusTone[item.status as keyof typeof statusTone] ?? "default"} variant="soft">
                     {qualificationStatusCopy[item.status] ?? item.status}
@@ -159,8 +185,13 @@ export default function SupplierQualificationsPage() {
                       {qualTypeOptions.find((option) => option.id === item.qual_type)?.label ?? item.qual_type}
                       {" · "}编号 {item.cert_number}
                       {" · "}提交于 {formatDateTime(item.created_at)}
-                      {item.expires_at ? ` · 有效期至 ${formatDate(item.expires_at)}` : ""}
+                      {item.expires_at ? ` · 有效期至 ${formatDate(item.expires_at)}` : " · 未提供到期日"}
                     </p>
+                    {item.status === "expiring" ? (
+                      <p className="mt-1 text-xs text-warning">{item.expires_in_days === 0 ? "今天到期" : `距到期还有 ${item.expires_in_days} 天`}，请及时提交同类型新证照审核。</p>
+                    ) : item.status === "expired" ? (
+                      <p className="mt-1 text-xs text-danger">证照已过期，请确认同类型新证照已提交并通过审核。</p>
+                    ) : null}
                     {item.status === "rejected" && item.rejected_reason ? (
                       <p className="mt-1 text-xs text-[#c4392f]">驳回原因: {item.rejected_reason}</p>
                     ) : null}
