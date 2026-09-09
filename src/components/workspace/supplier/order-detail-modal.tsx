@@ -54,14 +54,18 @@ export function OrderDetailModal({
                 <Detail label="订单号" value={order.order_no} mono />
                 <Detail label="状态" value={buyerOrderStatusCopy[order.status as keyof typeof buyerOrderStatusCopy] ?? order.status} />
                 <Detail label="数量" value={`${order.quantity}`} />
-                <Detail label="计费周期数" value={`${order.duration}`} />
-                <Detail label="总价" value={money.format(order.total_amount / 100)} strong />
+                <Detail label={order.current_lease ? "原购买周期数" : "计费周期数"} value={`${order.duration}`} />
+                <Detail label={order.current_lease ? "原订单金额" : "总价"} value={money.format(order.total_amount / 100)} strong />
                 <Detail label="平台费" value={money.format(order.platform_fee / 100)} />
                 <Detail label="下单时间" value={formatDateTime(order.created_at)} />
                 <Detail label="支付截止" value={order.payment_expires_at ? formatDateTime(order.payment_expires_at) : "—"} />
                 <Detail label="租期开始" value={order.lease_start_at ? formatDateTime(order.lease_start_at) : "—"} />
                 <Detail label="租期结束" value={order.lease_end_at ? formatDateTime(order.lease_end_at) : "—"} />
               </dl>
+              {order.current_lease ? <dl className="grid gap-3 text-xs text-muted sm:grid-cols-2">
+                <Detail label="本次续租订单" value={order.current_lease.order_no} mono />
+                <Detail label="本次交付周期" value={`${order.current_lease.duration} 个周期 · ${pricingModeCopy[order.current_lease.pricing_mode] ?? order.current_lease.pricing_mode}`} />
+              </dl> : null}
               {canDeliver ? (
                 <p className="rounded-xl border border-[#c3e2f5]/60 bg-[#e8f6fe]/60 px-4 py-2.5 text-xs leading-5 text-[#1d63ae]">
                   该订单等待交付: 请在自有控制台开通资源后, 回填实例访问凭证。

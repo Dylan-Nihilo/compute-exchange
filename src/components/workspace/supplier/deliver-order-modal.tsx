@@ -3,7 +3,7 @@
 import {Button, Input, Label, Modal, Spinner, TextArea, TextField} from "@heroui/react";
 import {useEffect, useState} from "react";
 
-import type {DeliverOrderInput, SupplierOrder} from "@/lib/supplier-workspace";
+import {pricingModeCopy, type DeliverOrderInput, type SupplierOrder} from "@/lib/supplier-workspace";
 
 const inputClass =
   "h-10 rounded-xl border border-[#afc4ce]/45 bg-white/80 px-3.5 text-sm text-[#24495d] placeholder:text-[#9cb0ba]";
@@ -75,7 +75,7 @@ export function DeliverOrderModal({
             <Modal.Body className="gap-4">
               {order ? (
                 <p className="rounded-xl border border-[#dce9ee] bg-white/55 px-4 py-2.5 text-xs text-[#78909c]">
-                  订单 {order.order_no} · 数量 {order.quantity} · 金额 ¥{(order.total_amount / 100).toFixed(2)}
+                  订单 {order.order_no} · 数量 {order.quantity} · {order.current_lease ? `本次交付 ${order.current_lease.duration} 个周期（${pricingModeCopy[order.current_lease.pricing_mode] ?? order.current_lease.pricing_mode}），续租订单 ${order.current_lease.order_no}` : `金额 ¥${(order.total_amount / 100).toFixed(2)}`}
                 </p>
               ) : null}
               <div className="grid gap-4 sm:grid-cols-2">

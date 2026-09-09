@@ -1,5 +1,10 @@
+import {buyerOrderStatuses, currentLeaseSchema} from "./buyer-orders.ts";
 import {LEGAL_VERSION} from "./legal.ts";
 import {z} from "zod";
+
+export function isSupplierOrderStatusFilter(status: string) {
+  return !status || status.split(",").every((part) => buyerOrderStatuses.some((value) => value === part));
+}
 
 // ===== 类型与文案 =====
 
@@ -98,6 +103,7 @@ const productGroupSchema = z.object({
 });
 
 const supplierOrderSchema = z.object({
+  current_lease: currentLeaseSchema.nullable().optional(),
   id: z.number().int().positive(),
   order_no: z.string(),
   buyer_id: z.number().int().positive(),
