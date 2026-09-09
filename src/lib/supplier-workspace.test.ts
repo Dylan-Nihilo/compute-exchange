@@ -217,11 +217,12 @@ test("qualification expiry status follows server calendar days and preserves rev
     ["verified", 31, "approved"], ["verified", 30, "expiring"], ["verified", 0, "expiring"],
     ["verified", -1, "expired"], ["expired", -1, "expired"], ["pending", -1, "pending"],
     ["rejected", 5, "rejected"], ["verified", null, "approved"],
+    ["verified", 0, "superseded"], ["expired", -1, "superseded"],
   ] as const;
   const list = await fetchMyQualifications(async () => Response.json({code: 0, message: "success", data: cases.map(([status, days], i) => ({
     id: i + 1, user_id: 2, qual_type: "idc_license", cert_name: "License", cert_number: "TEST",
     cert_url: "https://example.test/c.pdf", expires_at: days === null ? null : "2026-09-30T00:00:00+08:00",
-    expires_in_days: days, status, created_at: "2026-08-25T10:00:00Z",
+    expires_in_days: days, superseded: i >= 8, status, created_at: "2026-08-25T10:00:00Z",
   }))}));
   assert.deepEqual(list.map((q) => q.status), cases.map((c) => c[2]));
 });

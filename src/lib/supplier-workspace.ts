@@ -37,6 +37,7 @@ export const qualificationStatusCopy: Record<string, string> = {
   approved: "已通过",
   expiring: "即将到期",
   expired: "已过期",
+  superseded: "已更新",
   rejected: "已驳回",
 };
 
@@ -58,12 +59,15 @@ const qualificationSchema = z.object({
   cert_url: z.string(),
   expires_at: z.string().nullable(),
   expires_in_days: z.number().int().nullable().optional(),
+  superseded: z.boolean().optional(),
   status: z.string(),
   rejected_reason: z.string().optional(),
   created_at: z.string(),
 }).transform((qualification) => {
   let status = qualification.status;
-  if (status === "verified") {
+  if (qualification.superseded && (status === "verified" || status === "expired")) {
+    status = "superseded";
+  } else if (status === "verified") {
     const days = qualification.expires_in_days;
     status = days == null ? "approved" : days < 0 ? "expired" : days <= 30 ? "expiring" : "approved";
   }
