@@ -153,6 +153,9 @@ export function SupplierWorkspaceShell({
                         <Label>切换为{roleLabels[role]}</Label>
                       </Dropdown.Item>
                     ))}
+                  <Dropdown.Item id="consents" href="/console/consents" textValue="授权同意记录">
+                    <Label>授权同意记录</Label>
+                  </Dropdown.Item>
                   <Dropdown.Item id="logout" isDisabled={isLoggingOut} textValue="退出登录">
                     <Label>{isLoggingOut ? "正在退出" : "退出登录"}</Label>
                   </Dropdown.Item>
