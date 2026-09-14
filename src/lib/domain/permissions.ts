@@ -84,14 +84,12 @@ export function accessFor(
   context: AccessContext,
   capability: Capability,
 ): AccessLevel {
-  const {grants = [], qualificationStatus, role, verificationStatus} = context;
+  const {qualificationStatus, role, verificationStatus} = context;
+  // The live API authorizes roles; prototype grants are not part of that contract.
   const baseAccess = allowedRoles[capability].includes(role) ? "allow" : "deny";
 
   if (baseAccess === "deny") return "deny";
   if (role === "admin") return "allow";
-  if (role === "operator" && capability !== "browse") {
-    return grants.includes(capability) ? "allow" : "deny";
-  }
   if (
     verificationRequired.includes(capability) &&
     verificationStatus !== "verified"
