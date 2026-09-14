@@ -133,6 +133,27 @@ describe("API client", () => {
     assert.equal(capturedInput, "https://api.example.com/v1/health");
   });
 
+  it("uses the same-origin /api/v1 base in the browser regardless of the configured host", async () => {
+    // 回归保护: 构建期的绝对地址只有单一主机名, 在 www 域名页面上直连即跨域,
+    // 浏览器端必须走同源相对路径(生产事故 2026-09-14: 下单页取商品被 CORS 拦截)。
+    (globalThis as {window?: unknown}).window = {};
+    try {
+      let capturedInput: RequestInfo | URL | undefined;
+      const client = createApiClientForEnvironment(
+        {NEXT_PUBLIC_API_BASE_URL: "https://api.example.com/v1"},
+        async (input) => {
+          capturedInput = input;
+          return Response.json({ready: true});
+        },
+      );
+      assert.notEqual(client, null);
+      await client?.request("/health", z.object({ready: z.boolean()}));
+      assert.equal(capturedInput, "/api/v1/health");
+    } finally {
+      delete (globalThis as {window?: unknown}).window;
+    }
+  });
+
   it("aborts requests that exceed the configured timeout", async () => {
     const keepEventLoopAlive = setTimeout(() => undefined, 100);
     const client = createApiClient({
