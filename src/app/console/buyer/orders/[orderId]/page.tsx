@@ -7,6 +7,7 @@ import Link from "next/link";
 import {useParams, useRouter} from "next/navigation";
 import {useState, type ReactNode} from "react";
 
+import {OrderAttestations} from "@/components/attestations/attestation-views";
 import {OrderRenewal} from "@/components/workspace/buyer/order-renewal";
 import {ErrorState} from "@/components/system/operation-state";
 import {ConfirmDialog} from "@/components/system/confirm-dialog";
@@ -217,6 +218,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
           </InfoCard>
 
           <AccessCredentialCard detail={detail} /></> : null}
+          <OrderAttestations orderNo={order.order_no} />
         </div>
 
         <section className={`${cardClass} min-h-[520px] p-5 lg:min-h-[724px]`}>

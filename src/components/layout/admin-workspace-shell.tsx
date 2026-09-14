@@ -49,6 +49,7 @@ const navItems: readonly AdminNavItem[] = [
   {href: "/admin/cms", label: "内容管理", icon: Megaphone},
   {href: "/admin/users", label: "用户管理", icon: UserCog},
   {href: "/admin/access", label: "角色与权限", icon: Gauge, adminOnly: true},
+  {href: "/admin/attestations", label: "存证管理", icon: ShieldCheck},
   {href: "/admin/audit", label: "审计日志", icon: FileClock},
   {href: "/admin/settings", label: "系统设置", icon: Settings2, adminOnly: true},
 ];
