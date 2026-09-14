@@ -83,6 +83,7 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/admin", label: "运营工作台", area: "admin", roles: ["operator", "admin"]},
   {href: "/admin/reviews", label: "审核中心", area: "admin", roles: ["operator", "admin"], capability: "reviewQualification"},
   {href: "/admin/products", label: "商品管理", area: "admin", roles: ["operator", "admin"], capability: "manageProducts"},
+  {href: "/admin/gpu-catalog", label: "GPU 型号库", area: "admin", roles: ["operator", "admin"], capability: "manageProducts"},
   {href: "/admin/orders", label: "订单管理", area: "admin", roles: ["operator", "admin"], capability: "interveneOrder"},
   {href: "/admin/finance", label: "资金与对账", area: "admin", roles: ["operator", "admin"], capability: "viewFinance"},
   {href: "/admin/crm", label: "CRM", area: "admin", roles: ["operator", "admin"], capability: "manageCrm"},
