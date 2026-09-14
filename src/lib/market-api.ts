@@ -254,7 +254,8 @@ export function mapComputeProduct(product: ComputeProduct): MarketSupply {
     unitPriceMinor: product.price_negotiable ? undefined : product.unit_price,
     cardCount: product.card_count,
     supplierId: product.supplier_id ? String(product.supplier_id) : undefined,
-    supplierName: product.supplier_name || undefined,
+    // 条件展开: 无企业名时不带键, 保持映射对象形状稳定(测试用 deepEqual 全量比对)。
+    ...(product.supplier_name ? {supplierName: product.supplier_name} : {}),
     productTypeLabel: typeLabel,
     cpuSpec: product.cpu_spec,
     memorySpec: product.memory_spec,
