@@ -1,5 +1,7 @@
 "use client";
 
+import {ScheduleAdvice} from "@/components/scheduler/schedule-advice";
+
 import {Button, Input, Label, Modal, Spinner, TextArea, TextField} from "@heroui/react";
 import {useEffect, useState} from "react";
 
@@ -73,6 +75,7 @@ export function DeliverOrderModal({
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body className="gap-4">
+              {open && order ? <ScheduleAdvice key={order.order_no} orderNo={order.order_no} role="supplier" /> : null}
               {order ? (
                 <p className="rounded-xl border border-[#dce9ee] bg-white/55 px-4 py-2.5 text-xs text-[#78909c]">
                   订单 {order.order_no} · 数量 {order.quantity} · {order.current_lease ? `本次交付 ${order.current_lease.duration} 个周期（${pricingModeCopy[order.current_lease.pricing_mode] ?? order.current_lease.pricing_mode}），续租订单 ${order.current_lease.order_no}` : `金额 ¥${(order.total_amount / 100).toFixed(2)}`}

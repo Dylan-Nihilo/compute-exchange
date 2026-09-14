@@ -67,6 +67,7 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/console/supplier/centers/new", label: "发布算力中心", area: "console", roles: ["supplier"], capability: "publishCompute"},
   {href: "/console/supplier/colocation", label: "空心机房", area: "console", roles: ["supplier"]},
   {href: "/console/supplier/colocation/new", label: "登记空心机房", area: "console", roles: ["supplier"], capability: "publishCompute"},
+  {href: "/console/supplier/nodes", label: "节点管理", area: "console", roles: ["supplier"]},
   {href: "/console/supplier/inventory", label: "资源盘点", area: "console", roles: ["supplier"]},
   {href: "/console/supplier/orders", label: "订单管理", area: "console", roles: ["supplier"]},
   {href: "/console/supplier/settlements", label: "结算中心", area: "console", roles: ["supplier"]},
@@ -92,6 +93,7 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/admin/cms", label: "内容管理", area: "admin", roles: ["operator", "admin"], capability: "manageCms"},
   {href: "/admin/users", label: "用户管理", area: "admin", roles: ["operator", "admin"], capability: "manageUsers"},
   {href: "/admin/access", label: "角色与权限", area: "admin", roles: ["admin"], capability: "manageAccess"},
+  {href: "/admin/nodes", label: "节点与调度", area: "admin", roles: ["operator", "admin"]},
   {href: "/admin/audit", label: "审计日志", area: "admin", roles: ["operator", "admin"], capability: "viewAudit"},
   {href: "/admin/settings", label: "系统设置", area: "admin", roles: ["admin"], capability: "manageCompliance"},
 ];
