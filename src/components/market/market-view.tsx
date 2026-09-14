@@ -14,6 +14,7 @@ import {
   TextField,
 } from "@heroui/react";
 import Image from "next/image";
+import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {type FormEvent, type ReactNode, useState, useTransition} from "react";
 
@@ -133,14 +134,14 @@ export function MarketView({query, result}: MarketViewProps) {
           isPending ? "translate-y-px opacity-80" : ""
         }`}
       >
-        <header className="mb-5">
+        <header className="mb-5 flex flex-wrap items-end justify-between gap-4"><div>
           <h1 className="text-[36px] leading-tight font-semibold tracking-[-0.03em] text-[#071627] sm:text-[44px] sm:leading-[56px]">
             算力市场
           </h1>
           <p className="mt-1 text-sm leading-[22px] text-[#4b6276] sm:text-base">
             合规机房挂牌 · 实时比价 · 线上成交
           </p>
-        </header>
+        </div><Link className="rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/market/agent-search">智能选型</Link></header>
 
         <section
           aria-label="算力商品类型"

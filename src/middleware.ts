@@ -13,6 +13,7 @@ const PROTECTED_ROUTES = [
   "/auth/identity",
   "/supplier/apply",
   "/checkout",
+  "/market/agent-search",
 ] as const;
 
 /**

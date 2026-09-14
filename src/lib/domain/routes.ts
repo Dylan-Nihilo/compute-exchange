@@ -41,6 +41,7 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/leasing", label: "融资租赁", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/attestations/verify", label: "存证验证", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/market", label: "算力市场", area: "market", roles: publicRoles, capability: "browse"},
+  {href: "/market/agent-search", label: "智能选型", area: "market", roles: ["buyer", "supplier", "vendor", "funder", "operator", "admin"]},
   {href: "/market/[productId]", label: "商品详情", area: "market", roles: publicRoles, capability: "browse"},
   {href: "/checkout", label: "确认订单", area: "market", roles: ["buyer"], capability: "orderCompute"},
   {href: "/market/[productId]/inquiry", label: "商品询价", area: "market", roles: ["buyer"], capability: "orderCompute"},
