@@ -1,8 +1,8 @@
 "use client";
 
-import {Button} from "@heroui/react";
+import {Button, Input, Label, Modal, TextField} from "@heroui/react";
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
-import {Check, CircleOff, ShieldBan} from "lucide";
+import {CircleOff, ShieldBan} from "lucide";
 import Link from "next/link";
 import {useState} from "react";
 import {ConfirmDialog} from "@/components/system/confirm-dialog";
@@ -10,6 +10,7 @@ import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {
   type AdminRiskAlert,
+  type AdminOrder,
   assignAdminLead,
   fetchAdminAuditLogs,
   fetchAdminInvoices,
@@ -24,12 +25,15 @@ import {
   offlineProduct,
   resolveRiskAlert,
   updateAdminOrderStatus,
-  updateAdminTicket,
 } from "@/lib/admin-workspace";
 import {useCurrentAccount} from "@/lib/auth/queries";
 import {formatDateTime} from "@/lib/format/date";
 import {notify} from "@/lib/notify";
 import {pricingModeCopy, productStatusCopy, productTypeCopy} from "@/lib/supplier-workspace";
+import {ticketStatusCopy} from "@/lib/buyer-tickets";
+import {buyerOrderStatusCopy} from "@/lib/buyer-orders";
+import {ListPagination} from "@/components/workspace/ui/list-pagination";
+import {AdminTicketDialog} from "./admin-ticket-dialog";
 
 import {
   AdminPage,
@@ -74,20 +78,59 @@ export function AdminProducts() {
 
 export function AdminOrders() {
   const client = useQueryClient();
-  const query = useQuery({queryKey: ["admin", "orders"], queryFn: () => fetchAdminOrders({pageSize: 100})});
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [action, setAction] = useState<{order: AdminOrder; status: "cancelled" | "frozen"} | null>(null);
+  const query = useQuery({queryKey: ["admin", "orders", {page, status}], queryFn: () => fetchAdminOrders({page, status, pageSize: 20}), staleTime: 0});
+  const totalPages = Math.max(1, Math.ceil((query.data?.total ?? 0) / 20));
+  if (query.isSuccess && query.isFetchedAfterMount && !query.isFetching && page > totalPages) setPage(totalPages);
+  const selected = query.data?.items.find((order) => order.id === selectedId);
   const mutation = useMutation({
-    mutationFn: ({id, status}: {id: number; status: string}) => updateAdminOrderStatus(id, status),
-    onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "orders"]}); notify.success("订单状态已更新"); },
-    onError: (error) => notify.error(messageFor(error)),
+    mutationFn: ({order, status}: NonNullable<typeof action>) => updateAdminOrderStatus(order.id, status),
+    onSuccess: async (_, {status}) => { setAction(null); setSelectedId(null); await client.invalidateQueries({queryKey: ["admin", "orders"]}); notify.success(status === "frozen" ? "订单已冻结" : "订单已取消"); },
+    onError: async (error) => { setAction(null); await client.invalidateQueries({queryKey: ["admin", "orders"]}); notify.error(messageFor(error)); },
   });
   return (
     <AdminPage title="订单管理" eyebrow="Orders" description="跟踪交易履约，必要时介入异常订单。">
-      <AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(query, "暂无订单", "买家下单后会显示在这里。") }>
+      <label className="flex items-center gap-3 text-sm">订单状态
+        <select aria-label="订单状态" className="min-h-10 rounded-xl border border-border bg-surface px-3" value={status} onChange={(event) => {setStatus(event.target.value); setPage(1);}}>
+          <option value="">全部状态</option>
+          {Object.entries(buyerOrderStatusCopy).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      <AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(query, "暂无订单", "当前条件下没有订单。") }>
         {query.data?.items.length ? <table className={adminTableClass}><caption className="sr-only">平台订单列表</caption>
           <AdminTableHead><th scope="col">订单号</th><th scope="col">买家</th><th scope="col">商品</th><th scope="col">金额</th><th scope="col">创建时间</th><th scope="col">状态</th><th className="text-right" scope="col">操作</th></AdminTableHead>
-          <tbody>{query.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.order_no}</th><td>UID-{item.buyer_id}</td><td>#{item.product_id} · {item.quantity} × {item.duration}</td><td>{money.format(item.total_amount / 100)}</td><td>{formatDateTime(item.created_at)}</td><td><StatusBadge status={item.status} /></td><td className="text-right">{!["completed", "cancelled", "refunded"].includes(item.status) ? <Button isPending={mutation.isPending} size="sm" variant="tertiary" onPress={() => mutation.mutate({id: item.id, status: "cancelled"})}>关闭订单</Button> : "—"}</td></tr>)}</tbody>
+          <tbody>{query.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium" scope="row">{item.order_no}</th><td>UID-{item.buyer_id}</td><td>#{item.product_id} · {item.quantity} × {item.duration}</td><td>{money.format(item.total_amount / 100)}</td><td>{formatDateTime(item.created_at)}</td><td><StatusBadge status={item.status} /></td><td className="text-right"><Button size="sm" variant="tertiary" onPress={() => setSelectedId(item.id)}>查看与处置</Button></td></tr>)}</tbody>
         </table> : null}
       </AdminTableShell></AdminPanel>
+      {query.data ? <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} /> : null}
+      <Modal.Backdrop isOpen={Boolean(selected)} isKeyboardDismissDisabled={mutation.isPending} onOpenChange={(open) => {if (!open && !mutation.isPending) setSelectedId(null);}}>
+        <Modal.Container size="lg" scroll="inside"><Modal.Dialog>
+          <Modal.Header><Modal.Heading>订单处置</Modal.Heading><p className="break-all text-sm text-muted">{selected?.order_no}</p></Modal.Header>
+          <Modal.Body>{selected ? <div className="space-y-5">
+            <StatusBadge status={selected.status} />
+            <dl className="grid gap-4 text-sm sm:grid-cols-2">
+              <div><dt className="text-muted">买家</dt><dd>UID-{selected.buyer_id}</dd></div>
+              <div><dt className="text-muted">商品</dt><dd>#{selected.product_id}</dd></div>
+              <div><dt className="text-muted">订单金额</dt><dd>{money.format(selected.total_amount / 100)}</dd></div>
+              <div><dt className="text-muted">平台服务费</dt><dd>{money.format(selected.platform_fee / 100)}</dd></div>
+              <div><dt className="text-muted">创建时间</dt><dd>{formatDateTime(selected.created_at)}</dd></div>
+              <div><dt className="text-muted">租期结束</dt><dd>{selected.lease_end_at ? formatDateTime(selected.lease_end_at) : "—"}</dd></div>
+            </dl>
+            {!selected.allowed_actions.length ? <p className="text-sm text-muted">当前状态没有可用处置操作。</p> : null}
+            <p className="text-sm text-muted">原路退款暂未开放。</p>
+          </div> : null}</Modal.Body>
+          <Modal.Footer className="flex-wrap">
+            <Button variant="tertiary" isDisabled={mutation.isPending} onPress={() => setSelectedId(null)}>返回列表</Button>
+            {selected?.allowed_actions.map((status) => <Button key={status} variant="danger-soft" isDisabled={mutation.isPending} onPress={() => setAction({order: selected, status})}>{status === "frozen" ? "冻结订单" : "关闭订单"}</Button>)}
+          </Modal.Footer>
+        </Modal.Dialog></Modal.Container>
+      </Modal.Backdrop>
+      <ConfirmDialog open={action !== null} title={action?.status === "frozen" ? "冻结订单" : "关闭订单"} confirmLabel={action?.status === "frozen" ? "冻结订单" : "关闭订单"} isDestructive isPending={mutation.isPending}
+        description={action ? `订单 ${action.order.order_no} ${action.status === "frozen" ? "冻结后，平台访问凭证将失效，资源仍保留占用。" : "关闭后将释放占用资源并使平台访问凭证失效，无法恢复。已支付款项不会自动退款。"}关联的待支付续租订单将一并取消。` : ""}
+        onCancel={() => setAction(null)} onConfirm={() => {if (action) mutation.mutate(action);}} />
     </AdminPage>
   );
 }
@@ -149,10 +192,30 @@ export function AdminRisk() {
 }
 
 export function AdminTickets() {
-  const client = useQueryClient();
-  const query = useQuery({queryKey: ["admin", "tickets"], queryFn: () => fetchAdminTickets({pageSize: 100})});
-  const mutation = useMutation({mutationFn: ({id, decision}: {id: number; decision: "claim" | "resolve" | "close"}) => updateAdminTicket(id, decision), onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "tickets"]}); notify.success("工单状态已更新"); }, onError: (error) => notify.error(messageFor(error))});
-  return <AdminPage title="工单处理" eyebrow="Support" description="处理故障、不可用与交易申诉。"><AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(query, "暂无工单", "买家提交工单后会显示在这里。")}>{query.data?.items.length ? <table className={adminTableClass}><caption className="sr-only">平台工单</caption><AdminTableHead><th scope="col">工单号</th><th scope="col">标题</th><th scope="col">买家</th><th scope="col">关联订单</th><th scope="col">状态</th><th scope="col">更新时间</th><th className="text-right" scope="col">操作</th></AdminTableHead><tbody>{query.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.ticket_no}</th><td>{item.title}</td><td>UID-{item.buyer_id}</td><td>{item.order_no}</td><td><StatusBadge status={item.status} /></td><td>{formatDateTime(item.updated_at)}</td><td className="text-right">{item.status === "pending" ? <Button size="sm" variant="primary" onPress={() => mutation.mutate({id: item.id, decision: "claim"})}>接单</Button> : item.status === "processing" ? <Button size="sm" variant="primary" onPress={() => mutation.mutate({id: item.id, decision: "resolve"})}><InteractiveIcon icon={Check} size={14} />完成</Button> : item.status === "resolved" ? <Button size="sm" variant="tertiary" onPress={() => mutation.mutate({id: item.id, decision: "close"})}>关闭</Button> : "—"}</td></tr>)}</tbody></table> : null}</AdminTableShell></AdminPanel></AdminPage>;
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const query = useQuery({queryKey: ["admin", "tickets", {page, status, keyword}], queryFn: () => fetchAdminTickets({page, status, keyword, pageSize: 20}), staleTime: 0});
+  const totalPages = Math.max(1, Math.ceil((query.data?.total ?? 0) / 20));
+  if (query.isSuccess && query.isFetchedAfterMount && !query.isFetching && page > totalPages) setPage(totalPages);
+  return <AdminPage title="工单处理" eyebrow="Support" description="处理故障、不可用与交易申诉。">
+    <div className="flex flex-wrap items-end gap-4">
+      <label className="grid gap-2 text-sm">工单状态
+        <select aria-label="工单状态" className="min-h-10 rounded-xl border border-border bg-surface px-3" value={status} onChange={(event) => {setStatus(event.target.value); setPage(1);}}>
+          <option value="">全部状态</option>
+          {Object.entries(ticketStatusCopy).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      <TextField className="w-full sm:max-w-sm" value={keyword} onChange={(value) => {setKeyword(value); setPage(1);}}><Label>搜索工单</Label><Input placeholder="工单号或标题" /></TextField>
+    </div>
+    <AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(query, "暂无工单", "当前条件下没有工单。")}>{query.data?.items.length ? <table className={adminTableClass}>
+      <caption className="sr-only">平台工单</caption><AdminTableHead><th scope="col">工单号</th><th scope="col">标题</th><th scope="col">买家</th><th scope="col">关联订单</th><th scope="col">状态</th><th scope="col">更新时间</th><th className="text-right" scope="col">操作</th></AdminTableHead>
+      <tbody>{query.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium" scope="row">{item.ticket_no}</th><td className="max-w-72 whitespace-pre-wrap break-words">{item.title}</td><td>UID-{item.buyer_id}</td><td>{item.order_no}</td><td><StatusBadge status={item.status} /></td><td>{formatDateTime(item.updated_at)}</td><td className="text-right"><Button size="sm" variant="tertiary" onPress={() => setSelectedId(item.id)}>查看工单</Button></td></tr>)}</tbody>
+    </table> : null}</AdminTableShell></AdminPanel>
+    {query.data ? <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} /> : null}
+    {selectedId !== null ? <AdminTicketDialog key={selectedId} id={selectedId} onClose={() => setSelectedId(null)} /> : null}
+  </AdminPage>;
 }
 
 export function AdminUsers() {
@@ -172,5 +235,6 @@ function tableState(query: {isPending: boolean; isError: boolean; error: unknown
 }
 
 function messageFor(error: unknown) {
-  return error instanceof Error ? error.message : "请求未完成";
+  const message = error instanceof Error ? error.message : "请求未完成";
+  return message === "order not active" ? "订单状态已变化，请刷新后重试。" : message;
 }
