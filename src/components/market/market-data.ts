@@ -19,6 +19,7 @@ export type MarketSupply = {
   unitPriceMinor?: number;
   cardCount?: number;
   supplierId?: string;
+  supplierName?: string;
   productTypeLabel?: string;
   cpuSpec?: string;
   memorySpec?: string;

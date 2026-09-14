@@ -98,8 +98,10 @@ export default function SupplierProductsPage() {
             />
           ) : allProducts.length ? (
             <div className="omnis-scrollbar-x">
-              <table className="w-full min-w-[860px] table-fixed border-collapse text-left">
+              <table className="w-full min-w-[1020px] table-fixed border-collapse text-left">
                 <caption className="sr-only">我的算力商品</caption>
+                {/* 固定列合计必须 < 表格 min-w, 否则 table-fixed 会等比压缩全部列;
+                    弹性列(无宽度的 col)固定放最后一列"操作" —— 它有按钮和驳回原因, 需要吃剩余宽度 */}
                 <colgroup>
                   <col className="w-[210px]" />
                   <col className="w-[130px]" />
@@ -107,8 +109,8 @@ export default function SupplierProductsPage() {
                   <col className="w-[120px]" />
                   <col className="w-[90px]" />
                   <col className="w-[100px]" />
+                  <col className="w-[100px]" />
                   <col />
-                  <col className="w-[130px]" />
                 </colgroup>
                 <thead>
                   <tr className="h-11 bg-[#d6f0fb]/45 text-[12px] font-medium text-[#78909c]">

@@ -81,7 +81,7 @@ export function MarketProductDetailView({
           {product.name}
         </h1>
         <p className="mt-3 text-sm text-muted">
-          {product.region} · 商品编号 {product.id} · 供给方编号 {product.supplierId}
+          {product.region} · 商品编号 {product.id} · 供给方 {product.supplierName || `#${product.supplierId}`}
         </p>
       </header>
 
@@ -204,7 +204,7 @@ export function MarketProductDetailView({
           <Card variant="secondary">
             <Card.Header>
               <Card.Title>供给方信用</Card.Title>
-              <Card.Description>供给方编号 {product.supplierId}</Card.Description>
+              <Card.Description>{product.supplierName || `供给方编号 ${product.supplierId}`}</Card.Description>
             </Card.Header>
             <Card.Content>
               {hasCreditHistory && product.credit ? (

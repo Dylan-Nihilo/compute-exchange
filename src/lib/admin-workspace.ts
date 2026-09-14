@@ -31,6 +31,7 @@ const qualificationSchema = z.object({
 const productSchema = z.object({
   id: z.number().int().positive(),
   supplier_id: z.number().int().positive(),
+  supplier_name: z.string().optional(),
   product_type: z.string(),
   gpu_model: z.string(),
   card_count: z.number().int().nonnegative(),

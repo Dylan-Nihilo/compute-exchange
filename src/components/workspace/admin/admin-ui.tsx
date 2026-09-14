@@ -162,8 +162,13 @@ export function StatusBadge({status, label}: {status: string; label?: string}) {
   );
 }
 
-export const adminTableClass =
-  "w-full min-w-[900px] border-collapse text-left text-[13px] text-[#24495d] [&_tbody_tr]:border-b [&_tbody_tr]:border-[#dce9ee]/70 [&_tbody_tr]:transition-colors [&_tbody_tr:hover]:bg-[#f5fafc]/80 [&_tbody_tr:last-child]:border-0 [&_td]:px-4 [&_td]:py-3.5 [&_th]:px-4";
+const adminTableBase =
+  "w-full border-collapse text-left text-[13px] text-[#24495d] [&_tbody_tr]:border-b [&_tbody_tr]:border-[#dce9ee]/70 [&_tbody_tr]:transition-colors [&_tbody_tr:hover]:bg-[#f5fafc]/80 [&_tbody_tr:last-child]:border-0 [&_td]:px-4 [&_td]:py-3.5 [&_th]:px-4";
+
+export const adminTableClass = `min-w-[900px] ${adminTableBase}`;
+
+// 列数多的表(如 9 列的 CRM)用宽版, 否则表头在 900px 里折行, 视觉上与内容错位。
+export const adminTableWideClass = `min-w-[1140px] ${adminTableBase}`;
 
 export function AdminTableHead({children}: {children: ReactNode}) {
   return (

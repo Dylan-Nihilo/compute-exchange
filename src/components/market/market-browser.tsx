@@ -46,11 +46,10 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
       ? supply.unitPrice
       : priceFormatter.format(supply.unitPriceMinor / 100);
   const priceUnit = marketPriceUnit(supply.pricingMode, unitLabel);
+  // 信息隔离: 后端下发的 supplierName 已脱敏(北京***有限公司), 优先展示; 无企业名再退回编号。
   const provider = supply.selfOperated
     ? "平台集采"
-    : supply.supplierId
-      ? `供给方 #${supply.supplierId}`
-      : "供给方待确认";
+    : supply.supplierName || (supply.supplierId ? `供给方 #${supply.supplierId}` : "供给方待确认");
 
   return (
     <Card

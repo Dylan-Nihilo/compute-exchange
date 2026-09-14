@@ -38,6 +38,7 @@ import {
   AdminTableShell,
   StatusBadge,
   adminTableClass,
+  adminTableWideClass,
 } from "./admin-ui";
 
 const money = new Intl.NumberFormat("zh-CN", {currency: "CNY", style: "currency"});
@@ -59,7 +60,7 @@ export function AdminProducts() {
             <AdminTableHead><th scope="col">商品</th><th scope="col">供给方</th><th scope="col">类型</th><th scope="col">规格</th><th scope="col">价格</th><th scope="col">状态</th><th className="text-right" scope="col">操作</th></AdminTableHead>
             <tbody>{query.data.items.map((item) => <tr key={item.id}>
               <th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.gpu_model || `资源 #${item.id}`}</th>
-              <td>UID-{item.supplier_id}</td><td>{productTypeCopy[item.product_type] ?? item.product_type}</td>
+              <td>{item.supplier_name || `UID-${item.supplier_id}`}</td><td>{productTypeCopy[item.product_type] ?? item.product_type}</td>
               <td>{item.product_type === "card_rental" ? `${item.card_count} 卡` : item.product_type === "colocation" ? `${item.rack_count ?? "—"} 机柜` : `${item.machine_count ?? "—"} 台`}</td>
               <td>{item.price_negotiable ? "面议" : `${money.format(item.unit_price / 100)} / ${pricingModeCopy[item.pricing_mode] ?? item.pricing_mode}`}</td>
               <td><StatusBadge status={item.status} label={productStatusCopy[item.status]} /></td>
@@ -121,7 +122,7 @@ export function AdminCrm() {
     <AdminPage title="CRM 线索" eyebrow="CRM" description="跟进算力询价、设备居间与融资租赁需求。">
       <AdminPanel className="overflow-hidden p-3 sm:p-4">
         <AdminTableShell {...tableState(query, "暂无业务线索", "客户提交需求后会显示在这里。") }>
-          {query.data?.items.length ? <table className={adminTableClass}>
+          {query.data?.items.length ? <table className={adminTableWideClass}>
             <caption className="sr-only">CRM 线索</caption>
             <AdminTableHead><th scope="col">联系人</th><th scope="col">类型</th><th scope="col">联系方式</th><th scope="col">需求</th><th scope="col">预算</th><th scope="col">状态</th><th scope="col">负责人</th><th scope="col">提交时间</th><th scope="col">操作</th></AdminTableHead>
             <tbody>{query.data.items.map((item) => <tr key={item.id}>

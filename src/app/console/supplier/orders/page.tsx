@@ -127,7 +127,7 @@ export default function SupplierOrdersPage() {
             />
           ) : orders.length ? (
             <div className="omnis-scrollbar-x">
-              <table className="w-full min-w-[980px] table-fixed border-collapse text-left">
+              <table className="w-full min-w-[1060px] table-fixed border-collapse text-left">
                 <caption className="sr-only">供给方履约订单</caption>
                 <colgroup>
                   <col className="w-[190px]" />

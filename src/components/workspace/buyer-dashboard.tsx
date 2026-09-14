@@ -171,7 +171,7 @@ export function BuyerDashboard() {
 
         {summary.recentOrders.length ? (
           <div>
-            <div className="hidden grid-cols-[minmax(280px,460px)_160px_1fr] rounded-xl bg-[#d6f0fb]/30 px-3.5 py-2 text-[11px] font-medium text-[#9cb0ba] md:grid">
+            <div className="hidden grid-cols-[minmax(280px,460px)_160px_1fr] gap-3 rounded-xl bg-[#d6f0fb]/30 px-3.5 py-2 text-[11px] font-medium text-[#9cb0ba] md:grid">
               <span>订单与资源</span>
               <span>状态</span>
               <span className="text-right">操作</span>

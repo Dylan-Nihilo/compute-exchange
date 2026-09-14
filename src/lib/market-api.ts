@@ -35,6 +35,7 @@ const productSchema = z.object({
   min_order: z.number().int().positive().optional(),
   min_duration: z.number().int().positive().optional(),
   self_operated: z.boolean().optional(),
+  supplier_name: z.string().optional(),
   health: z.enum(["unknown", "healthy", "degraded", "offline"]).optional(),
 });
 
@@ -182,6 +183,8 @@ const pageSizes = [10, 20, 50] as const;
 
 export type MarketProductDetail = MarketSupply & {
   supplierId: string;
+  /** 脱敏后的供给方名称(北京***有限公司/平台自营), 由后端下发 */
+  supplierName?: string;
   productTypeLabel: string;
   cpuSpec: string;
   memorySpec: string;
@@ -251,6 +254,7 @@ export function mapComputeProduct(product: ComputeProduct): MarketSupply {
     unitPriceMinor: product.price_negotiable ? undefined : product.unit_price,
     cardCount: product.card_count,
     supplierId: product.supplier_id ? String(product.supplier_id) : undefined,
+    supplierName: product.supplier_name || undefined,
     productTypeLabel: typeLabel,
     cpuSpec: product.cpu_spec,
     memorySpec: product.memory_spec,

@@ -210,7 +210,7 @@ export function AdminReviews({initialTab = "qualifications"}: {initialTab?: Revi
                   {pendingProducts.map((item) => (
                     <tr key={item.id}>
                       <th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.gpu_model || `资源 #${item.id}`}</th>
-                      <td>#{item.supplier_id}</td>
+                      <td>{item.supplier_name || `#${item.supplier_id}`}</td>
                       <td>{productTypeCopy[item.product_type] ?? item.product_type}</td>
                       <td>{item.price_negotiable ? "面议" : `${money.format(item.unit_price / 100)} / ${pricingModeCopy[item.pricing_mode] ?? item.pricing_mode}`}</td>
                       <td>{item.region}</td>
@@ -396,7 +396,7 @@ function ProductDetailDrawer({
                   </ProductDetailSection>
 
                   <ProductDetailSection title="提交信息">
-                    <ProductDetailRow label="供给方" value={`#${product.supplier_id}`} />
+                    <ProductDetailRow label="供给方" value={product.supplier_name ? `${product.supplier_name}（#${product.supplier_id}）` : `#${product.supplier_id}`} />
                     <ProductDetailRow label="平台自营" value={product.self_operated ? "是" : "否"} />
                     <ProductDetailRow label="合规承诺" value={product.compliance_agreed ? "已确认" : "未确认"} />
                     <ProductDetailRow label="提交时间" value={formatDateTime(product.created_at)} />
@@ -497,7 +497,7 @@ function QualificationQueue({
                     <dl className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
                       <div><dt className="text-xs text-[#8aa0ab]">申请类型</dt><dd className="mt-1 text-[#35566a]">{qualificationType(item.qual_type)}</dd></div>
                       <div><dt className="text-xs text-[#8aa0ab]">证照编号</dt><dd className="mt-1 text-[#35566a]">{item.cert_number || "—"}</dd></div>
-                      <div><dt className="text-xs text-[#8aa0ab]">账户</dt><dd className="mt-1 text-[#35566a]">UID-{item.user_id}</dd></div>
+                      <div><dt className="text-xs text-[#8aa0ab]">供给方企业</dt><dd className="mt-1 text-[#35566a]">{item.application?.company_name ? `${item.application.company_name}（UID-${item.user_id}）` : `UID-${item.user_id}`}</dd></div>
                       <div><dt className="text-xs text-[#8aa0ab]">提交时间</dt><dd className="mt-1 text-[#35566a]">{formatDateTime(item.created_at)}</dd></div>
                     </dl>
                     {item.application ? (

@@ -174,6 +174,7 @@ function CheckoutPage() {
               <Spec label="可售时段" value={product.availableHours || "—"} />
               <Spec label="网络带宽" value={product.network} />
               <Spec label="可售库存" value={`${product.availableUnits} ${product.unitLabel}`} />
+              <Spec label="供给方" value={product.supplierName || "—"} />
               <Spec
                 label="供给方信用"
                 value={product.credit
