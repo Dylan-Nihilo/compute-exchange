@@ -1,5 +1,7 @@
 "use client";
 
+import {ScheduleAdvice} from "@/components/scheduler/schedule-advice";
+
 import {Button, Modal} from "@heroui/react";
 
 import {buyerOrderStatusCopy} from "@/lib/buyer-orders";
@@ -43,6 +45,7 @@ export function OrderDetailModal({
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body className="gap-4">
+              {open && order ? <ScheduleAdvice key={order.order_no} orderNo={order.order_no} role="supplier" /> : null}
               <div className="rounded-xl border border-[#dce9ee] bg-white/55 px-4 py-3">
                 <p className="text-sm font-medium text-[#173447]">{productName}</p>
                 <p className="mt-0.5 text-xs text-[#78909c]">

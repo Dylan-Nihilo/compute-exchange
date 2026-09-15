@@ -22,6 +22,7 @@ const navItems: readonly {label: string; icon: string; href: string}[] = [
   {label: "成熟算力中心", icon: `${supplierAssets}/building-2.svg`, href: "/console/supplier/centers"},
   {label: "空心机房", icon: `${supplierAssets}/warehouse.svg`, href: "/console/supplier/colocation"},
   {label: "资源盘点", icon: `${supplierAssets}/clipboard-check.svg`, href: "/console/supplier/inventory"},
+  {label: "节点管理", icon: `${supplierAssets}/package-search.svg`, href: "/console/supplier/nodes"},
   {label: "订单管理", icon: `${buyerAssets}/clipboard-list.svg`, href: "/console/supplier/orders"},
   {label: "结算中心", icon: `${supplierAssets}/wallet-cards.svg`, href: "/console/supplier/settlements"},
   {label: "资质管理", icon: `${supplierAssets}/badge-check.svg`, href: "/console/supplier/qualifications"},
