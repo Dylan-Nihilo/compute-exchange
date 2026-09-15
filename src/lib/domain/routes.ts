@@ -48,6 +48,7 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/auth/register", label: "注册", area: "auth", roles: ["guest"], capability: "authenticate"},
   {href: "/auth/verify", label: "个人/企业认证", area: "auth", roles: ["buyer", "supplier", "vendor", "funder"], capability: "kyc"},
   {href: "/supplier/apply", label: "成为供给方", area: "onboarding", roles: ["buyer"]},
+  {href: "/console/consents", label: "授权同意记录", area: "console", roles: publicRoles.filter((role) => role !== "guest")},
   {href: "/console/buyer", label: "买家工作台", area: "console", roles: ["buyer"]},
   {href: "/console/buyer/profile", label: "个人/企业中心", area: "console", roles: ["buyer"]},
   {href: "/console/buyer/orders", label: "我的订单", area: "console", roles: ["buyer"]},
