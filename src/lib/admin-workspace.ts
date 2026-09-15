@@ -62,6 +62,7 @@ const productSchema = z.object({
 });
 
 const orderSchema = z.object({
+  supplier_name: z.string().optional(),
   id: z.number().int().positive(),
   order_no: z.string(),
   buyer_id: z.number().int().positive(),

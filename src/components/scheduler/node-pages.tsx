@@ -85,7 +85,7 @@ function NodesTable({nodes, admin = false, busy = false, onDelete}: {nodes: Comp
     <thead className="bg-surface-secondary text-xs text-muted"><tr><th scope="col">节点 / 商品</th>{admin ? <th scope="col">供应方</th> : null}<th scope="col">状态</th><th scope="col">可用 / 总卡数</th><th scope="col">GPU / 显存负载</th><th scope="col">最近心跳</th>{onDelete ? <th scope="col">操作</th> : null}</tr></thead>
     <tbody className="divide-y divide-border">{nodes.map((node) => <tr key={node.id}>
       <td><p className="max-w-48 break-all font-medium">{node.node_name}</p><p className="mt-1 text-xs text-muted">节点 #{node.id} · 商品 #{node.product_id}</p></td>
-      {admin ? <td>#{node.supplier_id}</td> : null}
+      {admin ? <td>{node.supplier_name || `#${node.supplier_id}`}</td> : null}
       <td className="whitespace-nowrap">{nodeStatuses[node.status]}</td><td>{node.available_cards} / {node.total_cards} 卡</td><td>{node.gpu_util_pct == null ? "未上报" : `${node.gpu_util_pct}%`} / {node.vram_util_pct == null ? "未上报" : `${node.vram_util_pct}%`}</td>
       <td className="whitespace-nowrap">{node.last_heartbeat_at ? formatDateTime(node.last_heartbeat_at) : "尚未收到心跳"}</td>
       {onDelete ? <td><Button variant="danger-soft" size="sm" aria-label={`删除节点 ${node.node_name}`} isDisabled={busy} onPress={() => onDelete(node)}>删除</Button></td> : null}

@@ -4,6 +4,7 @@ import {createApiClient} from "./api/client.ts";
 
 export const nodeStatuses = {online: "在线", degraded: "负载高或余量不足", offline: "离线"} as const;
 const nodeSchema = z.object({
+  supplier_name: z.string().optional(),
   id: z.number().int().positive(), supplier_id: z.number().int().positive(), product_id: z.number().int().positive(),
   node_name: z.string(), status: z.enum(["online", "degraded", "offline"]),
   total_cards: z.number().int().nonnegative(), available_cards: z.number().int().nonnegative(),

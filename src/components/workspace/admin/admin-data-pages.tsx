@@ -102,8 +102,8 @@ export function AdminOrders() {
       </label>
       <AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(query, "暂无订单", "当前条件下没有订单。") }>
         {query.data?.items.length ? <table className={adminTableClass}><caption className="sr-only">平台订单列表</caption>
-          <AdminTableHead><th scope="col">订单号</th><th scope="col">买家</th><th scope="col">商品</th><th scope="col">金额</th><th scope="col">创建时间</th><th scope="col">状态</th><th className="text-right" scope="col">操作</th></AdminTableHead>
-          <tbody>{query.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium" scope="row">{item.order_no}</th><td>UID-{item.buyer_id}</td><td>#{item.product_id} · {item.quantity} × {item.duration}</td><td>{money.format(item.total_amount / 100)}</td><td>{formatDateTime(item.created_at)}</td><td><StatusBadge status={item.status} /></td><td className="text-right"><Button size="sm" variant="tertiary" onPress={() => setSelectedId(item.id)}>查看与处置</Button></td></tr>)}</tbody>
+          <AdminTableHead><th scope="col">订单号</th><th scope="col">买家</th><th scope="col">供给方</th><th scope="col">商品</th><th scope="col">金额</th><th scope="col">创建时间</th><th scope="col">状态</th><th className="text-right" scope="col">操作</th></AdminTableHead>
+          <tbody>{query.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium" scope="row">{item.order_no}</th><td>UID-{item.buyer_id}</td><td>{item.supplier_name || "—"}</td><td>#{item.product_id} · {item.quantity} × {item.duration}</td><td>{money.format(item.total_amount / 100)}</td><td>{formatDateTime(item.created_at)}</td><td><StatusBadge status={item.status} /></td><td className="text-right"><Button size="sm" variant="tertiary" onPress={() => setSelectedId(item.id)}>查看与处置</Button></td></tr>)}</tbody>
         </table> : null}
       </AdminTableShell></AdminPanel>
       {query.data ? <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} /> : null}
@@ -114,6 +114,7 @@ export function AdminOrders() {
             <StatusBadge status={selected.status} />
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
               <div><dt className="text-muted">买家</dt><dd>UID-{selected.buyer_id}</dd></div>
+              <div><dt className="text-muted">供给方</dt><dd>{selected.supplier_name || "—"}</dd></div>
               <div><dt className="text-muted">商品</dt><dd>#{selected.product_id}</dd></div>
               <div><dt className="text-muted">订单金额</dt><dd>{money.format(selected.total_amount / 100)}</dd></div>
               <div><dt className="text-muted">平台服务费</dt><dd>{money.format(selected.platform_fee / 100)}</dd></div>
