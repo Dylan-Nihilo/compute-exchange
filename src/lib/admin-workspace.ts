@@ -1,4 +1,5 @@
 import {z} from "zod";
+import {ticketMessageSchema, ticketSchema} from "./buyer-tickets.ts";
 
 const qualificationSchema = z.object({
   id: z.number().int().positive(),
@@ -71,6 +72,7 @@ const orderSchema = z.object({
   total_amount: z.number().int().nonnegative(),
   platform_fee: z.number().int().nonnegative(),
   status: z.string(),
+  allowed_actions: z.array(z.enum(["cancelled", "frozen"])).default([]),
   payment_expires_at: z.string().nullable(),
   lease_start_at: z.string().nullable(),
   lease_end_at: z.string().nullable(),
@@ -95,21 +97,6 @@ const invoiceSchema = z.object({
   reject_reason: z.string().nullable().optional(),
   applied_at: z.string(),
   issued_at: z.string().nullable(),
-});
-
-const ticketSchema = z.object({
-  id: z.number().int().positive(),
-  ticket_no: z.string(),
-  buyer_id: z.number().int().positive(),
-  order_no: z.string(),
-  type: z.string(),
-  title: z.string(),
-  content: z.string(),
-  status: z.string(),
-  resolved_at: z.string().nullable(),
-  closed_at: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
 });
 
 const leadSchema = z.object({
@@ -211,7 +198,7 @@ export type AdminPayment = z.infer<typeof paymentSchema>;
 export type AdminConfig = z.infer<typeof configSchema>;
 export type AdminNotice = z.infer<typeof noticeSchema>;
 
-type FetchPage = {page?: number; pageSize?: number; status?: string};
+type FetchPage = {page?: number; pageSize?: number; status?: string; keyword?: string};
 
 async function request<T extends {code: number; message: string}>(
   url: string,
@@ -234,9 +221,10 @@ async function request<T extends {code: number; message: string}>(
   return parsed.data;
 }
 
-function pageQuery({page = 1, pageSize = 20, status}: FetchPage = {}) {
+function pageQuery({page = 1, pageSize = 20, status, keyword}: FetchPage = {}) {
   const params = new URLSearchParams({page: String(page), page_size: String(pageSize)});
   if (status) params.set("status", status);
+  if (keyword?.trim()) params.set("keyword", keyword.trim());
   return params.toString();
 }
 
@@ -296,7 +284,7 @@ export function fetchAdminOrders(query: FetchPage = {}, fetchImplementation: typ
     .then(({data}) => ({items: data?.list ?? [], total: data?.total ?? 0}));
 }
 
-export function updateAdminOrderStatus(id: number, status: string, fetchImplementation: typeof fetch = fetch) {
+export function updateAdminOrderStatus(id: number, status: "cancelled" | "frozen", fetchImplementation: typeof fetch = fetch) {
   return action(
     `/api/admin/orders/${id}/status`,
     "订单状态更新失败",
@@ -341,6 +329,21 @@ export function issueAdminInvoice(
 export function fetchAdminTickets(query: FetchPage = {}, fetchImplementation: typeof fetch = fetch) {
   return request(`/api/admin/tickets?${pageQuery(query)}`, pageEnvelope(ticketSchema), "工单列表读取失败", undefined, fetchImplementation)
     .then(({data}) => ({items: data?.list ?? [], total: data?.total ?? 0}));
+}
+
+export async function fetchAdminTicketDetail(id: number, fetchImplementation: typeof fetch = fetch) {
+  const result = await request(`/api/admin/tickets/${id}`, envelope(z.object({
+    ticket: ticketSchema,
+    messages: z.array(ticketMessageSchema).nullable(),
+  })), "工单详情读取失败", {cache: "no-store"}, fetchImplementation);
+  if (!result.data) throw new Error("工单详情读取失败");
+  return {ticket: result.data.ticket, messages: result.data.messages ?? []};
+}
+
+export function appendAdminTicketMessage(id: number, content: string, fetchImplementation: typeof fetch = fetch) {
+  return action(`/api/admin/tickets/${id}/messages`, "回复发送失败", {
+    method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({content: content.trim()}),
+  }, fetchImplementation);
 }
 
 export function updateAdminTicket(

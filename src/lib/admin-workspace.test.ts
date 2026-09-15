@@ -7,9 +7,51 @@ import {
   fetchAdminQualifications,
   fetchAdminNotices,
   fetchAdminSummary,
+  appendAdminTicketMessage,
+  fetchAdminTicketDetail,
+  fetchAdminTickets,
+  fetchAdminOrders,
+  updateAdminOrderStatus,
 } from "./admin-workspace.ts";
 
 describe("admin workspace API", () => {
+  it("loads the selected ticket and preserves conversation participants", async () => {
+    const ticket = {id: 1, ticket_no: "WO-20260914-001", buyer_id: 2, order_no: "ORD001", type: "other", title: "问题说明", content: "请核查资源状态", status: "processing", resolved_at: null, closed_at: null, created_at: "2026-09-14T10:00:00+08:00", updated_at: "2026-09-14T10:00:00+08:00"};
+    const detail = await fetchAdminTicketDetail(1, async (input) => {
+      assert.equal(String(input), "/api/admin/tickets/1");
+      return Response.json({code: 0, message: "success", data: {ticket, messages: [{id: 1, ticket_id: 1, sender_type: "buyer", sender_id: 2, content: ticket.content, created_at: ticket.created_at}]}});
+    });
+    assert.equal(detail.messages[0]?.sender_type, "buyer");
+    assert.equal(detail.ticket.status, "processing");
+    await assert.rejects(fetchAdminTicketDetail(1, async () => Response.json({code: 40300, message: "无权访问"})), /无权访问/);
+    await assert.rejects(fetchAdminTicketDetail(1, async () => Response.json({code: 0, message: "success", data: {ticket, messages: [{sender_type: "unknown"}]}})), /返回格式错误/);
+  });
+
+  it("filters and paginates tickets at the server and preserves reply failures", async () => {
+    await fetchAdminTickets({page: 2, status: "processing", keyword: "资源 故障"}, async (input) => {
+      const params = new URL(String(input), "http://localhost").searchParams;
+      assert.equal(params.get("page"), "2");
+      assert.equal(params.get("status"), "processing");
+      assert.equal(params.get("keyword"), "资源 故障");
+      return Response.json({code: 0, message: "success", data: {list: [], total: 0, page: 2, page_size: 20}});
+    });
+    await assert.rejects(appendAdminTicketMessage(1, " 请补充信息 ", async (input, init) => {
+      assert.equal(String(input), "/api/admin/tickets/1/messages");
+      assert.equal(init?.method, "POST");
+      assert.deepEqual(JSON.parse(String(init?.body)), {content: "请补充信息"});
+      return Response.json({code: 40001, message: "请先受理工单再回复"});
+    }), /请先受理/);
+  });
+
+  it("uses server order capabilities and fails closed when they are absent", async () => {
+    const order = {id: 1, order_no: "ORD001", buyer_id: 2, product_id: 3, quantity: 1, duration: 1, unit_price: 100, total_amount: 100, platform_fee: 5, status: "paid", payment_expires_at: null, lease_start_at: null, lease_end_at: null, compliance_agreed: true, created_at: "2026-09-14T10:00:00Z", updated_at: "2026-09-14T10:00:00Z"};
+    const fetchOrder = (row: unknown) => fetchAdminOrders({}, async () => Response.json({code: 0, message: "success", data: {list: [row], total: 1, page: 1, page_size: 20}}));
+    assert.deepEqual((await fetchOrder(order)).items[0]?.allowed_actions, []);
+    assert.deepEqual((await fetchOrder({...order, allowed_actions: ["frozen"]})).items[0]?.allowed_actions, ["frozen"]);
+    await assert.rejects(fetchOrder({...order, allowed_actions: ["refunded"]}), /返回格式错误/);
+    await assert.rejects(updateAdminOrderStatus(1, "cancelled", async () => Response.json({code: 40900, message: "订单状态已变化"})), /订单状态已变化/);
+  });
+
   it("loads pending qualifications through the admin BFF", async () => {
     const result = await fetchAdminQualifications("pending", async (input) => {
       assert.equal(String(input), "/api/admin/audits/qualifications");

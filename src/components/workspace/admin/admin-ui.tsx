@@ -141,6 +141,7 @@ export function StatusBadge({status, label}: {status: string; label?: string}) {
     pending: "待处理",
     pending_payment: "待支付",
     refunded: "已退款",
+    refunding: "退款申请中",
     processing: "处理中",
     provisioning: "交付中",
     rejected: "已驳回",
