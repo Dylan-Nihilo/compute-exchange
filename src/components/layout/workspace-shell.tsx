@@ -184,6 +184,9 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
                 if (key === "logout") logout();
               }}
             >
+              <Dropdown.Item id="consents" href="/console/consents" textValue="授权同意记录">
+                <Label>授权同意记录</Label>
+              </Dropdown.Item>
               <Dropdown.Item
                 id="logout"
                 isDisabled={logoutMutation.isPending}

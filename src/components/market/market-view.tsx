@@ -14,10 +14,13 @@ import {
   TextField,
 } from "@heroui/react";
 import Image from "next/image";
+import {useQuery} from "@tanstack/react-query";
+import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {type FormEvent, type ReactNode, useState, useTransition} from "react";
 
 import {MarketBrowser} from "@/components/market/market-browser";
+import {fetchGpuCatalog, gpuModelFilterOptions} from "@/lib/gpu-catalog";
 import {
   AnimatedNumber,
   AnimatedNumberGroup,
@@ -53,13 +56,6 @@ const productTypeDescriptions: Record<string, string> = {
   colocation: "空心机房：按机柜提供空间、电力与网络条件。",
   outright: "零售（买断）：设备一次性采购，具体交付条件以商品为准。",
 };
-const gpuOptions: readonly FilterOption[] = [
-  {label: "NVIDIA H100", value: "NVIDIA H100"},
-  {label: "NVIDIA H800", value: "NVIDIA H800"},
-  {label: "NVIDIA A800", value: "NVIDIA A800"},
-  {label: "NVIDIA RTX 4090", value: "NVIDIA RTX 4090"},
-  {label: "NVIDIA RTX 5090", value: "NVIDIA RTX 5090"},
-];
 const regionOptions: readonly FilterOption[] = [
   {label: "北京", value: "北京"},
   {label: "上海", value: "上海"},
@@ -96,6 +92,8 @@ const pageSizeOptions: readonly FilterOption[] = [
 export function MarketView({query, result}: MarketViewProps) {
   const router = useRouter();
   const [draft, setDraft] = useState(query);
+  const catalog = useQuery({queryKey: ["gpu-catalog"], queryFn: ({signal}) => fetchGpuCatalog(fetch, signal), retry: false});
+  const gpuOptions = gpuModelFilterOptions(catalog.isError ? [] : catalog.data ?? [], draft.gpuModel);
   const [priceRange, setPriceRange] = useState(
     formatMarketPriceRange(query.priceMin, query.priceMax),
   );
@@ -133,14 +131,14 @@ export function MarketView({query, result}: MarketViewProps) {
           isPending ? "translate-y-px opacity-80" : ""
         }`}
       >
-        <header className="mb-5">
+        <header className="mb-5 flex flex-wrap items-end justify-between gap-4"><div>
           <h1 className="text-[36px] leading-tight font-semibold tracking-[-0.03em] text-[#071627] sm:text-[44px] sm:leading-[56px]">
             算力市场
           </h1>
           <p className="mt-1 text-sm leading-[22px] text-[#4b6276] sm:text-base">
             合规机房挂牌 · 实时比价 · 线上成交
           </p>
-        </header>
+        </div><Link className="rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/market/agent-search">智能选型</Link></header>
 
         <section
           aria-label="算力商品类型"
@@ -184,6 +182,9 @@ export function MarketView({query, result}: MarketViewProps) {
               label="GPU 型号"
               options={gpuOptions}
               value={draft.gpuModel}
+              isDisabled={catalog.isPending}
+              error={catalog.isError ? "型号列表暂时不可用" : undefined}
+              onOpenChange={(open) => {if (open) void catalog.refetch();}}
               onChange={(value) =>
                 setDraft((current) => ({...current, gpuModel: value}))
               }
@@ -241,6 +242,7 @@ export function MarketView({query, result}: MarketViewProps) {
             </Button>
           </div>
 
+          {catalog.isError ? <p className="mt-2 flex items-center gap-2 text-xs text-danger" role="status">型号列表暂时不可用<Button type="button" size="sm" variant="tertiary" onPress={() => void catalog.refetch()}>重试</Button></p> : null}
           {priceRangeInvalid ? (
             <p className="mt-2 text-sm text-danger" role="alert">
               请输入有效价格区间，例如 20–50。
@@ -486,6 +488,9 @@ function FilterSelect({
   options,
   value,
   onChange,
+  onOpenChange,
+  isDisabled,
+  error,
 }: {
   allLabel?: string;
   ariaLabel: string;
@@ -494,6 +499,9 @@ function FilterSelect({
   options: readonly FilterOption[];
   value: string;
   onChange: (value: string) => void;
+  onOpenChange?: (open: boolean) => void;
+  isDisabled?: boolean;
+  error?: string;
 }) {
   return (
     <div className="grid min-w-0 gap-2">
@@ -503,10 +511,12 @@ function FilterSelect({
       <Select
         fullWidth
         aria-label={ariaLabel}
-        value={value || "all"}
+        value={value ? `value:${value}` : "all"}
+        isDisabled={isDisabled}
+        onOpenChange={onOpenChange}
         variant="secondary"
         onChange={(nextValue) =>
-          onChange(nextValue === "all" ? "" : String(nextValue))
+          onChange(nextValue === "all" || nextValue === null ? "" : String(nextValue).slice("value:".length))
         }
       >
         <Select.Trigger
@@ -523,8 +533,9 @@ function FilterSelect({
                 <ListBox.ItemIndicator />
               </ListBox.Item>
             ) : null}
+            {error ? <ListBox.Item id="catalog-error" textValue={error} isDisabled><span role="status" className="text-danger">{error}</span></ListBox.Item> : null}
             {options.map((option) => (
-              <ListBox.Item key={option.value} id={option.value} textValue={option.label}>
+              <ListBox.Item key={option.value} id={`value:${option.value}`} textValue={option.label}>
                 {option.label}
                 <ListBox.ItemIndicator />
               </ListBox.Item>

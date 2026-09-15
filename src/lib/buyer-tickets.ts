@@ -33,7 +33,7 @@ export const ticketTypeCopy: Record<string, string> = {
   other: "其他",
 };
 
-const ticketSchema = z.object({
+export const ticketSchema = z.object({
   id: z.number().int().positive(),
   ticket_no: z.string().min(1),
   buyer_id: z.number().int().positive(),
@@ -48,7 +48,7 @@ const ticketSchema = z.object({
   updated_at: z.string(),
 });
 
-const ticketMessageSchema = z.object({
+export const ticketMessageSchema = z.object({
   id: z.number().int().positive(),
   ticket_id: z.number().int().positive(),
   sender_type: z.enum(["buyer", "operator"]),

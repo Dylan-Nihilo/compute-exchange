@@ -28,6 +28,12 @@ const gpuCatalogResponseSchema = z.object({
 
 export type GpuCatalogItem = z.infer<typeof gpuCatalogItemSchema>;
 
+export function gpuModelFilterOptions(items: readonly Pick<GpuCatalogItem, "model_name">[], current = "") {
+  const names = new Set(items.map((item) => item.model_name));
+  if (current) names.add(current);
+  return Array.from(names, (name) => ({label: name, value: name}));
+}
+
 export async function fetchGpuCatalog(fetchImplementation: typeof fetch = fetch, signal?: AbortSignal) {
   const api = createApiClient({baseUrl: "/api/v1", fetchImplementation});
   const payload = await api.request("/gpu-catalog", gpuCatalogResponseSchema, {cache: "no-store", signal});

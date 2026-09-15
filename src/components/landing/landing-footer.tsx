@@ -30,6 +30,7 @@ const footerGroups = [
     links: [
       ["平台网络", "#network"],
       ["合规说明", "/resource-usage-rules"],
+      ["存证查验", "/attestations/verify"],
     ],
   },
   {

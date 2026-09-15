@@ -39,6 +39,8 @@ const productSchema = z.object({
   health: z.enum(["unknown", "healthy", "degraded", "offline"]).optional(),
 });
 
+export {productSchema as computeProductSchema};
+
 const productDetailSchema = productSchema.extend({
   supplier_id: z.number().int(),
   total_pflops_approx: z.string().nullable(),

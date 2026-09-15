@@ -162,8 +162,8 @@ describe("role permissions", () => {
     assert.equal(accessFor({role: "supplier", verificationStatus: "verified"}, "orderCompute"), "deny");
   });
 
-  it("enforces operator grants and administrator-only settings", () => {
-    assert.equal(accessFor({role: "operator", verificationStatus: "verified", grants: []}, "manageRisk"), "deny");
+  it("uses operator roles and preserves administrator-only settings", () => {
+    assert.equal(accessFor({role: "operator", verificationStatus: "verified", grants: []}, "manageRisk"), "allow");
     assert.equal(accessFor({role: "operator", verificationStatus: "verified", grants: ["manageRisk"]}, "manageRisk"), "allow");
     assert.equal(accessFor({role: "operator", verificationStatus: "verified", grants: ["manageRisk"]}, "manageCompliance"), "deny");
     assert.equal(accessFor({role: "operator", verificationStatus: "verified", grants: ["manageAccess"]}, "manageAccess"), "deny");

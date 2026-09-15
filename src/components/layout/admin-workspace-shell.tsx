@@ -40,6 +40,7 @@ const navItems: readonly AdminNavItem[] = [
   {href: "/admin", label: "运营总览", icon: LayoutDashboard},
   {href: "/admin/reviews", label: "审核中心", icon: BadgeCheck},
   {href: "/admin/products", label: "商品管理", icon: Boxes},
+  {href: "/admin/gpu-catalog", label: "GPU 型号库", icon: Boxes},
   {href: "/admin/orders", label: "订单管理", icon: ClipboardList},
   {href: "/admin/finance", label: "资金与对账", icon: Banknote},
   {href: "/admin/crm", label: "CRM 线索", icon: UsersRound},
@@ -49,6 +50,8 @@ const navItems: readonly AdminNavItem[] = [
   {href: "/admin/cms", label: "内容管理", icon: Megaphone},
   {href: "/admin/users", label: "用户管理", icon: UserCog},
   {href: "/admin/access", label: "角色与权限", icon: Gauge, adminOnly: true},
+  {href: "/admin/attestations", label: "存证管理", icon: ShieldCheck},
+  {href: "/admin/nodes", label: "节点与调度", icon: Boxes},
   {href: "/admin/audit", label: "审计日志", icon: FileClock},
   {href: "/admin/settings", label: "系统设置", icon: Settings2, adminOnly: true},
 ];
@@ -167,6 +170,9 @@ export function AdminWorkspaceShell({
                         <Label>切换为{roleLabels[role]}</Label>
                       </Dropdown.Item>
                     ))}
+                  <Dropdown.Item id="consents" href="/console/consents" textValue="授权同意记录">
+                    <Label>授权同意记录</Label>
+                  </Dropdown.Item>
                   <Dropdown.Item id="logout" isDisabled={isLoggingOut} textValue="退出登录">
                     <Label>{isLoggingOut ? "正在退出" : "退出登录"}</Label>
                   </Dropdown.Item>

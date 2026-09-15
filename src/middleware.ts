@@ -13,6 +13,7 @@ const PROTECTED_ROUTES = [
   "/auth/identity",
   "/supplier/apply",
   "/checkout",
+  "/market/agent-search",
 ] as const;
 
 /**
@@ -37,6 +38,7 @@ export function middleware(request: NextRequest) {
   }
   if (
     Object.hasOwn(legalDocuments, pathname.slice(1)) ||
+    pathname === "/attestations/verify" ||
     pathname === "/landing" ||
     pathname.startsWith("/landing/") ||
     pathname === "/market" ||
