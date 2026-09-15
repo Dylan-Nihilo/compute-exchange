@@ -64,7 +64,7 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
       />
       <div className="relative grid gap-6 p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_228px] xl:gap-8 xl:p-8">
         <div className="min-w-0 space-y-4">
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[340px_396px_172px] xl:gap-6">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,0.5fr)] xl:gap-6">
             <div className="min-w-0">
               <div className="flex min-h-7 flex-wrap items-center gap-2">
                 <ProductHealth health={supply.health} />
@@ -84,7 +84,7 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
                 {primarySpecs(supply, unitLabel)}
               </p>
               <p className="mt-0.5 truncate text-[13px] leading-5 font-medium text-[#173447]">
-                起订 {supply.minimumOrder ?? 1} {unitLabel} · 最短 {supply.minimumDuration ?? 1} {durationLabel(supply.pricingMode)}
+                起订 {supply.minimumOrder ?? 1} {unitLabel} · {supply.pricingMode === "perpetual" ? "一次性采购" : `最短 ${supply.minimumDuration ?? 1} ${durationLabel(supply.pricingMode)}`}
               </p>
             </div>
 
@@ -177,7 +177,7 @@ function Spec({label, value}: {label: string; value?: string}) {
 
 function primarySpecs(supply: MarketSupply, unitLabel: string) {
   return [
-    `${supply.cardCount || supply.totalUnits} ${unitLabel}`,
+    `${supply.totalUnits} ${unitLabel}`,
     supply.memorySpec,
     supply.totalPflopsApprox ? `总算力 ${supply.totalPflopsApprox}` : null,
   ]
@@ -196,6 +196,7 @@ function durationLabel(pricingMode?: string) {
 }
 
 function marketPriceUnit(pricingMode: string | undefined, unitLabel: string) {
-  if (!pricingMode || pricingMode === "perpetual") return "";
+  if (!pricingMode) return "";
+  if (pricingMode === "perpetual") return unitLabel;
   return `${unitLabel}·${durationLabel(pricingMode).replace("小时", "时")}`;
 }
