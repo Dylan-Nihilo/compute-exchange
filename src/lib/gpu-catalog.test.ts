@@ -1,8 +1,16 @@
 import assert from "node:assert/strict";
 import {it} from "node:test";
 
-import {fetchGpuCatalog} from "./gpu-catalog.ts";
+import {fetchGpuCatalog, gpuModelFilterOptions} from "./gpu-catalog.ts";
 import {createProduct} from "./supplier-workspace.ts";
+
+it("uses exact live model names for market filters and retains the selected historical name", () => {
+  assert.deepEqual(gpuModelFilterOptions([{model_name: "H100-80G"}, {model_name: "all"}, {model_name: "H100-80G"}], "legacy-model"), [
+    {label: "H100-80G", value: "H100-80G"}, {label: "all", value: "all"}, {label: "legacy-model", value: "legacy-model"},
+  ]);
+  assert.deepEqual(gpuModelFilterOptions([], "retired"), [{label: "retired", value: "retired"}]);
+  assert.deepEqual(gpuModelFilterOptions([]), []);
+});
 
 it("loads the platform catalog without changing model names, nullable specs, or server order", async () => {
   const list = [

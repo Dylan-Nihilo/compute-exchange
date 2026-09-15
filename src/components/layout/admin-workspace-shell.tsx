@@ -40,6 +40,7 @@ const navItems: readonly AdminNavItem[] = [
   {href: "/admin", label: "运营总览", icon: LayoutDashboard},
   {href: "/admin/reviews", label: "审核中心", icon: BadgeCheck},
   {href: "/admin/products", label: "商品管理", icon: Boxes},
+  {href: "/admin/gpu-catalog", label: "GPU 型号库", icon: Boxes},
   {href: "/admin/orders", label: "订单管理", icon: ClipboardList},
   {href: "/admin/finance", label: "资金与对账", icon: Banknote},
   {href: "/admin/crm", label: "CRM 线索", icon: UsersRound},
