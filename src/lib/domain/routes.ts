@@ -94,6 +94,7 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/admin/cms", label: "内容管理", area: "admin", roles: ["operator", "admin"], capability: "manageCms"},
   {href: "/admin/users", label: "用户管理", area: "admin", roles: ["operator", "admin"], capability: "manageUsers"},
   {href: "/admin/access", label: "角色与权限", area: "admin", roles: ["admin"], capability: "manageAccess"},
+  {href: "/admin/attestations", label: "存证管理", area: "admin", roles: ["operator", "admin"]},
   {href: "/admin/audit", label: "审计日志", area: "admin", roles: ["operator", "admin"], capability: "viewAudit"},
   {href: "/admin/settings", label: "系统设置", area: "admin", roles: ["admin"], capability: "manageCompliance"},
 ];
