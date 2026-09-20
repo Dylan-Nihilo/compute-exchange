@@ -3,7 +3,7 @@
 import {useMutation} from "@tanstack/react-query";
 import {Button} from "@heroui/react";
 
-import {submitLead, type LeadType} from "@/lib/leads";
+import {submitLead, type LeadInput, type LeadType} from "@/lib/leads";
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-accent";
@@ -29,7 +29,7 @@ export interface LeadCaptureFormProps {
 // 三个板块(设备整包/组网机电/融资租赁)共用的留资表单: 字段集与 CRM leads 契约一致,
 // 意向方案不落独立列, 以「【意向方案】…」前缀并入需求描述。
 export function LeadCaptureForm(props: LeadCaptureFormProps) {
-  const mutation = useMutation({mutationFn: submitLead});
+  const mutation = useMutation({mutationFn: (input: LeadInput) => submitLead(input)});
 
   if (mutation.isSuccess) {
     return (
