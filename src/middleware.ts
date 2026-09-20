@@ -14,6 +14,8 @@ const PROTECTED_ROUTES = [
   "/supplier/apply",
   "/checkout",
   "/market/agent-search",
+  "/leasing",
+  "/broker",
 ] as const;
 
 /**

@@ -1,5 +1,6 @@
 import type {Metadata} from "next";
 
+import {CollateralLookup} from "@/components/leads/collateral-lookup";
 import {LeadCaptureForm} from "@/components/leads/lead-capture-form";
 
 export const metadata: Metadata = {title: "设备融资租赁 · OmniS"};
@@ -66,6 +67,10 @@ export default function LeasingPage() {
           termOptions={["6 个月以内", "6-12 个月", "1-2 年", "2-3 年", "3-5 年"]}
           title="融资需求登记"
         />
+      </div>
+
+      <div className="mt-8">
+        <CollateralLookup />
       </div>
     </main>
   );

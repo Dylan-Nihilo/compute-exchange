@@ -20,14 +20,14 @@ const envelopeSchema = z.object({
   data: z.object({id: z.number()}).nullable().optional(),
 });
 
-// 公开留资: 直接走同源 /api/v1(公开接口, 无需登录), 后端有校验与 IP 限流。
+// 留资需登录: 经 BFF 把 HttpOnly cookie 换成 Bearer 转发后端, 后端另有按账号限流。
 export async function submitLead(
   input: LeadInput,
   fetchImplementation: typeof fetch = fetch,
 ): Promise<{id: number}> {
   let response: Response;
   try {
-    response = await fetchImplementation("/api/v1/leads", {
+    response = await fetchImplementation("/api/leads", {
       method: "POST",
       headers: {"content-type": "application/json"},
       body: JSON.stringify(input),
