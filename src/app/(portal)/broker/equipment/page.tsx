@@ -24,7 +24,7 @@ export default function EquipmentBrokerPage() {
       <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_26rem]">
         <section aria-label="设备类目" className="space-y-4">
           {categories.map((item) => (
-            <article className="rounded-2xl border border-border bg-white p-6" key={item.name}>
+            <article className="rounded-[1.25rem] border border-border bg-[#f7fafd] p-6 transition-shadow duration-300 hover:shadow-[0_24px_48px_-12px_rgba(6,37,59,0.18)]" key={item.name}>
               <h2 className="text-lg font-semibold text-foreground">{item.name}</h2>
               <p className="mt-2 text-sm leading-6 text-muted">{item.detail}</p>
             </article>

@@ -4,8 +4,9 @@ import {useMutation} from "@tanstack/react-query";
 import {Button} from "@heroui/react";
 import {z} from "zod";
 
+// 与实名/登录表单同源的输入样式, 保持全站一致。
 const inputClass =
-  "mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "mt-2 min-h-12 w-full rounded-[12px] border border-border bg-surface-secondary/55 px-3.5 text-[15px] text-foreground shadow-none outline-none transition-[border-color,background-color,box-shadow] duration-200 hover:border-border-secondary focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent/10";
 
 const registrationSchema = z.object({
   reg_no: z.string(),
@@ -72,7 +73,7 @@ export function CollateralLookup() {
   const mutation = useMutation({mutationFn: queryCollateral});
 
   return (
-    <section aria-label="中登网登记查询" className="rounded-2xl border border-border bg-white p-6">
+    <section aria-label="中登网登记查询" className="rounded-[1.25rem] border border-border bg-white p-6 shadow-[0_16px_36px_rgba(6,37,59,0.08)]">
       <h2 className="text-lg font-semibold text-foreground">中登网动产融资登记查询</h2>
       <p className="mt-1 text-sm text-muted">
         查询承租人在中登网的融资租赁/抵押/保理登记情况，辅助判断标的物权属状态。

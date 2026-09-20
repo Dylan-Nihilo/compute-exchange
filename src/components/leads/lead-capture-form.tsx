@@ -5,8 +5,9 @@ import {Button} from "@heroui/react";
 
 import {submitLead, type LeadInput, type LeadType} from "@/lib/leads";
 
+// 与实名/登录表单同源的输入样式(rounded-[12px] + surface 面色 + 柔光 focus 环), 保持全站一致。
 const inputClass =
-  "mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "mt-2 min-h-12 w-full rounded-[12px] border border-border bg-surface-secondary/55 px-3.5 text-[15px] text-foreground shadow-none outline-none transition-[border-color,background-color,box-shadow] duration-200 hover:border-border-secondary focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent/10";
 
 export interface LeadCaptureFormProps {
   leadType: LeadType;
@@ -33,7 +34,7 @@ export function LeadCaptureForm(props: LeadCaptureFormProps) {
 
   if (mutation.isSuccess) {
     return (
-      <div className="rounded-2xl border border-border bg-white p-6" role="status">
+      <div className="rounded-[1.25rem] border border-border bg-white p-6 shadow-[0_16px_36px_rgba(6,37,59,0.08)]" role="status">
         <h3 className="text-lg font-semibold text-foreground">需求已提交</h3>
         <p className="mt-2 text-sm leading-6 text-muted">
           登记编号 #{mutation.data.id}。平台顾问将在 1 个工作日内通过你填写的电话与你联系, 确认需求细节。
@@ -44,7 +45,7 @@ export function LeadCaptureForm(props: LeadCaptureFormProps) {
 
   return (
     <form
-      className="space-y-5 rounded-2xl border border-border bg-white p-6"
+      className="space-y-5 rounded-[1.25rem] border border-border bg-white p-6 shadow-[0_16px_36px_rgba(6,37,59,0.08)]"
       onSubmit={(event) => {
         event.preventDefault();
         if (mutation.isPending) return;
@@ -132,7 +133,7 @@ export function LeadCaptureForm(props: LeadCaptureFormProps) {
       <label className="block text-sm font-medium text-foreground">
         需求说明（选填）
         <textarea
-          className={`${inputClass} min-h-28 resize-y`}
+          className={`${inputClass} min-h-28 resize-y py-3`}
           maxLength={2000}
           name="description"
           placeholder={props.descriptionPlaceholder}

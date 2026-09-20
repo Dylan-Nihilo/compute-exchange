@@ -42,7 +42,7 @@ export default function LeasingPage() {
       <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_26rem]">
         <section aria-label="融资方案" className="space-y-4">
           {plans.map((plan) => (
-            <article className="rounded-2xl border border-border bg-white p-6" key={plan.name}>
+            <article className="rounded-[1.25rem] border border-border bg-[#f7fafd] p-6 transition-shadow duration-300 hover:shadow-[0_24px_48px_-12px_rgba(6,37,59,0.18)]" key={plan.name}>
               <h2 className="text-lg font-semibold text-foreground">{plan.name}</h2>
               <p className="mt-1 text-xs font-medium text-accent">适用：{plan.fit}</p>
               <p className="mt-2 text-sm leading-6 text-muted">{plan.detail}</p>

@@ -26,7 +26,7 @@ export default function ConstructionBrokerPage() {
       <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1fr)_26rem]">
         <section aria-label="服务范围" className="grid gap-4 sm:grid-cols-2">
           {services.map((item) => (
-            <article className="rounded-2xl border border-border bg-white p-5" key={item.name}>
+            <article className="rounded-[1.25rem] border border-border bg-[#f7fafd] p-5 transition-shadow duration-300 hover:shadow-[0_24px_48px_-12px_rgba(6,37,59,0.18)]" key={item.name}>
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base font-semibold text-foreground">{item.name}</h2>
                 <span className="rounded-full bg-[#e7f2f5] px-2.5 py-0.5 text-xs text-[#24546b]">{item.stage}</span>
