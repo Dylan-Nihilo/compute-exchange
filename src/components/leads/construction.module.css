@@ -1,0 +1,29 @@
+.title { max-width: 12em; }
+.title > span { white-space: nowrap; }
+.serviceGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 22px; }
+.service { position: relative; display: flex; align-items: flex-start; gap: 13px; min-width: 0; padding: 22px 18px; border: 1px solid var(--lease-line); border-radius: 16px; background: var(--lease-surface); cursor: pointer; transition: border-color 150ms, background 150ms; }
+.service:hover { border-color: var(--lease-ink); }
+.service[data-selected="true"] { border-color: var(--lease-ink); background: var(--lease-selection); box-shadow: inset 0 0 0 1px var(--lease-ink); }
+.service > input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.service:has(input:focus-visible) { outline: 2px solid var(--lease-ink); outline-offset: 4px; }
+.serviceIcon { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px; color: var(--lease-ink); background: var(--lease-soft); }
+.serviceText { flex: 1; min-width: 0; }
+.serviceText strong { display: block; margin-top: 3px; font-size: 14px; font-weight: 600; }
+.serviceText > span { display: block; margin-top: 8px; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.checkMark { display: grid; place-items: center; width: 16px; height: 16px; margin-top: 5px; flex-shrink: 0; border: 1px solid var(--lease-line); border-radius: 4px; }
+.service[data-selected="true"] .checkMark { color: var(--lease-surface); border-color: var(--lease-ink); background: var(--lease-ink); }
+.scopeFooter { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 20px; }
+.scopeFooter > p { margin-top: 10px; color: var(--muted); font-size: 11px; }
+.preparation { display: flex; gap: 10px; margin-top: 24px; padding: 15px; border-radius: 12px; background: color-mix(in srgb, var(--lease-inverse) 8%, transparent); }
+.preparation > svg { flex-shrink: 0; margin-top: 3px; color: var(--lease-action); }
+.preparation strong { font-size: 12px; font-weight: 500; }
+.preparation p { margin-top: 6px; color: var(--lease-inverse-muted); font-size: 11px; line-height: 1.9; }
+@media (prefers-reduced-motion: reduce) { .service { transition: none; } }
+@media (max-width: 1023px) { .serviceGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 639px) {
+  .title { max-width: 10em; }
+  .serviceGrid { grid-template-columns: 1fr; gap: 10px; }
+  .service { padding: 17px; }
+  .serviceText > span { margin-top: 5px; }
+  .scopeFooter { align-items: flex-start; }
+}

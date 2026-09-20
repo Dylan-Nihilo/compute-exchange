@@ -4,7 +4,7 @@ import {useMutation} from "@tanstack/react-query";
 import {Button} from "@heroui/react";
 import {useState} from "react";
 
-import {submitLead, type LeadInput, type LeadType} from "@/lib/leads";
+import {buildLeadDescription, submitLead, type LeadInput, type LeadType} from "@/lib/leads";
 
 // 与实名/登录表单同源的输入样式(rounded-[12px] + surface 面色 + 柔光 focus 环), 保持全站一致。
 const inputClass =
@@ -35,8 +35,17 @@ export interface LeadCaptureFormProps {
 export function LeadCaptureForm(props: LeadCaptureFormProps) {
   const mutation = useMutation({mutationFn: (input: LeadInput) => submitLead(input)});
   const [selectedIntent, setSelectedIntent] = useState("");
+  const [projectLocation, setProjectLocation] = useState("");
+  const [projectScale, setProjectScale] = useState("");
+  const [validationError, setValidationError] = useState("");
   const intent = props.intentValue ?? selectedIntent;
-  const descriptionLimit = 2000 - (intent ? `【意向方案】${intent}\n`.length : 0);
+  const descriptionContext = {
+    intent,
+    location: props.leadType === "construction" ? projectLocation : undefined,
+    scale: props.leadType === "construction" ? projectScale : undefined,
+  };
+  const prefix = buildLeadDescription(descriptionContext);
+  const descriptionLimit = 2000 - (prefix ? prefix.length + 1 : 0);
 
   if (mutation.isSuccess) {
     return (
@@ -46,6 +55,7 @@ export function LeadCaptureForm(props: LeadCaptureFormProps) {
           登记编号 #{mutation.data.id}。平台将通过你填写的联系方式与你沟通需求细节。
         </p>
         {props.leadType === "finance_lease" ? <p className="mt-3 text-sm leading-6 text-muted">需求登记不代表融资审批通过，具体方案由资方评估与确认。</p> : null}
+        {props.leadType === "construction" ? <p className="mt-3 text-sm leading-6 text-muted">工程范围、报价与工期需后续确认，本次登记不代表施工方已接单或开工。</p> : null}
       </div>
     );
   }
@@ -58,11 +68,12 @@ export function LeadCaptureForm(props: LeadCaptureFormProps) {
         if (mutation.isPending) return;
         const data = new FormData(event.currentTarget);
         const field = (name: string) => String(data.get(name) ?? "").trim();
-        const intent = field("intent");
-        const detail = field("description");
-        const description = [intent ? `【意向方案】${intent}` : "", detail]
-          .filter(Boolean)
-          .join("\n");
+        const description = buildLeadDescription({...descriptionContext, detail: field("description")});
+        if (description.length > 2000) {
+          setValidationError("工程范围、项目资料与需求说明合计不能超过 2000 字，请缩短需求说明后再提交。");
+          return;
+        }
+        setValidationError("");
         mutation.mutate({
           type: props.leadType,
           contact_name: field("contact_name"),
@@ -84,6 +95,14 @@ export function LeadCaptureForm(props: LeadCaptureFormProps) {
       {props.intentValue !== undefined ? <input name="intent" type="hidden" value={props.intentValue} /> : null}
 
       <fieldset className="space-y-5" disabled={mutation.isPending}>
+      {props.leadType === "construction" ? <div className="grid gap-5 sm:grid-cols-2">
+        <label className="block text-sm font-medium text-foreground">项目所在地（选填）
+          <input className={inputClass} maxLength={128} name="project_location" placeholder="城市 / 园区或项目地址" value={projectLocation} onChange={(event) => setProjectLocation(event.target.value)} />
+        </label>
+        <label className="block text-sm font-medium text-foreground">建设规模（选填）
+          <input className={inputClass} maxLength={128} name="project_scale" placeholder="例如 50 个机柜 / IT 负载 1 MW" value={projectScale} onChange={(event) => setProjectScale(event.target.value)} />
+        </label>
+      </div> : null}
 
       <label className="block text-sm font-medium text-foreground">
         企业名称{props.companyRequired ? "" : "（选填）"}
@@ -155,6 +174,7 @@ export function LeadCaptureForm(props: LeadCaptureFormProps) {
       {mutation.isError ? (
         <p className="text-sm text-danger" role="alert">{mutation.error.message}</p>
       ) : null}
+      {validationError ? <p className="text-sm text-danger" role="alert">{validationError}</p> : null}
 
       <Button fullWidth isDisabled={mutation.isPending} isPending={mutation.isPending} type="submit">
         {mutation.isPending ? "正在提交…" : "提交需求"}

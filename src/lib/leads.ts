@@ -14,6 +14,15 @@ export interface LeadInput {
   source: string;
 }
 
+export function buildLeadDescription(input: {intent?: string; location?: string; scale?: string; detail?: string}) {
+  return [
+    input.intent?.trim() ? `【意向方案】${input.intent.trim()}` : "",
+    input.location?.trim() ? `【项目所在地】${input.location.trim()}` : "",
+    input.scale?.trim() ? `【建设规模】${input.scale.trim()}` : "",
+    input.detail?.trim(),
+  ].filter(Boolean).join("\n");
+}
+
 const envelopeSchema = z.object({
   code: z.number(),
   message: z.string().optional(),
