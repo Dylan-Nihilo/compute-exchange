@@ -14,10 +14,19 @@ export interface LeadInput {
   source: string;
 }
 
+export function buildLeadDescription(input: {intent?: string; location?: string; scale?: string; detail?: string}) {
+  return [
+    input.intent?.trim() ? `【意向方案】${input.intent.trim()}` : "",
+    input.location?.trim() ? `【项目所在地】${input.location.trim()}` : "",
+    input.scale?.trim() ? `【建设规模】${input.scale.trim()}` : "",
+    input.detail?.trim(),
+  ].filter(Boolean).join("\n");
+}
+
 const envelopeSchema = z.object({
   code: z.number(),
   message: z.string().optional(),
-  data: z.object({id: z.number()}).nullable().optional(),
+  data: z.object({id: z.number().int().positive()}).nullable().optional(),
 });
 
 // 留资需登录: 经 BFF 把 HttpOnly cookie 换成 Bearer 转发后端, 后端另有按账号限流。
@@ -41,7 +50,7 @@ export async function submitLead(
   } catch {
     throw new Error("提交失败, 请稍后再试");
   }
-  if (parsed.code !== 0 || !parsed.data) {
+  if (!response.ok || parsed.code !== 0 || !parsed.data) {
     throw new Error(parsed.message || "提交失败, 请稍后再试");
   }
   return parsed.data;

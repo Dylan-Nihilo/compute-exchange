@@ -2,153 +2,82 @@
 
 import {useMutation} from "@tanstack/react-query";
 import {Button} from "@heroui/react";
+import {FileSearch, Info, Search} from "lucide";
+import {useState} from "react";
 import {z} from "zod";
 
-// 与实名/登录表单同源的输入样式, 保持全站一致。
-const inputClass =
-  "mt-2 min-h-12 w-full rounded-[12px] border border-border bg-surface-secondary/55 px-3.5 text-[15px] text-foreground shadow-none outline-none transition-[border-color,background-color,box-shadow] duration-200 hover:border-border-secondary focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent/10";
+import {InteractiveIcon} from "@/components/system/interactive-icon";
+import {ListPagination} from "@/components/workspace/ui/list-pagination";
+
+import styles from "./leasing.module.css";
 
 const registrationSchema = z.object({
-  reg_no: z.string(),
-  reg_type: z.string(),
-  lessor_name: z.string(),
-  lessee_name: z.string(),
-  collateral_desc: z.string(),
-  reg_start_date: z.string(),
-  reg_end_date: z.string(),
-  display_status: z.string(),
+  reg_no: z.string(), reg_type: z.string(), lessor_name: z.string(), lessee_name: z.string(),
+  collateral_desc: z.string(), reg_start_date: z.string(), reg_end_date: z.string(),
+  display_status: z.string(), verified_at: z.string().optional(),
 });
-
 const responseSchema = z.object({
-  code: z.number(),
-  message: z.string().optional(),
-  data: z
-    .object({
-      list: z.array(registrationSchema),
-      total: z.number(),
-      disclaimer: z.string(),
-    })
-    .nullable()
-    .optional(),
+  code: z.number(), message: z.string().optional(),
+  data: z.object({
+    list: z.array(registrationSchema), total: z.number().int().nonnegative(),
+    page: z.number().int().positive(), page_size: z.number().int().positive(), disclaimer: z.string(),
+  }).nullable().optional(),
 });
+const regTypeCopy: Record<string, string> = {finance_lease: "融资租赁", mortgage: "抵押", factoring: "保理", other: "其他"};
+const statusCopy: Record<string, string> = {valid: "有效", expired: "已过期", cancelled: "已注销"};
+type LookupInput = {lessee_name: string; lessee_uscc: string; page: number};
 
-const regTypeCopy: Record<string, string> = {
-  finance_lease: "融资租赁",
-  mortgage: "抵押",
-  factoring: "保理",
-  other: "其他",
-};
-
-const statusCopy: Record<string, string> = {
-  valid: "有效",
-  expired: "已过期",
-  cancelled: "已注销",
-};
-
-async function queryCollateral(input: {lessee_name: string; lessee_uscc: string}) {
-  const params = new URLSearchParams();
+async function queryCollateral(input: LookupInput) {
+  const params = new URLSearchParams({page: String(input.page)});
   if (input.lessee_name) params.set("lessee_name", input.lessee_name);
   if (input.lessee_uscc) params.set("lessee_uscc", input.lessee_uscc);
   let response: Response;
   try {
-    response = await fetch(`/api/collateral?${params}`);
+    response = await fetch(`/api/collateral?${params}`, {cache: "no-store"});
   } catch {
-    throw new Error("查询服务暂不可用, 请稍后再试");
+    throw new Error("查询服务暂不可用，请稍后再试");
   }
-  let parsed: z.infer<typeof responseSchema>;
-  try {
-    parsed = responseSchema.parse(await response.json());
-  } catch {
-    throw new Error("查询失败, 请稍后再试");
+  const parsed = responseSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw new Error("查询结果暂时无法读取，请重新查询");
+  if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) {
+    throw new Error(parsed.data.message || "查询失败，请稍后再试");
   }
-  if (parsed.code !== 0 || !parsed.data) {
-    throw new Error(parsed.message || "查询失败, 请稍后再试");
-  }
-  return parsed.data;
+  return parsed.data.data;
 }
 
-// 中登网(动产融资统一登记公示系统)登记查询。中登网无对外数据接口,
-// 库内数据为平台运营人工录入并留痕, 页面必须明示该口径(合规红线)。
+// Queries the platform's manually recorded data, never an official live registry.
 export function CollateralLookup() {
+  const [lesseeName, setLesseeName] = useState("");
+  const [lesseeUscc, setLesseeUscc] = useState("");
   const mutation = useMutation({mutationFn: queryCollateral});
 
-  return (
-    <section aria-label="中登网登记查询" className="rounded-[1.25rem] border border-border bg-white p-6 shadow-[0_16px_36px_rgba(6,37,59,0.08)]">
-      <h2 className="text-lg font-semibold text-foreground">中登网动产融资登记查询</h2>
-      <p className="mt-1 text-sm text-muted">
-        查询承租人在中登网的融资租赁/抵押/保理登记情况，辅助判断标的物权属状态。
-      </p>
-
-      <form
-        className="mt-5 grid gap-4 sm:grid-cols-[1fr_1fr_auto]"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (mutation.isPending) return;
-          const data = new FormData(event.currentTarget);
-          const lesseeName = String(data.get("lessee_name") ?? "").trim();
-          const lesseeUscc = String(data.get("lessee_uscc") ?? "").trim();
-          if (!lesseeName && !lesseeUscc) return;
-          mutation.mutate({lessee_name: lesseeName, lessee_uscc: lesseeUscc});
-        }}
-      >
-        <label className="block text-sm font-medium text-foreground">
-          承租人名称
-          <input className={inputClass} maxLength={128} name="lessee_name" placeholder="如 某某智算科技有限公司" />
-        </label>
-        <label className="block text-sm font-medium text-foreground">
-          统一社会信用代码
-          <input className={inputClass} maxLength={18} name="lessee_uscc" placeholder="18 位" />
-        </label>
-        <div className="flex items-end">
-          <Button className="w-full sm:w-auto" isPending={mutation.isPending} type="submit">
-            查询
-          </Button>
-        </div>
-      </form>
-      <p className="mt-2 text-xs text-muted">两项条件至少填写一项。</p>
-
-      {mutation.isError ? (
-        <p className="mt-4 text-sm text-danger" role="alert">{mutation.error.message}</p>
-      ) : null}
-
-      {mutation.isSuccess ? (
-        <div className="mt-5">
-          {mutation.data.list.length ? (
-            <div className="omnis-scrollbar-x">
-              <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
-                <caption className="sr-only">登记查询结果</caption>
-                <thead>
-                  <tr className="h-10 bg-[#e5f3f8]/75 text-[12px] font-medium text-[#78909c]">
-                    <th className="rounded-l-[12px] px-3" scope="col">登记编号</th>
-                    <th className="px-3" scope="col">类型</th>
-                    <th className="px-3" scope="col">出租人/权利人</th>
-                    <th className="px-3" scope="col">承租人</th>
-                    <th className="px-3" scope="col">标的物</th>
-                    <th className="px-3" scope="col">登记期限</th>
-                    <th className="rounded-r-[12px] px-3" scope="col">状态</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mutation.data.list.map((item) => (
-                    <tr className="border-b border-[#dce9ee]/70 last:border-0" key={item.reg_no}>
-                      <td className="px-3 py-3 font-medium text-[#173447]">{item.reg_no}</td>
-                      <td className="px-3 py-3">{regTypeCopy[item.reg_type] ?? item.reg_type}</td>
-                      <td className="px-3 py-3">{item.lessor_name}</td>
-                      <td className="px-3 py-3">{item.lessee_name}</td>
-                      <td className="max-w-56 px-3 py-3 break-words">{item.collateral_desc}</td>
-                      <td className="px-3 py-3">{item.reg_start_date} ~ {item.reg_end_date}</td>
-                      <td className="px-3 py-3">{statusCopy[item.display_status] ?? item.display_status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-sm text-muted">未查询到相关登记记录。</p>
-          )}
-          <p className="mt-4 text-xs leading-5 text-muted">{mutation.data.disclaimer}</p>
-        </div>
-      ) : null}
-    </section>
-  );
+  return <section aria-labelledby="registration-heading" className={styles.lookup} id="registration-lookup">
+    <header className={styles.lookupHeader}><h2 id="registration-heading">登记资料查询</h2><span className={styles.manualBadge}>平台人工核录</span></header>
+    <p className={styles.lookupDescription}>按承租人名称或统一社会信用代码，查找平台已收录的融资租赁、抵押与保理登记资料。</p>
+    <div className={styles.sourceNotice}><InteractiveIcon icon={Info} size={15} /><p>资料由平台依据中登网查询结果人工录入，仅供参考，请以官方系统实时查询结果为准。</p></div>
+    <form className={styles.lookupForm} onSubmit={(event) => {
+      event.preventDefault();
+      if (mutation.isPending || (!lesseeName.trim() && !lesseeUscc.trim())) return;
+      mutation.mutate({lessee_name: lesseeName.trim(), lessee_uscc: lesseeUscc.trim(), page: 1});
+    }}>
+      <div className={styles.lookupField}><label htmlFor="lessee-name">承租人名称</label><input id="lessee-name" disabled={mutation.isPending} maxLength={128} name="lessee_name" placeholder="企业名称，可按名称前缀查询" value={lesseeName} onChange={(event) => setLesseeName(event.target.value)} /></div>
+      <div className={styles.lookupField}><label htmlFor="lessee-uscc">统一社会信用代码</label><input id="lessee-uscc" disabled={mutation.isPending} maxLength={18} minLength={8} pattern="[0-9A-Za-z]{8,18}" name="lessee_uscc" placeholder="输入统一社会信用代码" value={lesseeUscc} onChange={(event) => setLesseeUscc(event.target.value)} /></div>
+      <Button isDisabled={mutation.isPending || (!lesseeName.trim() && !lesseeUscc.trim())} isPending={mutation.isPending} type="submit"><InteractiveIcon icon={Search} size={15} />{mutation.isPending ? "正在查询…" : "查询资料"}</Button>
+    </form>
+    <p className={styles.lookupHint}>至少填写一项；同时填写时，将查询同时匹配两项条件的记录。</p>
+    {mutation.isPending ? <p className="mt-5 text-sm text-muted" role="status">正在查询登记资料…</p> : null}
+    {mutation.isError ? <p className="mt-5 text-sm text-danger" role="alert">{mutation.error.message}。你填写的查询条件已保留。</p> : null}
+    {mutation.isSuccess ? <div className="mt-5" aria-live="polite">
+      {mutation.data.list.length ? <>
+        <p className="text-xs text-muted">为「{mutation.variables.lessee_name || mutation.variables.lessee_uscc}」找到 {mutation.data.total} 条登记资料</p>
+        <ol className={styles.records}>{mutation.data.list.map((item) => <li className={styles.record} key={item.reg_no}>
+          <header><div><span className="text-muted">{regTypeCopy[item.reg_type] ?? item.reg_type} · 登记编号</span><strong>{item.reg_no}</strong></div><span className={styles.recordStatus} data-status={item.display_status}>{statusCopy[item.display_status] ?? item.display_status}</span></header>
+          <dl><div><dt>出租人 / 权利人</dt><dd>{item.lessor_name}</dd></div><div><dt>承租人</dt><dd>{item.lessee_name}</dd></div><div><dt>登记标的物</dt><dd>{item.collateral_desc || "未填写"}</dd></div><div><dt>登记期限</dt><dd>{item.reg_start_date || "未填写"} — {item.reg_end_date || "未填写"}</dd></div></dl>
+          <p className={styles.recordNote}>人工核验日期：{item.verified_at || "未填写"}</p>
+        </li>)}</ol>
+        <ListPagination page={mutation.data.page} totalPages={Math.max(1, Math.ceil(mutation.data.total / mutation.data.page_size))} onPageChange={(page) => {if (!mutation.isPending) mutation.mutate({...mutation.variables, page});}} />
+      </> : <div className={styles.lookupEmpty}><InteractiveIcon icon={FileSearch} size={22} /><div><h3>平台暂未收录匹配记录</h3><p>本次未找到「{mutation.variables.lessee_name || mutation.variables.lessee_uscc}」的登记资料。这不代表官方系统没有登记，仍需以官方查询结果核实。</p></div></div>}
+      <p className="mt-4 text-[11px] leading-6 text-muted">{mutation.data.disclaimer}</p>
+    </div> : null}
+  </section>;
 }
