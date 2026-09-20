@@ -168,11 +168,14 @@ export function AdminCrm() {
         <AdminTableShell {...tableState(query, "暂无业务线索", "客户提交需求后会显示在这里。") }>
           {query.data?.items.length ? <table className={adminTableWideClass}>
             <caption className="sr-only">CRM 线索</caption>
-            <AdminTableHead><th scope="col">联系人</th><th scope="col">类型</th><th scope="col">联系方式</th><th scope="col">需求</th><th scope="col">预算</th><th scope="col">状态</th><th scope="col">负责人</th><th scope="col">提交时间</th><th scope="col">操作</th></AdminTableHead>
+            <AdminTableHead><th scope="col">联系人</th><th scope="col">企业</th><th scope="col">类型</th><th scope="col">联系方式</th><th scope="col">需求</th><th scope="col">预算/期限</th><th scope="col">来源</th><th scope="col">状态</th><th scope="col">负责人</th><th scope="col">提交时间</th><th scope="col">操作</th></AdminTableHead>
             <tbody>{query.data.items.map((item) => <tr key={item.id}>
               <th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.contact_name}</th>
+              <td className="max-w-44 break-words">{item.company_name || "—"}</td>
               <td>{({compute: "算力询价", finance_lease: "融资租赁", equipment: "设备居间", construction: "机房建设"} as Record<string, string>)[item.type] ?? item.type}</td>
-              <td>{item.contact_phone || item.contact_email}</td><td className="max-w-72 whitespace-pre-wrap break-words">{item.description}</td><td>{item.amount_range || "—"}</td>
+              <td>{item.contact_phone || item.contact_email}</td><td className="max-w-72 whitespace-pre-wrap break-words">{item.description || "—"}</td>
+              <td>{[item.amount_range, item.term].filter(Boolean).join(" / ") || "—"}</td>
+              <td>{({leasing_page: "融资租赁页", equipment_page: "设备页", construction_page: "机电页"} as Record<string, string>)[item.source] ?? (item.source || "—")}</td>
               <td><StatusBadge status={item.status} /></td><td>{item.assignee_id ? String(item.assignee_id) === account?.id ? "我" : `UID-${item.assignee_id}` : "待分配"}</td><td>{formatDateTime(item.created_at)}</td>
               <td>{item.status === "new" && !item.assignee_id ? <Button size="sm" variant="tertiary" isDisabled={!account} isPending={mutation.isPending} onPress={() => mutation.mutate(item.id)}>由我跟进</Button> : "—"}</td>
             </tr>)}</tbody>

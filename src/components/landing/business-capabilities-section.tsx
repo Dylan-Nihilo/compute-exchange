@@ -34,22 +34,22 @@ const SECONDARY_CAPABILITIES = [
   {
     title: "设备整包销售",
     description: "服务器、GPU 与数据中心设备采购。",
-    action: "了解更多",
-    href: "/auth/register",
+    action: "登记采购需求",
+    href: "/broker/equipment",
     image: "/compute-spot/business-hardware.png",
   },
   {
     title: "组网与机电安装服务",
     description: "机房规划、配电、制冷与工程项目整合。",
     action: "登记项目",
-    href: "/auth/register",
+    href: "/broker/construction",
     image: "/compute-spot/business-engineering.png",
   },
   {
     title: "融资租赁",
     description: "为持续算力需求提供灵活的资产解决方案。",
     action: "提交需求",
-    href: "/auth/register",
+    href: "/leasing",
     image: "/compute-spot/business-finance.png",
   },
 ] as const;
