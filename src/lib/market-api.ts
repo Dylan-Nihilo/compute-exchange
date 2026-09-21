@@ -9,8 +9,11 @@ import {
   type MarketSort,
   type MarketSupply,
 } from "../components/market/market-data.ts";
-import {ApiError, type ApiClient} from "./api/client.ts";
-import {apiClient} from "./api/configured-client.ts";
+import {ApiError, createApiClient, type ApiClient} from "./api/client.ts";
+
+// 2026-09-21 接口收口: 商品/交易配置读接口需登录, 浏览器经鉴权 BFF(/api/market-proxy)代理,
+// 不再公开直连 /api/v1(SSR 直连同时废弃——市场页改为客户端取数)。
+const marketProxyClient = createApiClient({baseUrl: "/api/market-proxy"});
 
 const productSchema = z.object({
   id: z.number().int(),
@@ -375,7 +378,7 @@ export function buildMarketHref(query: MarketQuery) {
 
 export async function getMarketSupplies(
   query: MarketQuery = defaultMarketQuery,
-  client: ApiClient | null = apiClient,
+  client: ApiClient | null = marketProxyClient,
 ): Promise<MarketPage> {
   if (!client) {
     const filtered = filterMarketSupplies(marketSupplies, query);
@@ -431,7 +434,7 @@ export async function getMarketSupplies(
 
 export async function getMarketProduct(
   productId: string,
-  client: ApiClient | null = apiClient,
+  client: ApiClient | null = marketProxyClient,
 ): Promise<MarketProductDetail | null> {
   if (!client) {
     const product = marketSupplies.find(({id}) => id === productId);
@@ -553,7 +556,7 @@ export function calcOrderPreview(unitPriceMinor: number, quantity: number, durat
   return {totalMinor: Number(total), feeMinor: Number(total * BigInt(feeRate) / 10000n)};
 }
 
-export async function getTradingConfig(client: ApiClient | null = apiClient) {
+export async function getTradingConfig(client: ApiClient | null = marketProxyClient) {
   if (!client) throw new Error("交易配置暂不可用");
   const response = await client.request("/trading-config", envelopeSchema, {cache: "no-store"});
   if (response.code !== 0) throw new Error(response.message || "交易配置暂不可用");

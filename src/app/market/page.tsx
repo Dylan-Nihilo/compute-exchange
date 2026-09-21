@@ -1,11 +1,9 @@
 import type {Metadata} from "next";
-import {redirect} from "next/navigation";
 
 import {RouteTransition} from "@/components/layout/route-transition";
 import {MarketView} from "@/components/market/market-view";
 import {
   buildMarketHref,
-  getMarketSupplies,
   parseMarketQuery,
   type MarketSearchParams,
 } from "@/lib/market-api";
@@ -19,18 +17,14 @@ type MarketPageProps = {
   searchParams: Promise<MarketSearchParams>;
 };
 
+// 列表数据在客户端经鉴权 BFF(/api/market-proxy)拉取(浏览需登录), 服务端只解析 URL 筛选状态。
 export default async function MarketPage({searchParams}: MarketPageProps) {
   const query = parseMarketQuery(await searchParams);
-  const result = await getMarketSupplies(query);
-  if (query.page > result.totalPages) {
-    redirect(buildMarketHref({...query, page: result.totalPages}));
-  }
-
   const href = buildMarketHref(query);
 
   return (
     <RouteTransition transitionKey={href}>
-      <MarketView key={href} query={query} result={result} />
+      <MarketView key={href} query={query} />
     </RouteTransition>
   );
 }

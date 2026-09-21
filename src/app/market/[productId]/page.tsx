@@ -1,9 +1,7 @@
 import type {Metadata} from "next";
-import {notFound} from "next/navigation";
 
 import {RouteTransition} from "@/components/layout/route-transition";
-import {MarketProductDetailView} from "@/components/market/market-product-detail-view";
-import {getMarketProduct} from "@/lib/market-api";
+import {MarketProductDetailLoader} from "@/components/market/market-product-detail-loader";
 
 export const metadata: Metadata = {
   title: "算力商品详情",
@@ -14,16 +12,15 @@ type MarketProductPageProps = {
   params: Promise<{productId: string}>;
 };
 
+// 详情数据在客户端经鉴权 BFF 拉取(浏览需登录), 服务端不再 SSR 直连后端。
 export default async function MarketProductPage({
   params,
 }: MarketProductPageProps) {
   const {productId} = await params;
-  const product = await getMarketProduct(productId);
-  if (!product) notFound();
 
   return (
     <RouteTransition transitionKey={`/market/${productId}`}>
-      <MarketProductDetailView product={product} />
+      <MarketProductDetailLoader productId={productId} />
     </RouteTransition>
   );
 }

@@ -10,6 +10,7 @@ import {
   Pagination,
   SearchField,
   Select,
+  Skeleton,
   Spinner,
   TextField,
 } from "@heroui/react";
@@ -17,7 +18,7 @@ import Image from "next/image";
 import {useQuery} from "@tanstack/react-query";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
-import {type FormEvent, type ReactNode, useState, useTransition} from "react";
+import {type FormEvent, type ReactNode, useEffect, useState, useTransition} from "react";
 
 import {MarketBrowser} from "@/components/market/market-browser";
 import {fetchGpuCatalog, gpuModelFilterOptions} from "@/lib/gpu-catalog";
@@ -33,13 +34,12 @@ import {
 import {
   buildMarketHref,
   defaultMarketQuery,
-  type MarketPage,
+  getMarketSupplies,
   type MarketQuery,
 } from "@/lib/market-api";
 
 type MarketViewProps = {
   query: MarketQuery;
-  result: MarketPage;
 };
 
 type FilterOption = {label: string; value: string};
@@ -89,7 +89,7 @@ const pageSizeOptions: readonly FilterOption[] = [
   {label: "每页 50 条", value: "50"},
 ];
 
-export function MarketView({query, result}: MarketViewProps) {
+export function MarketView({query}: MarketViewProps) {
   const router = useRouter();
   const [draft, setDraft] = useState(query);
   const catalog = useQuery({queryKey: ["gpu-catalog"], queryFn: ({signal}) => fetchGpuCatalog(fetch, signal), retry: false});
@@ -97,7 +97,14 @@ export function MarketView({query, result}: MarketViewProps) {
   const [priceRange, setPriceRange] = useState(
     formatMarketPriceRange(query.priceMin, query.priceMax),
   );
-  const [isPending, startTransition] = useTransition();
+  const [isNavPending, startTransition] = useTransition();
+  // 浏览需登录: 商品数据经鉴权 BFF 在客户端拉取(令牌过期由 BFF 自动 refresh)
+  const supplies = useQuery({
+    queryKey: ["market-supplies", buildMarketHref(query)],
+    queryFn: () => getMarketSupplies(query),
+  });
+  const result = supplies.data;
+  const isPending = isNavPending || supplies.isFetching;
   const hasFilters = buildMarketHref({...query, page: 1}) !== "/market";
   const hasAdvancedFilters = Boolean(
     query.query ||
@@ -108,13 +115,19 @@ export function MarketView({query, result}: MarketViewProps) {
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const parsedPriceRange = parseMarketPriceRange(priceRange);
   const priceRangeInvalid = parsedPriceRange === null;
-  const startItem = result.total ? (result.page - 1) * result.pageSize + 1 : 0;
-  const endItem = Math.min(result.page * result.pageSize, result.total);
+  const startItem = result?.total ? (result.page - 1) * result.pageSize + 1 : 0;
+  const endItem = result ? Math.min(result.page * result.pageSize, result.total) : 0;
   const activeFilters = getActiveFilters(query);
 
   const navigate = (nextQuery: MarketQuery) => {
     startTransition(() => router.push(buildMarketHref(nextQuery)));
   };
+  // 超页回夹到最后一页(原 SSR redirect 的客户端等价物)
+  useEffect(() => {
+    if (result && query.page > result.totalPages) {
+      router.replace(buildMarketHref({...query, page: result.totalPages}));
+    }
+  }, [result, query, router]);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!parsedPriceRange) return;
@@ -291,7 +304,7 @@ export function MarketView({query, result}: MarketViewProps) {
               更多筛选
             </Button>
             <span aria-live="polite" className="ml-auto text-[13px] font-medium text-[#496877]">
-              共 <AnimatedNumber value={result.total} /> 个商品
+              共 {result ? <AnimatedNumber value={result.total} /> : "—"} 个商品
             </span>
           </div>
 
@@ -367,9 +380,27 @@ export function MarketView({query, result}: MarketViewProps) {
         </form>
 
         <section aria-label="算力供给列表" className="mt-6">
-          <MarketBrowser supplies={result.items} />
+          {supplies.isPending ? (
+            <div className="space-y-6">
+              {["s1", "s2", "s3"].map((key) => (
+                <Skeleton className="h-64 w-full rounded-[22px]" key={key} />
+              ))}
+            </div>
+          ) : supplies.isError ? (
+            <div className="rounded-[22px] border border-white/70 bg-white/80 p-10 text-center shadow-[0_16px_36px_rgba(6,37,59,0.06)] backdrop-blur-xl">
+              <p className="text-sm font-medium text-[#173447]" role="alert">算力商品列表暂时不可用</p>
+              <p className="mt-2 text-sm text-[#5f7888]">
+                {supplies.error instanceof Error ? supplies.error.message : "请稍后重试"}
+              </p>
+              <Button className="mt-4 h-10 rounded-xl" variant="tertiary" onPress={() => void supplies.refetch()}>
+                重试
+              </Button>
+            </div>
+          ) : result ? (
+            <MarketBrowser supplies={result.items} />
+          ) : null}
 
-          <Pagination
+          {result ? <Pagination
             aria-label="算力商品分页"
             className="mt-6 w-full flex-wrap justify-between gap-3 rounded-[18px] border border-white/70 bg-white/75 px-4 py-2.5 backdrop-blur-xl"
           >
@@ -429,7 +460,7 @@ export function MarketView({query, result}: MarketViewProps) {
                 </Pagination.Item>
               </Pagination.Content>
             </div>
-          </Pagination>
+          </Pagination> : null}
         </section>
       </div>
     </main>

@@ -19,7 +19,7 @@ it("loads the platform catalog without changing model names, nullable specs, or 
     {id: 2, vendor: "NVIDIA", model_name: "H100-80G", origin: "international", grade: "datacenter", vram_gb: 80, vram_type: "HBM3", fp16_tflops: 989, interconnect: "NVLink", secure_certified: false, status: "enabled", sort_weight: 89},
   ];
   const result = await fetchGpuCatalog(async (url, init) => {
-    assert.equal(url, "/api/v1/gpu-catalog");
+    assert.equal(url, "/api/market-proxy/gpu-catalog");
     assert.equal(init?.cache, "no-store");
     return Response.json({code: 0, message: "success", data: {list, total: 3}});
   });

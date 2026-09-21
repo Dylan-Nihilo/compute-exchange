@@ -35,7 +35,8 @@ export function gpuModelFilterOptions(items: readonly Pick<GpuCatalogItem, "mode
 }
 
 export async function fetchGpuCatalog(fetchImplementation: typeof fetch = fetch, signal?: AbortSignal) {
-  const api = createApiClient({baseUrl: "/api/v1", fetchImplementation});
+  // 型号库读接口已收口到登录后, 经鉴权 BFF(/api/market-proxy)代理; 消费方(市场筛选/发布表单)均在登录场景。
+  const api = createApiClient({baseUrl: "/api/market-proxy", fetchImplementation});
   const payload = await api.request("/gpu-catalog", gpuCatalogResponseSchema, {cache: "no-store", signal});
   if (payload.code !== 0) throw new Error(payload.message || "型号库暂不可用");
   if (!payload.data) throw new Error("型号库返回格式错误");
