@@ -516,7 +516,7 @@ function EquipmentInquiryModal({item, onClose}: {item: EquipmentItem | null; onC
                         className={`mt-1.5 min-h-24 ${areaClass}`}
                         maxLength={1900}
                         name="message"
-                        placeholder="如：需要原厂安装服务、含 IB 网络、需要融资租赁方案、需先线下验货…"
+                        placeholder="如：需要原厂安装服务、含 IB 网络、需先线下验货…"
                       />
                     </label>
                   </fieldset>

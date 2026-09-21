@@ -14,9 +14,9 @@ const PROTECTED_ROUTES = [
   "/supplier/apply",
   "/checkout",
   // 市场列表与业务板块页均需登录后浏览(未登录引导到 /auth/login?next=…)。
+  // 注: /leasing 因易宝支付入网合规于 2026-09-21 整体下线(见下方 allowlist), 不在此列。
   "/market",
   "/equipment-market",
-  "/leasing",
   "/broker",
 ] as const;
 
@@ -43,7 +43,8 @@ export function middleware(request: NextRequest) {
   if (
     Object.hasOwn(legalDocuments, pathname.slice(1)) ||
     pathname === "/attestations/verify" ||
-    pathname === "/leasing" ||
+    // 易宝支付入网合规(2026-09-21): /leasing 移出 allowlist → 访问一律弹回首页。
+    // 页面代码保留(components/leads/leasing-*), 恢复业务时把它加回本清单与 PROTECTED_ROUTES。
     pathname === "/broker" ||
     pathname.startsWith("/broker/") ||
     pathname === "/landing" ||

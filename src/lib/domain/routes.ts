@@ -38,7 +38,8 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/tokens", label: "Token 工厂", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/broker/equipment", label: "设备居间", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/broker/construction", label: "机电施工", area: "portal", roles: publicRoles, capability: "browse"},
-  {href: "/leasing", label: "融资租赁", area: "portal", roles: publicRoles, capability: "browse"},
+  // 易宝支付入网合规(2026-09-21): 融资租赁入口整体下线(middleware 弹回首页), 恢复时取消注释。
+  // {href: "/leasing", label: "融资租赁", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/attestations/verify", label: "存证验证", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/market", label: "算力市场", area: "market", roles: publicRoles, capability: "browse"},
   {href: "/equipment-market", label: "设备市场", area: "market", roles: publicRoles, capability: "browse"},

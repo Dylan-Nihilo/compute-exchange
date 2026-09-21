@@ -17,8 +17,8 @@ const services = [
     description: "完成资质审核后发布机房资源并管理履约。",
   },
   {
-    title: "设备与融资协作",
-    description: "连接设备服务、融资租赁与算力项目需求。",
+    title: "设备与工程协作",
+    description: "连接设备服务、机电工程与算力项目需求。",
   },
 ] as const;
 
