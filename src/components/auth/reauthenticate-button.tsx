@@ -1,19 +1,18 @@
 "use client";
 
 import {Button, Spinner} from "@heroui/react";
-import {useRouter} from "next/navigation";
 
 import {useLogout} from "@/lib/auth/queries";
 
 export function ReauthenticateButton() {
-  const router = useRouter();
   const logoutMutation = useLogout();
 
   return (
     <Button
       onPress={() => {
         logoutMutation.mutate(undefined, {
-          onSettled: () => router.replace("/auth/login"),
+          // 身份切换必须硬导航: 丢弃客户端路由缓存(见 workspace-shell logout)。
+          onSettled: () => window.location.replace("/auth/login"),
         });
       }}
       isPending={logoutMutation.isPending}

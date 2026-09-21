@@ -15,7 +15,7 @@ import {
 } from "@heroui/react";
 import {Segment} from "@heroui-pro/react/segment";
 import Image from "next/image";
-import {useRouter, useSearchParams} from "next/navigation";
+import {useSearchParams} from "next/navigation";
 import {useMutation, useQuery} from "@tanstack/react-query";
 import {useEffect, useState} from "react";
 
@@ -25,7 +25,6 @@ import {useAuthStore} from "@/lib/auth/store";
 import {FormError, FormHeading, VerificationCodeField} from "./form-parts";
 
 export function LoginForm({wechatBinding = false}: {wechatBinding?: boolean} = {}) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const mutation = useLogin();
   const wechatStatus = useQuery({queryKey: ["auth", "wechat", "status"], enabled: !wechatBinding, retry: false, queryFn: async () => {
@@ -70,7 +69,9 @@ export function LoginForm({wechatBinding = false}: {wechatBinding?: boolean} = {
 
     const {path, role} = resolvePostAuthDestination(account, nextPath);
     selectRole(role, account.roles);
-    router.replace(path);
+    // 身份切换必须硬导航: Next 客户端路由缓存会保存匿名时预取到的 middleware 重定向
+    // (如 /market → /auth/login), 软导航(router.replace)会命中旧缓存被弹回登录页原地打转。
+    window.location.replace(path);
   }
 
   async function sendCode(captchaToken: string) {

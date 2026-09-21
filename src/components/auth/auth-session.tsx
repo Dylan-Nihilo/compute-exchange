@@ -1,6 +1,6 @@
 "use client";
 
-import {usePathname, useRouter} from "next/navigation";
+import {usePathname} from "next/navigation";
 import {useEffect} from "react";
 
 import {LoadingState} from "@/components/system/operation-state";
@@ -17,7 +17,6 @@ export function AuthSessionBootstrap() {
 
 export function AuthRouteBoundary({children}: {children: React.ReactNode}) {
   const pathname = usePathname();
-  const router = useRouter();
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const selectRole = useAuthStore((state) => state.selectRole);
   const accountQuery = useCurrentAccount();
@@ -31,12 +30,13 @@ export function AuthRouteBoundary({children}: {children: React.ReactNode}) {
     );
     const destination = resolvePostAuthDestination(accountQuery.data, nextPath);
     selectRole(destination.role, accountQuery.data.roles);
-    router.replace(destination.path);
+    // 身份切换必须硬导航: 客户端路由缓存里可能留有匿名时预取的 middleware 重定向
+    // (软导航会被弹回登录页, 停在「正在读取账户」原地打转), 见 login-form。
+    window.location.replace(destination.path);
   }, [
     accountQuery.data,
     hasHydrated,
     isGuestOnly,
-    router,
     selectRole,
   ]);
 

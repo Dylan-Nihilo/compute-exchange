@@ -15,7 +15,7 @@ import {
 } from "@heroui/react";
 import {Segment} from "@heroui-pro/react/segment";
 import Image from "next/image";
-import {useRouter, useSearchParams} from "next/navigation";
+import {useSearchParams} from "next/navigation";
 import {useEffect, useState} from "react";
 
 import {useRegisterSms, useRequestSmsCode} from "@/lib/auth/queries";
@@ -24,7 +24,6 @@ import {useAuthStore} from "@/lib/auth/store";
 import {FormError, FormHeading, VerificationCodeField} from "./form-parts";
 
 export function RegisterForm({wechatBinding = false}: {wechatBinding?: boolean} = {}) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const smsRegisterMutation = useRegisterSms();
   const smsMutation = useRequestSmsCode("register");
@@ -59,7 +58,8 @@ export function RegisterForm({wechatBinding = false}: {wechatBinding?: boolean} 
     if (!account) return;
     const {path, role} = resolvePostAuthDestination(account, nextPath);
     selectRole(role, account.roles);
-    router.replace(path);
+    // 身份切换必须硬导航: 客户端路由缓存里可能留有匿名时预取的 middleware 重定向, 见 login-form。
+    window.location.replace(path);
   }
 
   async function sendCode(captchaToken: string) {

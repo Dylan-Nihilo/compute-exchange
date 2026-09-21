@@ -68,7 +68,8 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
 
   function logout() {
     logoutMutation.mutate(undefined, {
-      onSettled: () => router.replace("/auth/login"),
+      // 身份切换必须硬导航: 丢弃客户端路由缓存里登录态下预取的受保护页面。
+      onSettled: () => window.location.replace("/auth/login"),
     });
   }
 
