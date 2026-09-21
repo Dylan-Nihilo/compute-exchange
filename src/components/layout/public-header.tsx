@@ -36,6 +36,7 @@ export function PublicHeader() {
   const prefersReducedMotion = useReducedMotion();
   const isLanding = pathname === "/" || pathname === "/landing";
   const isMarket = pathname.startsWith("/market");
+  const isEquipmentMarket = pathname.startsWith("/equipment-market");
   const [isMounted, setIsMounted] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
@@ -132,7 +133,8 @@ export function PublicHeader() {
                 const href = !isLanding && anchorId ? `/#${anchorId}` : link.href;
                 const isActive =
                   (anchorId !== null && anchorId === activeSection) ||
-                  (link.href === "/market" && isMarket);
+                  (link.href === "/market" && isMarket) ||
+                  (link.href === "/equipment-market" && isEquipmentMarket);
 
                 return (
                   <li
@@ -223,7 +225,10 @@ export function PublicHeader() {
               return (
                 <Navbar.MenuItem
                   href={href}
-                  isCurrent={link.href === "/market" && isMarket}
+                  isCurrent={
+                    (link.href === "/market" && isMarket) ||
+                    (link.href === "/equipment-market" && isEquipmentMarket)
+                  }
                   key={link.label}
                 >
                   {link.label}

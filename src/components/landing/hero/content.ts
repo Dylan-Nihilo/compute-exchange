@@ -6,6 +6,7 @@ export const heroContent = {
   nav: {
     links: [
       {label: "算力市场", href: "/market"},
+      {label: "设备市场", href: "/equipment-market"},
       {label: "业务模块", href: "#modules"},
       {label: "平台网络", href: "#network"},
       {label: "合作伙伴", href: "#partners"},

@@ -19,6 +19,7 @@ const supplierAssets = "/images/supplier-workspace";
 const navItems: readonly {label: string; icon: string; href: string}[] = [
   {label: "工作台首页", icon: `${buyerAssets}/layout-grid.svg`, href: "/console/supplier"},
   {label: "算力商品管理", icon: `${supplierAssets}/package-search.svg`, href: "/console/supplier/products"},
+  {label: "设备商品管理", icon: `${supplierAssets}/package-search.svg`, href: "/console/supplier/equipments"},
   {label: "成熟算力中心", icon: `${supplierAssets}/building-2.svg`, href: "/console/supplier/centers"},
   {label: "空心机房", icon: `${supplierAssets}/warehouse.svg`, href: "/console/supplier/colocation"},
   {label: "资源盘点", icon: `${supplierAssets}/clipboard-check.svg`, href: "/console/supplier/inventory"},

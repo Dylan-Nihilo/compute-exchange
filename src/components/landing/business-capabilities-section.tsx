@@ -33,8 +33,8 @@ const PRIMARY_CAPABILITIES = [
 const SECONDARY_CAPABILITIES = [
   {
     title: "设备整包销售",
-    description: "服务器、GPU 与数据中心设备采购。",
-    action: "登记采购需求",
+    description: "一手/二手设备市场：发布、询价与采购撮合。",
+    action: "进入设备板块",
     href: "/broker/equipment",
     image: "/compute-spot/business-hardware.png",
   },

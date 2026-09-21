@@ -48,7 +48,9 @@ const allowedRoles: Record<Capability, readonly Role[]> = {
   orderCompute: ["buyer"],
   publishCompute: ["supplier", "operator", "admin"],
   buyToken: ["buyer", "supplier", "vendor", "funder"],
-  publishEquipment: ["vendor", "operator", "admin"],
+  // 平台只有供应方/采购方/运营方三种业务角色: 设备发布归 supplier。
+  // vendor 是历史设计(设备厂商)遗留枚举, 无入驻通道, 不再授予任何能力。
+  publishEquipment: ["supplier", "operator", "admin"],
   submitFinanceLead: ["guest", "buyer", "supplier", "vendor"],
   viewFinanceLeads: ["funder", "operator", "admin"],
   reviewQualification: ["operator", "admin"],

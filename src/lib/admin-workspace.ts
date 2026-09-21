@@ -1,5 +1,8 @@
 import {z} from "zod";
 import {ticketMessageSchema, ticketSchema} from "./buyer-tickets.ts";
+import {equipmentWireSchema, type EquipmentWire} from "./equipment-api.ts";
+
+export type AdminEquipment = EquipmentWire;
 
 const qualificationSchema = z.object({
   id: z.number().int().positive(),
@@ -280,6 +283,20 @@ export function reviewProduct(id: number, decision: "approve" | "reject", reason
 
 export function offlineProduct(id: number, fetchImplementation: typeof fetch = fetch) {
   return action(`/api/admin/products/${id}/offline`, "商品下架失败", {method: "PATCH"}, fetchImplementation);
+}
+
+// ===== 设备商品(设备市场)审核 =====
+
+export function fetchAdminEquipments(query: FetchPage = {}, fetchImplementation: typeof fetch = fetch) {
+  return request(`/api/admin/equipments?${pageQuery(query)}`, pageEnvelope(equipmentWireSchema), "设备商品列表读取失败", undefined, fetchImplementation)
+    .then(({data}) => ({items: data?.list ?? [], total: data?.total ?? 0}));
+}
+
+// 驳回原因落库(rejected_reason), 供应方修改重提后回到 pending 再次进入本队列。
+export function reviewEquipment(id: number, decision: "approve" | "reject", reason?: string, fetchImplementation: typeof fetch = fetch) {
+  return action(`/api/admin/equipments/${id}/${decision}`, "设备商品审核失败", {
+    method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({reason}),
+  }, fetchImplementation);
 }
 
 export function fetchAdminOrders(query: FetchPage = {}, fetchImplementation: typeof fetch = fetch) {

@@ -59,6 +59,7 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
   const navigation = [
     ...roleConsoleNav,
     {href: "/market", label: "算力市场"},
+    {href: "/equipment-market", label: "设备市场"},
   ];
 
   function changeRole(role: Role) {

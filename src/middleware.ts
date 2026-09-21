@@ -13,7 +13,9 @@ const PROTECTED_ROUTES = [
   "/auth/identity",
   "/supplier/apply",
   "/checkout",
-  "/market/agent-search",
+  // 市场列表与业务板块页均需登录后浏览(未登录引导到 /auth/login?next=…)。
+  "/market",
+  "/equipment-market",
   "/leasing",
   "/broker",
 ] as const;
@@ -48,6 +50,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/landing/") ||
     pathname === "/market" ||
     pathname.startsWith("/market/") ||
+    pathname === "/equipment-market" ||
+    pathname.startsWith("/equipment-market/") ||
     pathname === "/checkout" ||
     pathname.startsWith("/checkout/") ||
     pathname === "/auth" ||

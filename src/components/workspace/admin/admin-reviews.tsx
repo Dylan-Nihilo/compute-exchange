@@ -9,16 +9,19 @@ import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {
   approveQualification,
+  fetchAdminEquipments,
   fetchAdminInvoices,
   fetchAdminProducts,
   fetchAdminQualifications,
   issueAdminInvoice,
   rejectAdminInvoice,
   rejectQualification,
+  reviewEquipment,
   reviewProduct,
   type AdminProduct,
   type AdminQualification,
 } from "@/lib/admin-workspace";
+import {equipmentConditionLabels, equipmentTypeLabels, formatEquipmentPrice} from "@/lib/equipment-api";
 import {formatDateTime} from "@/lib/format/date";
 import {notify} from "@/lib/notify";
 import {pricingModeCopy, productStatusCopy, productTypeCopy} from "@/lib/supplier-workspace";
@@ -32,13 +35,14 @@ import {
   adminTableClass,
 } from "./admin-ui";
 
-type ReviewTab = "qualifications" | "products" | "invoices";
+type ReviewTab = "qualifications" | "products" | "equipments" | "invoices";
 type QualificationView = "pending" | "history";
-type Decision = {kind: "qualification" | "product"; id: number; label: string} | null;
+type Decision = {kind: "qualification" | "product" | "equipment"; id: number; label: string} | null;
 
 const tabs: readonly {id: ReviewTab; label: string}[] = [
   {id: "qualifications", label: "资质准入"},
-  {id: "products", label: "商品上架"},
+  {id: "products", label: "算力上架"},
+  {id: "equipments", label: "设备上架"},
   {id: "invoices", label: "发票申请"},
 ];
 
@@ -56,7 +60,7 @@ export function AdminReviews({initialTab = "qualifications"}: {initialTab?: Revi
   const [qualificationView, setQualificationView] = useState<QualificationView>("pending");
   const [decision, setDecision] = useState<Decision>(null);
   const [inspecting, setInspecting] = useState<AdminProduct | null>(null);
-  const [rejecting, setRejecting] = useState<{kind: "qualification" | "invoice" | "product"; id: number} | null>(null);
+  const [rejecting, setRejecting] = useState<{kind: "qualification" | "invoice" | "product" | "equipment"; id: number} | null>(null);
   const [reason, setReason] = useState("");
 
   const qualifications = useQuery({
@@ -67,17 +71,22 @@ export function AdminReviews({initialTab = "qualifications"}: {initialTab?: Revi
     queryKey: ["admin", "products", "review"],
     queryFn: () => fetchAdminProducts({status: "pending", pageSize: 100}),
   });
+  const equipments = useQuery({
+    queryKey: ["admin", "equipments", "review"],
+    queryFn: () => fetchAdminEquipments({status: "pending", pageSize: 100}),
+  });
   const invoices = useQuery({
     queryKey: ["admin", "invoices", "pending"],
     queryFn: () => fetchAdminInvoices({status: "pending", pageSize: 100}),
   });
 
   const action = useMutation({
-    mutationFn: async (input: {kind: "qualification" | "product"; id: number; decision: "approve" | "reject"}) => {
+    mutationFn: async (input: {kind: "qualification" | "product" | "equipment"; id: number; decision: "approve" | "reject"}) => {
       if (input.kind === "qualification") {
         if (input.decision === "approve") return approveQualification(input.id);
         return rejectQualification(input.id, reason.trim());
       }
+      if (input.kind === "equipment") return reviewEquipment(input.id, input.decision, reason.trim());
       return reviewProduct(input.id, input.decision, reason.trim());
     },
     onSuccess: async (_data, input) => {
@@ -123,7 +132,9 @@ export function AdminReviews({initialTab = "qualifications"}: {initialTab?: Revi
               ? qualifications.isPending ? undefined : pendingQualifications.length
               : item.id === "products"
                 ? products.isPending ? undefined : products.data?.total
-                : invoices.isPending ? undefined : invoices.data?.total;
+                : item.id === "equipments"
+                  ? equipments.isPending ? undefined : equipments.data?.total
+                  : invoices.isPending ? undefined : invoices.data?.total;
           return (
             <button
               aria-current={tab === item.id ? "page" : undefined}
@@ -236,6 +247,61 @@ export function AdminReviews({initialTab = "qualifications"}: {initialTab?: Revi
         </AdminPanel>
       ) : null}
 
+      {tab === "equipments" ? (
+        <AdminPanel className="overflow-hidden p-3 sm:p-4">
+          <AdminTableShell
+            emptyDescription="供应方发布/修改重提设备商品后会进入此队列。"
+            emptyTitle="暂无待审核设备"
+            error={equipments.isError ? messageFor(equipments.error) : undefined}
+            isLoading={equipments.isPending}
+            onRetry={() => void equipments.refetch()}
+          >
+            {equipments.data?.items.length ? (
+              <table className={adminTableClass}>
+                <caption className="sr-only">待审核设备商品</caption>
+                <AdminTableHead>
+                  <th scope="col">商品</th><th scope="col">供应方</th><th scope="col">类型</th><th scope="col">成色</th><th scope="col">单价</th><th scope="col">数量</th><th scope="col">地域</th><th className="text-right" scope="col">操作</th>
+                </AdminTableHead>
+                <tbody>
+                  {equipments.data.items.map((item) => (
+                    <tr key={item.id}>
+                      <th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">
+                        {item.title}
+                        <p className="mt-0.5 text-[11px] font-normal text-[#8aa0ab]">
+                          {[item.brand, item.model].filter(Boolean).join(" · ") || "—"}
+                          {item.condition_type === "used" && item.manufacture_year ? ` · ${item.manufacture_year} 年出厂` : ""}
+                        </p>
+                        {item.condition_type === "used" && item.usage_desc ? (
+                          <p className="mt-0.5 max-w-72 text-[11px] font-normal whitespace-pre-wrap break-words text-[#8aa0ab]">
+                            使用情况：{item.usage_desc}
+                          </p>
+                        ) : null}
+                      </th>
+                      <td>{item.vendor_id ? `UID-${item.vendor_id}` : "—"}</td>
+                      <td>{equipmentTypeLabels[item.equipment_type] ?? item.equipment_type}</td>
+                      <td>{equipmentConditionLabels[item.condition_type] ?? item.condition_type}</td>
+                      <td>{formatEquipmentPrice(item.unit_price, item.price_negotiable)}</td>
+                      <td>{item.quantity}</td>
+                      <td>{item.region || "—"}</td>
+                      <td>
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="tertiary" onPress={() => { setRejecting({kind: "equipment", id: item.id}); setReason(""); }}>
+                            <InteractiveIcon icon={X} size={14} />驳回
+                          </Button>
+                          <Button size="sm" variant="primary" onPress={() => setDecision({kind: "equipment", id: item.id, label: item.title})}>
+                            <InteractiveIcon icon={Check} size={14} />通过
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : null}
+          </AdminTableShell>
+        </AdminPanel>
+      ) : null}
+
       {tab === "invoices" ? (
         <AdminPanel className="overflow-hidden p-3 sm:p-4">
           <AdminTableShell
@@ -314,6 +380,12 @@ export function AdminReviews({initialTab = "qualifications"}: {initialTab?: Revi
         <RejectBar title="商品驳回原因" reason={reason} setReason={setReason} isPending={action.isPending}
           onCancel={() => setRejecting(null)}
           onSubmit={() => action.mutate({kind: "product", id: rejecting.id, decision: "reject"})} />
+      ) : null}
+
+      {rejecting?.kind === "equipment" ? (
+        <RejectBar title="设备商品驳回原因" reason={reason} setReason={setReason} isPending={action.isPending}
+          onCancel={() => setRejecting(null)}
+          onSubmit={() => action.mutate({kind: "equipment", id: rejecting.id, decision: "reject"})} />
       ) : null}
 
       <ConfirmDialog
