@@ -124,13 +124,13 @@ export default function SupplierEquipmentsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3.5">
-                        {product.status === "draft" ? (
+                        {product.status === "draft" || product.status === "offline" ? (
                           <Button
                             size="sm"
                             variant="tertiary"
                             onPress={() => router.push(`/console/supplier/equipments/${product.id}/edit`)}
                           >
-                            修改并重提
+                            {product.status === "offline" ? "修改并重新上架" : "修改并重提"}
                           </Button>
                         ) : product.status === "active" || product.status === "pending" ? (
                           <Button

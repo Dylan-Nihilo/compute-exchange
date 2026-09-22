@@ -52,7 +52,7 @@ export function LeadCaptureForm(props: LeadCaptureFormProps) {
       <div className={`rounded-[1.25rem] border border-border bg-white p-6 shadow-[0_16px_36px_rgba(6,37,59,0.08)] ${props.className ?? ""}`} role="status">
         <h3 className="text-lg font-semibold text-foreground">需求已提交</h3>
         <p className="mt-2 text-sm leading-6 text-muted">
-          登记编号 #{mutation.data.id}。平台将通过你填写的联系方式与你沟通需求细节。
+          平台将通过你填写的联系方式与你沟通需求细节。
         </p>
         {props.leadType === "finance_lease" ? <p className="mt-3 text-sm leading-6 text-muted">需求登记不代表融资审批通过，具体方案由资方评估与确认。</p> : null}
         {props.leadType === "construction" ? <p className="mt-3 text-sm leading-6 text-muted">工程范围、报价与工期需后续确认，本次登记不代表施工方已接单或开工。</p> : null}

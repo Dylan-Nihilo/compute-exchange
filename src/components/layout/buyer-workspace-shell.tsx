@@ -12,6 +12,7 @@ import {fetchUnreadNotificationCount} from "@/lib/buyer-notifications";
 import type {Role} from "@/lib/domain/contracts";
 
 import {RouteTransition} from "./route-transition";
+import {usePrefetchRoutes} from "./use-prefetch-routes";
 
 const navItems: readonly {
   label: string;
@@ -56,6 +57,7 @@ export function BuyerWorkspaceShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  usePrefetchRoutes(navItems.map((item) => item.href));
   const unreadQuery = useQuery({
     queryKey: ["buyer", "notifications", "unread-count"],
     queryFn: () => fetchUnreadNotificationCount(),

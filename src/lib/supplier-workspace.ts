@@ -344,6 +344,12 @@ export function resubmitProduct(id: number, input: CreateProductInput, fetchImpl
     {method: "PUT", headers: {"content-type": "application/json"}, body: JSON.stringify({...input, compliance_version: LEGAL_VERSION})}, fetchImplementation);
 }
 
+// 供给方主动下架自己的商品(在售/待审核); 下架后可修改并重提, 重提回 pending 重新审核。
+export function offlineMyProduct(id: number, fetchImplementation: typeof fetch = fetch) {
+  return request(`/api/supplier/products/${id}/offline`, actionEnvelopeSchema, "商品下架失败",
+    {method: "PATCH"}, fetchImplementation);
+}
+
 export function fetchSupplierOrders(
   query: {status?: string; page?: number; pageSize?: number} = {},
   fetchImplementation: typeof fetch = fetch,

@@ -1,6 +1,6 @@
 "use client";
 
-import {useQuery} from "@tanstack/react-query";
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Button, Skeleton} from "@heroui/react";
 import {useRouter} from "next/navigation";
 
@@ -8,8 +8,10 @@ import {ErrorState} from "@/components/system/operation-state";
 import {EmptyState} from "@/components/workspace/ui/empty-state";
 import {GlassCard} from "@/components/workspace/ui/glass-card";
 import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
+import {notify} from "@/lib/notify";
 import {
   fetchMyProductGroups,
+  offlineMyProduct,
   pricingModeCopy,
   productStatusCopy,
   productTypeCopy,
@@ -32,9 +34,18 @@ const statusTone: Record<string, string> = {
 
 export default function SupplierProductsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const groupsQuery = useQuery({
     queryKey: ["supplier", "products", "summary"],
     queryFn: () => fetchMyProductGroups(),
+  });
+  const offlineMutation = useMutation({
+    mutationFn: (id: number) => offlineMyProduct(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({queryKey: ["supplier", "products"]});
+      notify.success("商品已下架，可修改后重新提交审核");
+    },
+    onError: (error) => notify.error(error instanceof Error ? error.message : "商品下架失败"),
   });
 
   const groups = groupsQuery.data ?? [];
@@ -154,7 +165,15 @@ export default function SupplierProductsPage() {
                       </td>
                       <td className="px-4 py-3.5 text-[13px] text-[#24495d]">{product.region}</td>
                       <td className="px-4 py-3.5">
-                        {product.status === "draft" ? <Button size="sm" variant="tertiary" onPress={() => router.push(`/console/supplier/products/${product.id}/edit`)}>修改并重提</Button> : null}
+                        {product.status === "draft" || product.status === "offline" ? (
+                          <Button size="sm" variant="tertiary" onPress={() => router.push(`/console/supplier/products/${product.id}/edit`)}>
+                            {product.status === "offline" ? "修改并重新上架" : "修改并重提"}
+                          </Button>
+                        ) : product.status === "active" || product.status === "pending" ? (
+                          <Button isDisabled={offlineMutation.isPending} size="sm" variant="tertiary" onPress={() => offlineMutation.mutate(product.id)}>
+                            下架
+                          </Button>
+                        ) : null}
                         {product.rejected_reason ? <p className="mt-1 text-xs text-[#b63b35]">{product.rejected_reason}</p> : null}
                       </td>
                     </tr>

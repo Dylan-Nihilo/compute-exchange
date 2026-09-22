@@ -29,13 +29,13 @@ export default function EditSupplierEquipmentPage({params}: {params: Promise<{eq
     );
   }
 
-  if (!product || product.status !== "draft") {
+  if (!product || (product.status !== "draft" && product.status !== "offline")) {
     return (
       <section className="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-4 pt-6 pb-8 sm:px-6">
         <WorkspacePageHeader title="修改设备商品" />
         <GlassCard className="px-6 py-6">
           <EmptyState
-            description={product ? "只有草稿/被驳回状态的商品可以修改重提；在售商品请先下架。" : "没有找到该商品，或它不属于当前账号。"}
+            description={product ? "只有草稿/被驳回或已下架的商品可以修改重提；在售商品请先下架。重新提交后将再次进入审核。" : "没有找到该商品，或它不属于当前账号。"}
             title="无法编辑该商品"
           />
           <div className="mt-4 text-center">

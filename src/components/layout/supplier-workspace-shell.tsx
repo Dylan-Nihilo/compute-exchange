@@ -12,6 +12,7 @@ import type {Role} from "@/lib/domain/contracts";
 import {fetchSupplierUnreadNotificationCount} from "@/lib/supplier-notifications";
 
 import {RouteTransition} from "./route-transition";
+import {usePrefetchRoutes} from "./use-prefetch-routes";
 
 const buyerAssets = "/images/buyer-workspace";
 const supplierAssets = "/images/supplier-workspace";
@@ -55,6 +56,7 @@ export function SupplierWorkspaceShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  usePrefetchRoutes(navItems.map((item) => item.href));
   const unreadQuery = useQuery({
     queryKey: ["supplier", "notifications", "unread-count"],
     queryFn: () => fetchSupplierUnreadNotificationCount(),

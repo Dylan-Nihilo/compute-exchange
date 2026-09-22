@@ -431,7 +431,7 @@ function EquipmentInquiryModal({item, onClose}: {item: EquipmentItem | null; onC
             {item === null ? null : mutation.isSuccess ? (
               <Modal.Body className="gap-3">
                 <p className="text-sm font-medium text-[#173447]" role="status">
-                  询价已提交（编号 #{mutation.data.id}）
+                  询价已提交
                 </p>
                 <p className="text-sm leading-6 text-[#4b6276]">
                   {mutation.data.note ??

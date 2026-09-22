@@ -28,6 +28,7 @@ import type {SessionAccount} from "@/lib/auth/contracts";
 import type {Role} from "@/lib/domain/contracts";
 
 import {RouteTransition} from "./route-transition";
+import {usePrefetchRoutes} from "./use-prefetch-routes";
 
 type AdminNavItem = {
   href: string;
@@ -82,6 +83,7 @@ export function AdminWorkspaceShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  usePrefetchRoutes(navItems.map((item) => item.href));
   const visibleItems = navItems.filter(
     ({adminOnly}) => !adminOnly || activeRole === "admin",
   );

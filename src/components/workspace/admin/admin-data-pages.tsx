@@ -10,6 +10,7 @@ import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {
   type AdminRiskAlert,
+  type AdminLead,
   type AdminOrder,
   assignAdminLead,
   fetchAdminAuditLogs,
@@ -42,10 +43,21 @@ import {
   AdminTableShell,
   StatusBadge,
   adminTableClass,
-  adminTableWideClass,
 } from "./admin-ui";
 
 const money = new Intl.NumberFormat("zh-CN", {currency: "CNY", style: "currency"});
+
+// 运营列表用可读名称替代 UID-x / #id 式展示; 老后端未下发新字段时回退原格式。
+function orderBuyerLabel(order: AdminOrder) {
+  return order.buyer_name || `UID-${order.buyer_id}`;
+}
+function orderProductLabel(order: AdminOrder) {
+  return (
+    (order.product_gpu_model || "").replace(/^NVIDIA\s+/i, "") ||
+    (order.product_type ? productTypeCopy[order.product_type] ?? order.product_type : "") ||
+    `商品 #${order.product_id}`
+  );
+}
 
 export function AdminProducts() {
   const client = useQueryClient();
@@ -103,7 +115,7 @@ export function AdminOrders() {
       <AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(query, "暂无订单", "当前条件下没有订单。") }>
         {query.data?.items.length ? <table className={adminTableClass}><caption className="sr-only">平台订单列表</caption>
           <AdminTableHead><th scope="col">订单号</th><th scope="col">买家</th><th scope="col">供给方</th><th scope="col">商品</th><th scope="col">金额</th><th scope="col">创建时间</th><th scope="col">状态</th><th className="text-right" scope="col">操作</th></AdminTableHead>
-          <tbody>{query.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium" scope="row">{item.order_no}</th><td>UID-{item.buyer_id}</td><td>{item.supplier_name || "—"}</td><td>#{item.product_id} · {item.quantity} × {item.duration}</td><td>{money.format(item.total_amount / 100)}</td><td>{formatDateTime(item.created_at)}</td><td><StatusBadge status={item.status} /></td><td className="text-right"><Button size="sm" variant="tertiary" onPress={() => setSelectedId(item.id)}>查看与处置</Button></td></tr>)}</tbody>
+          <tbody>{query.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium" scope="row">{item.order_no}</th><td className="max-w-44 truncate">{orderBuyerLabel(item)}</td><td className="max-w-44 truncate">{item.supplier_name || "—"}</td><td><p className="max-w-52 truncate">{orderProductLabel(item)}</p><p className="text-[11px] text-[#8aa0ab]">×{item.quantity} · {item.duration} 个计费周期</p></td><td>{money.format(item.total_amount / 100)}</td><td>{formatDateTime(item.created_at)}</td><td><StatusBadge status={item.status} /></td><td className="text-right"><Button size="sm" variant="tertiary" onPress={() => setSelectedId(item.id)}>查看与处置</Button></td></tr>)}</tbody>
         </table> : null}
       </AdminTableShell></AdminPanel>
       {query.data ? <ListPagination page={page} totalPages={totalPages} onPageChange={setPage} /> : null}
@@ -113,9 +125,9 @@ export function AdminOrders() {
           <Modal.Body>{selected ? <div className="space-y-5">
             <StatusBadge status={selected.status} />
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
-              <div><dt className="text-muted">买家</dt><dd>UID-{selected.buyer_id}</dd></div>
+              <div><dt className="text-muted">买家</dt><dd>{orderBuyerLabel(selected)}<span className="ml-1 text-xs text-muted">UID-{selected.buyer_id}</span></dd></div>
               <div><dt className="text-muted">供给方</dt><dd>{selected.supplier_name || "—"}</dd></div>
-              <div><dt className="text-muted">商品</dt><dd>#{selected.product_id}</dd></div>
+              <div><dt className="text-muted">商品</dt><dd>{orderProductLabel(selected)}<span className="ml-1 text-xs text-muted">#{selected.product_id} · ×{selected.quantity} · {selected.duration} 个计费周期</span></dd></div>
               <div><dt className="text-muted">订单金额</dt><dd>{money.format(selected.total_amount / 100)}</dd></div>
               <div><dt className="text-muted">平台服务费</dt><dd>{money.format(selected.platform_fee / 100)}</dd></div>
               <div><dt className="text-muted">创建时间</dt><dd>{formatDateTime(selected.created_at)}</dd></div>
@@ -153,35 +165,80 @@ export function AdminFinance() {
   );
 }
 
+const leadTypeCopy: Record<string, string> = {compute: "算力询价", finance_lease: "融资租赁", equipment: "设备居间", construction: "机房建设"};
+const leadSourceCopy: Record<string, string> = {leasing_page: "融资租赁页", equipment_page: "设备页", construction_page: "机电页", equipment_market: "设备市场询价", product_inquiry: "算力商品询价"};
+
 export function AdminCrm() {
   const client = useQueryClient();
   const account = useCurrentAccount().data;
+  const [detail, setDetail] = useState<AdminLead | null>(null);
   const query = useQuery({queryKey: ["admin", "leads"], queryFn: () => fetchAdminLeads({pageSize: 100})});
   const mutation = useMutation({
     mutationFn: (id: number) => assignAdminLead(id, Number(account?.id)),
-    onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "leads"]}); notify.success("线索已由你跟进"); },
+    onSuccess: async () => { await client.invalidateQueries({queryKey: ["admin", "leads"]}); setDetail(null); notify.success("线索已由你跟进"); },
     onError: (error) => notify.error(messageFor(error)),
   });
+  const assigneeLabel = (item: AdminLead) =>
+    item.assignee_id ? (String(item.assignee_id) === account?.id ? "我" : `UID-${item.assignee_id}`) : "待分配";
+  const canAssign = (item: AdminLead) => item.status === "new" && !item.assignee_id;
+
   return (
-    <AdminPage title="CRM 线索" eyebrow="CRM" description="跟进算力询价、设备居间与融资租赁需求。">
+    <AdminPage title="CRM 线索" eyebrow="CRM" description="跟进算力询价、设备居间与工程建设需求，点击详情查看完整信息。">
       <AdminPanel className="overflow-hidden p-3 sm:p-4">
         <AdminTableShell {...tableState(query, "暂无业务线索", "客户提交需求后会显示在这里。") }>
-          {query.data?.items.length ? <table className={adminTableWideClass}>
+          {query.data?.items.length ? <table className={adminTableClass}>
             <caption className="sr-only">CRM 线索</caption>
-            <AdminTableHead><th scope="col">联系人</th><th scope="col">企业</th><th scope="col">类型</th><th scope="col">联系方式</th><th scope="col">需求</th><th scope="col">预算/期限</th><th scope="col">来源</th><th scope="col">状态</th><th scope="col">负责人</th><th scope="col">提交时间</th><th scope="col">操作</th></AdminTableHead>
+            {/* 长文本(需求描述/企业全称)不进列表, 点「详情」在弹窗看全量, 避免表格挤压换行 */}
+            <AdminTableHead><th scope="col">联系人</th><th scope="col">类型</th><th scope="col">联系方式</th><th scope="col">企业</th><th scope="col">预算/期限</th><th scope="col">状态</th><th scope="col">负责人</th><th scope="col">提交时间</th><th className="text-right" scope="col">操作</th></AdminTableHead>
             <tbody>{query.data.items.map((item) => <tr key={item.id}>
-              <th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.contact_name}</th>
-              <td className="max-w-44 break-words">{item.company_name || "—"}</td>
-              <td>{({compute: "算力询价", finance_lease: "融资租赁", equipment: "设备居间", construction: "机房建设"} as Record<string, string>)[item.type] ?? item.type}</td>
-              <td>{item.contact_phone || item.contact_email}</td><td className="max-w-72 whitespace-pre-wrap break-words">{item.description || "—"}</td>
-              <td>{[item.amount_range, item.term].filter(Boolean).join(" / ") || "—"}</td>
-              <td>{({leasing_page: "融资租赁页", equipment_page: "设备页", construction_page: "机电页"} as Record<string, string>)[item.source] ?? (item.source || "—")}</td>
-              <td><StatusBadge status={item.status} /></td><td>{item.assignee_id ? String(item.assignee_id) === account?.id ? "我" : `UID-${item.assignee_id}` : "待分配"}</td><td>{formatDateTime(item.created_at)}</td>
-              <td>{item.status === "new" && !item.assignee_id ? <Button size="sm" variant="tertiary" isDisabled={!account} isPending={mutation.isPending} onPress={() => mutation.mutate(item.id)}>由我跟进</Button> : "—"}</td>
+              <th className="whitespace-nowrap px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.contact_name}</th>
+              <td className="whitespace-nowrap">{leadTypeCopy[item.type] ?? item.type}</td>
+              <td className="whitespace-nowrap">{item.contact_phone || item.contact_email}</td>
+              <td><p className="max-w-40 truncate">{item.company_name || "—"}</p></td>
+              <td className="whitespace-nowrap">{[item.amount_range, item.term].filter(Boolean).join(" / ") || "—"}</td>
+              <td><StatusBadge status={item.status} /></td>
+              <td className="whitespace-nowrap">{assigneeLabel(item)}</td>
+              <td className="whitespace-nowrap">{formatDateTime(item.created_at)}</td>
+              <td className="text-right"><div className="flex justify-end gap-2">
+                <Button size="sm" variant="tertiary" onPress={() => setDetail(item)}>详情</Button>
+                {canAssign(item) ? <Button size="sm" variant="primary" isDisabled={!account} isPending={mutation.isPending} onPress={() => mutation.mutate(item.id)}>由我跟进</Button> : null}
+              </div></td>
             </tr>)}</tbody>
           </table> : null}
         </AdminTableShell>
       </AdminPanel>
+
+      <Modal.Root isOpen={detail !== null} onOpenChange={(open) => { if (!open) setDetail(null); }}>
+        <Modal.Backdrop>
+          <Modal.Container size="lg" scroll="inside"><Modal.Dialog>
+            <Modal.Header>
+              <Modal.Heading>线索详情</Modal.Heading>
+              {detail ? <p className="text-sm text-muted">{leadTypeCopy[detail.type] ?? detail.type} · {formatDateTime(detail.created_at)}</p> : null}
+            </Modal.Header>
+            <Modal.Body>{detail ? <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-2"><StatusBadge status={detail.status} /><span className="text-sm text-muted">负责人：{assigneeLabel(detail)}</span></div>
+              <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                <div><dt className="text-muted">联系人</dt><dd className="mt-1 font-medium">{detail.contact_name}</dd></div>
+                <div><dt className="text-muted">联系电话</dt><dd className="mt-1">{detail.contact_phone || "—"}</dd></div>
+                <div><dt className="text-muted">邮箱</dt><dd className="mt-1 break-all">{detail.contact_email || "—"}</dd></div>
+                <div><dt className="text-muted">企业名称</dt><dd className="mt-1 break-words">{detail.company_name || "—"}</dd></div>
+                <div><dt className="text-muted">预算/金额</dt><dd className="mt-1">{detail.amount_range || "—"}</dd></div>
+                <div><dt className="text-muted">期望期限</dt><dd className="mt-1">{detail.term || "—"}</dd></div>
+                <div><dt className="text-muted">来源</dt><dd className="mt-1">{leadSourceCopy[detail.source] ?? (detail.source || "—")}</dd></div>
+                <div><dt className="text-muted">线索编号</dt><dd className="mt-1">#{detail.id}</dd></div>
+              </dl>
+              <div>
+                <p className="text-sm text-muted">需求描述</p>
+                <p className="mt-2 rounded-xl bg-[#f3f8fa] px-4 py-3 text-sm leading-6 whitespace-pre-wrap break-words text-[#24495d]">{detail.description || "—"}</p>
+              </div>
+            </div> : null}</Modal.Body>
+            <Modal.Footer className="flex-wrap">
+              <Button variant="tertiary" onPress={() => setDetail(null)}>关闭</Button>
+              {detail && canAssign(detail) ? <Button variant="primary" isDisabled={!account} isPending={mutation.isPending} onPress={() => mutation.mutate(detail.id)}>由我跟进</Button> : null}
+            </Modal.Footer>
+          </Modal.Dialog></Modal.Container>
+        </Modal.Backdrop>
+      </Modal.Root>
     </AdminPage>
   );
 }

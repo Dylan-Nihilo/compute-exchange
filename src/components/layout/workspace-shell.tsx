@@ -14,6 +14,7 @@ import type {Role} from "@/lib/domain/contracts";
 import {homeForRole, routes} from "@/lib/domain/routes";
 
 import {RouteTransition} from "./route-transition";
+import {usePrefetchRoutes} from "./use-prefetch-routes";
 import {AdminWorkspaceShell} from "./admin-workspace-shell";
 import {BuyerWorkspaceShell} from "./buyer-workspace-shell";
 import {SupplierWorkspaceShell} from "./supplier-workspace-shell";
@@ -35,32 +36,35 @@ export function WorkspaceShell({children}: {children: React.ReactNode}) {
   const activeRole = useAuthStore((state) => state.activeRole);
   const beginRoleSwitch = useAuthStore((state) => state.beginRoleSwitch);
   const logoutMutation = useLogout();
-
-  if (
-    !account ||
-    !activeRole ||
-    activeRole === "guest" ||
-    !account.roles.includes(activeRole)
-  ) {
-    return null;
-  }
+  const hasValidRole = Boolean(
+    account && activeRole && activeRole !== "guest" && account.roles.includes(activeRole),
+  );
 
   // 导航从路由表派生: 当前角色可访问的 console 静态页面自动进侧栏,
   // 动态段(详情页)与 /new 子操作页不进导航, vendor/funder 后续自动跟进。
-  const roleConsoleNav = routes
-    .filter(
-      (route) =>
-        route.area === "console" &&
-        route.roles.includes(activeRole) &&
-        !route.href.includes("[") &&
-        !route.href.endsWith("/new"),
-    )
-    .map((route) => ({href: route.href, label: route.label}));
+  const roleConsoleNav =
+    hasValidRole && activeRole
+      ? routes
+          .filter(
+            (route) =>
+              route.area === "console" &&
+              route.roles.includes(activeRole) &&
+              !route.href.includes("[") &&
+              !route.href.endsWith("/new"),
+          )
+          .map((route) => ({href: route.href, label: route.label}))
+      : [];
   const navigation = [
     ...roleConsoleNav,
     {href: "/market", label: "算力市场"},
     {href: "/equipment-market", label: "设备市场"},
   ];
+  // hook 必须在下方的早退 return 之前无条件调用
+  usePrefetchRoutes(hasValidRole ? navigation.map((item) => item.href) : []);
+
+  if (!hasValidRole || !account || !activeRole) {
+    return null;
+  }
 
   function changeRole(role: Role) {
     beginRoleSwitch(role, account!.roles, homeForRole(role));

@@ -66,6 +66,10 @@ const productSchema = z.object({
 
 const orderSchema = z.object({
   supplier_name: z.string().optional(),
+  /** 买家标识: 已认证企业名, 无企业认证时为手机号(运营内部可见全量) */
+  buyer_name: z.string().optional(),
+  product_gpu_model: z.string().optional(),
+  product_type: z.string().optional(),
   id: z.number().int().positive(),
   order_no: z.string(),
   buyer_id: z.number().int().positive(),
