@@ -151,7 +151,7 @@ export function MarketView({query}: MarketViewProps) {
           <p className="mt-1 text-sm leading-[22px] text-[#4b6276] sm:text-base">
             合规机房挂牌 · 实时比价 · 线上成交
           </p>
-        </div><Link className="rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/market/agent-search">智能选型</Link></header>
+        </div><Link className="rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/?agent=open">算力顾问</Link></header>
 
         <section
           aria-label="算力商品类型"

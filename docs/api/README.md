@@ -20,7 +20,7 @@
 | [wechat-login-api.md](wechat-login-api.md) | 微信扫码登录与账号绑定 | 全部 |
 | [legal-consent-api.md](legal-consent-api.md) | 协议版本与同意记录 | 全部 |
 | [compute-api.md](compute-api.md) | 算力市场：商品列表/详情、下单、订单、交付签收、访问凭证 | 买家/供应方 |
-| [agent-search-api.md](agent-search-api.md) | 市场页智能选型：算力推定 + 商品匹配 | 买家 |
+| [agent-search-api.md](agent-search-api.md) | 首页算力顾问：算力评估 + 机器方案 + 商品匹配 | 登录用户 |
 | [gpu-catalog-api.md](gpu-catalog-api.md) | GPU 型号库下拉（含安可认证标记）+ 管理端维护 | 发布页/运营 |
 | [scheduler-api.md](scheduler-api.md) | 供应方节点注册/心跳、商品健康度、调度建议 | 供应方/运营 |
 | [blockchain-api.md](blockchain-api.md) | 文昌链存证查验（订单/交付/违规 上链验证） | 全部 |

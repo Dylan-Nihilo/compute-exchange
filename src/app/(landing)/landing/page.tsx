@@ -1,5 +1,6 @@
 import type {Metadata} from "next";
 
+import {ComputeAdvisor} from "@/components/agent/compute-advisor";
 import {BusinessCapabilitiesSection} from "@/components/landing/business-capabilities-section";
 import {HeroSection} from "@/components/landing/hero/hero-section";
 import {LandingFooter} from "@/components/landing/landing-footer";
@@ -27,6 +28,7 @@ export default function LandingPage() {
         <MarketPreviewSection />
         <LandingFooter />
       </main>
+      <ComputeAdvisor />
     </div>
   );
 }
