@@ -10,16 +10,16 @@
   position: fixed; z-index: 45; right: 24px; bottom: calc(max(20px, env(safe-area-inset-bottom)) + var(--advisor-keyboard-inset, 0px));
   width: 58px; height: 58px; overflow: hidden; isolation: isolate; contain: layout paint; will-change: transform;
   color: var(--advisor-ink); font-family: var(--font-sans);
-  border: 1px solid color-mix(in srgb, var(--advisor-lime) 22%, var(--advisor-navy));
-  background-color: var(--advisor-navy);
-  box-shadow: 0 5px 18px color-mix(in srgb, var(--advisor-navy) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--advisor-paper) 80%, var(--advisor-line));
+  background-color: color-mix(in srgb, var(--advisor-paper) 94%, transparent);
+  box-shadow: 0 3px 14px color-mix(in srgb, var(--advisor-ink) 8%, transparent);
   transition: background-color 280ms, border-color 240ms, box-shadow 240ms;
 }
 .dock[data-has-messages="true"] {--advisor-panel-height: min(536px, calc(var(--advisor-viewport-height, 100dvh) - 48px));}
-.dock[data-open="true"] {width: var(--advisor-panel-width); height: var(--advisor-panel-height); background-color: var(--advisor-paper); border-color: color-mix(in srgb, var(--advisor-navy) 13%, var(--advisor-paper)); box-shadow: 0 12px 38px color-mix(in srgb, var(--advisor-navy) 14%, transparent);}
-.dock[data-hovered="true"][data-open="false"] {border-color: color-mix(in srgb, var(--advisor-lime) 60%, var(--advisor-navy)); box-shadow: 0 7px 23px color-mix(in srgb, var(--advisor-navy) 28%, transparent);}
-.orbCore {position: absolute; z-index: 3; left: 7px; top: 7px; width: 42px; height: 42px; pointer-events: none; background: var(--advisor-navy); perspective: 280px;}
-.orbCore::after {content: ""; position: absolute; inset: -3px; border: 1px solid color-mix(in srgb, var(--advisor-lime) 12%, transparent); border-left-color: color-mix(in srgb, var(--advisor-lime) 50%, transparent); border-radius: 50%; opacity: .35; transform: rotate(-26deg); transition: opacity 220ms, transform 300ms;}
+.dock[data-open="true"] {z-index: 60; width: var(--advisor-panel-width); height: var(--advisor-panel-height); background-color: var(--advisor-paper); border-color: color-mix(in srgb, var(--advisor-navy) 13%, var(--advisor-paper)); box-shadow: 0 12px 38px color-mix(in srgb, var(--advisor-navy) 14%, transparent);}
+.dock[data-hovered="true"][data-open="false"] {background-color: var(--advisor-paper); border-color: var(--advisor-line); box-shadow: 0 5px 20px color-mix(in srgb, var(--advisor-ink) 12%, transparent);}
+.orbCore {position: absolute; z-index: 3; left: 7px; top: 7px; width: 42px; height: 42px; pointer-events: none; background: transparent; perspective: 280px;}
+.orbCore::after {content: ""; position: absolute; inset: -3px; border: 1px solid color-mix(in srgb, var(--advisor-ink) 4%, transparent); border-left-color: color-mix(in srgb, var(--advisor-ink) 16%, transparent); border-radius: 50%; opacity: .35; transform: rotate(-26deg); transition: opacity 220ms, transform 300ms;}
 .dock[data-hovered="true"] .orbCore::after {opacity: .85; transform: rotate(24deg);}
 .dock[data-open="true"] .orbCore {left: 15px; top: 14px; width: 28px; height: 28px;}
 .dock[data-open="true"] .orbCore::after {opacity: .15;}

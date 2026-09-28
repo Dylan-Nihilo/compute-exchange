@@ -47,7 +47,6 @@ function AdvisorSession({open, setOpen, signedIn, authPending, authError, retryA
   const restoreFocus = useRef(false);
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
-  const [orbColor, setOrbColor] = useState<string>();
   const panel = useRef<HTMLElement>(null);
   const transcript = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -69,11 +68,10 @@ function AdvisorSession({open, setOpen, signedIn, authPending, authError, retryA
     if (open) {setUnread(false); panel.current?.focus({preventScroll: true});}
     else if (restoreFocus.current) {launcher.current?.focus({preventScroll: true}); restoreFocus.current = false;}
   }, [open, pointerX, pointerY]);
-  useEffect(() => {setOrbColor(getComputedStyle(document.documentElement).getPropertyValue("--color-cs-accent").trim() || undefined);}, []);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
     const viewport = window.visualViewport;
-    if (!open || !viewport) return;
+    if (!viewport) return;
     const update = () => {
       shell.current?.style.setProperty("--advisor-viewport-height", `${viewport.height}px`);
       shell.current?.style.setProperty("--advisor-keyboard-inset", `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`);
@@ -82,7 +80,7 @@ function AdvisorSession({open, setOpen, signedIn, authPending, authError, retryA
     viewport.addEventListener("resize", update);
     viewport.addEventListener("scroll", update);
     return () => {viewport.removeEventListener("resize", update); viewport.removeEventListener("scroll", update);};
-  }, [open]);
+  }, []);
   useEffect(() => {
     if (authPending) return;
     if (new URLSearchParams(window.location.search).get("agent") === "open") setOpen(true);
@@ -163,7 +161,7 @@ function AdvisorSession({open, setOpen, signedIn, authPending, authError, retryA
   return <motion.div ref={shell} layout={!reducedMotion} className={styles.dock} data-open={open} data-has-messages={turns.length > 0} data-hovered={hovered} data-pressed={pressed} data-busy={pending} data-streaming={pending && Boolean(turns[turns.length - 1]?.summary)} style={{borderRadius: open ? 22 : 29}} transition={{layout: morphTransition}}>
     <motion.div layout={!reducedMotion} transition={{layout: morphTransition}} className={styles.orbCore} style={{borderRadius: 999}} aria-hidden="true">
       <motion.span className={styles.orbTilt} style={{x: reducedMotion ? 0 : pointerX, y: reducedMotion ? 0 : pointerY, rotateX: reducedMotion ? 0 : tiltX, rotateY: reducedMotion ? 0 : tiltY}} animate={{scale: reducedMotion ? 1 : pressed ? 0.91 : hovered ? 1.06 : 1}} transition={{duration: pressed ? 0.12 : 0.22}}>
-        <ThinkingOrb theme="dark" color={orbColor} state={pending ? "searching" : "connecting"} size={64} style={{width: "100%", height: "100%"}} dots={1.3} dotSize={1} speed={0.8} paused={Boolean(reducedMotion)} aria-hidden="true" />
+        <ThinkingOrb theme="light" state={pending ? "searching" : "weaving"} size={64} style={{width: "100%", height: "100%"}} paused={Boolean(reducedMotion)} aria-hidden="true" />
       </motion.span>
     </motion.div>
     <motion.button ref={launcher} className={styles.launcher} type="button" aria-label={unread ? "打开算力顾问，评估已完成" : "打开算力顾问"} aria-expanded={open} aria-controls="compute-advisor" aria-haspopup="dialog" aria-hidden={open} inert={open} tabIndex={open ? -1 : 0} onClick={() => setOpen(true)} onPointerEnter={() => setHovered(true)} onPointerDown={() => setPressed(true)} onPointerUp={() => setPressed(false)} onPointerCancel={() => setPressed(false)} onBlur={() => setPressed(false)} onKeyDown={(event) => {if (event.key === "Enter" || event.key === " ") setPressed(true);}} onKeyUp={() => setPressed(false)} onPointerLeave={() => {setHovered(false); setPressed(false); pointerX.set(0); pointerY.set(0);}} onPointerMove={(event) => {
