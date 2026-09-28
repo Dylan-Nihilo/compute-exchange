@@ -3,7 +3,6 @@
 import {
   motion,
   useReducedMotion,
-  type TargetAndTransition,
   type Transition,
   type Variants,
 } from "motion/react";
@@ -12,46 +11,34 @@ import Image from "next/image";
 const PARTNERS = [
   {
     name: "阿里云计算有限公司",
-    brand: "阿里云",
     dark: false,
-    logo: {src: "/brand/partners/aliyun.svg", width: 4608, height: 1024, className: "max-h-12 w-[180px]"},
+    logo: {src: "/brand/partners/aliyun.svg", width: 4608, height: 1024, className: "w-[76%] max-w-40"},
   },
   {
     name: "郑州合盈数据有限责任公司",
-    brand: "合盈数据",
     dark: true,
-    logo: {src: "/brand/partners/hoyinn.png", width: 215, height: 64, className: "max-h-14 w-[180px]"},
-  },
-  {
-    name: "天河盈科智算（新星市）科技有限公司",
-    brand: "天河盈科智算",
-    dark: false,
-    logo: null,
-  },
-  {
-    name: "京合云（上海）科技发展有限公司",
-    brand: "京合云",
-    dark: false,
-    logo: null,
+    logo: {src: "/brand/partners/hoyinn.png", width: 215, height: 64, className: "w-[76%] max-w-40"},
   },
   {
     name: "江苏大京投资控股集团有限公司",
-    brand: "大京集团",
     dark: false,
-    logo: {src: "/brand/partners/dajing.png", width: 196, height: 57, className: "max-h-14 w-[180px]"},
+    logo: {src: "/brand/partners/dajing.png", width: 196, height: 57, className: "w-[76%] max-w-40"},
   },
   {
     name: "世纪丝路融资租赁（天津）有限公司",
-    brand: "世纪丝路融资租赁",
     dark: false,
-    logo: {src: "/brand/partners/century-silk-road.png", width: 496, height: 530, className: "h-32 w-auto"},
+    logo: {src: "/brand/partners/century-silk-road.png", width: 496, height: 530, className: "h-36 w-auto shrink-0"},
   },
   {
     name: "天开高教科创园",
-    brand: "天开高教科创园",
     dark: false,
-    logo: {src: "/brand/partners/tiankai.png", width: 750, height: 509, className: "h-24 w-auto"},
+    logo: {src: "/brand/partners/tiankai.png", width: 750, height: 509, className: "h-24 w-auto max-w-full"},
   },
+] as const;
+
+const TEXT_PARTNERS = [
+  "天河盈科智算（新星市）科技有限公司",
+  "京合云（上海）科技发展有限公司",
 ] as const;
 
 type Partner = (typeof PARTNERS)[number];
@@ -76,42 +63,38 @@ const tileGrid: Variants = {
 };
 
 const tilePop: Variants = {
-  hidden: {opacity: 0, y: 24, scale: 0.92},
-  show: {opacity: 1, y: 0, scale: 1},
+  hidden: {opacity: 0, y: 20},
+  show: {opacity: 1, y: 0},
 };
 
 function PartnerTile({
   partner,
   revealTransition,
-  hoverLift,
 }: {
   partner: Partner;
   revealTransition: Transition;
-  hoverLift?: TargetAndTransition;
 }) {
   return (
     <motion.li
       variants={tilePop}
       transition={revealTransition}
-      whileHover={hoverLift}
-      className={`flex min-h-[168px] flex-col items-center justify-center gap-3 overflow-hidden rounded-[1.125rem] border border-cs-divider px-4 py-4 text-center transition-[border-color,box-shadow] duration-300 hover:border-cs-proof-text/40 hover:shadow-sm last:col-span-2 sm:last:col-span-1 sm:last:col-start-2 ${partner.dark ? "bg-cs-proof-title text-white" : "bg-white text-cs-proof-title"}`}
+      className="col-span-2 min-w-0 text-center last:col-start-2 sm:last:col-start-4 sm:[&:nth-child(4)]:col-start-2"
     >
-      <div className="flex h-24 w-full items-center justify-center">
-        {partner.logo ? (
-          <Image
-            src={partner.logo.src}
-            alt=""
-            aria-hidden="true"
-            width={partner.logo.width}
-            height={partner.logo.height}
-            unoptimized
-            className={`pointer-events-none max-w-full select-none object-contain ${partner.logo.className}`}
-          />
-        ) : (
-          <span className="text-xl leading-8 font-medium tracking-wide">{partner.brand}</span>
-        )}
+      <div
+        data-partner-logo
+        className={`flex h-28 items-center justify-center overflow-hidden rounded-xl border border-cs-divider/70 ${partner.dark ? "bg-cs-proof-title" : "bg-white"}`}
+      >
+        <Image
+          src={partner.logo.src}
+          alt=""
+          aria-hidden="true"
+          width={partner.logo.width}
+          height={partner.logo.height}
+          unoptimized
+          className={`pointer-events-none select-none object-contain ${partner.logo.className}`}
+        />
       </div>
-      <p className={`min-h-8 max-w-full text-balance text-[11px] leading-4 ${partner.dark ? "text-white/80" : "text-cs-proof-text"}`}>
+      <p className="mx-auto mt-3 max-w-[16em] text-balance text-xs leading-5 text-cs-proof-text">
         {partner.name}
       </p>
     </motion.li>
@@ -119,9 +102,8 @@ function PartnerTile({
 }
 
 /**
- * Partner logo wall (Figma frame "04 / Partners and compliance").
  * Original partner assets retain their proportions and colors. Partners
- * without an identified logo use their names. Reveals and hover lifts
+ * without an identified logo appear in a separate text list. Reveals
  * respect reduced motion; source details live in docs/partners.md.
  */
 export function PartnersSection() {
@@ -129,12 +111,6 @@ export function PartnersSection() {
   const revealTransition: Transition = prefersReducedMotion
     ? {duration: 0}
     : {duration: 0.7, ease: EASE_OUT_EXPO};
-  const hoverLift = prefersReducedMotion
-    ? undefined
-    : ({
-        y: -4,
-        transition: {type: "spring", stiffness: 300, damping: 22},
-      } as const);
 
   return (
     <section
@@ -174,22 +150,30 @@ export function PartnersSection() {
           </motion.p>
         </motion.div>
 
-        <motion.ul
+        <motion.div
           variants={tileGrid}
           initial="hidden"
           whileInView="show"
           viewport={{once: true, margin: "0px 0px -10% 0px"}}
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:gap-6"
+          className="min-w-0"
         >
-          {PARTNERS.map((partner) => (
-            <PartnerTile
-              key={partner.name}
-              partner={partner}
-              revealTransition={revealTransition}
-              hoverLift={hoverLift}
-            />
-          ))}
-        </motion.ul>
+          <ul className="grid grid-cols-4 gap-x-4 gap-y-6 sm:grid-cols-6 sm:gap-x-5">
+            {PARTNERS.map((partner) => (
+              <PartnerTile
+                key={partner.name}
+                partner={partner}
+                revealTransition={revealTransition}
+              />
+            ))}
+          </ul>
+          <motion.ul
+            variants={copyRise}
+            transition={revealTransition}
+            className="mt-8 flex flex-col items-center gap-x-8 gap-y-3 border-t border-cs-divider/70 pt-5 text-center text-xs leading-5 text-cs-proof-text sm:flex-row sm:justify-center sm:text-balance"
+          >
+            {TEXT_PARTNERS.map((name) => <li key={name}>{name}</li>)}
+          </motion.ul>
+        </motion.div>
       </div>
     </section>
   );
