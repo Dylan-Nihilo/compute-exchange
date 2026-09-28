@@ -10,9 +10,9 @@ import Image from "next/image";
 
 const PARTNERS = [
   {
-    name: "阿里云计算有限公司",
+    name: "江苏大京投资控股集团有限公司",
     dark: false,
-    logo: {src: "/brand/partners/aliyun.svg", width: 4608, height: 1024, className: "w-[76%] max-w-40"},
+    logo: {src: "/brand/partners/dajing.png", width: 196, height: 57, className: "w-[76%] max-w-40"},
   },
   {
     name: "郑州合盈数据有限责任公司",
@@ -20,9 +20,9 @@ const PARTNERS = [
     logo: {src: "/brand/partners/hoyinn.png", width: 215, height: 64, className: "w-[76%] max-w-40"},
   },
   {
-    name: "江苏大京投资控股集团有限公司",
+    name: "阿里云计算有限公司",
     dark: false,
-    logo: {src: "/brand/partners/dajing.png", width: 196, height: 57, className: "w-[76%] max-w-40"},
+    logo: {src: "/brand/partners/aliyun.svg", width: 4608, height: 1024, className: "w-[76%] max-w-40"},
   },
   {
     name: "世纪丝路融资租赁（天津）有限公司",
