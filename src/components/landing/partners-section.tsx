@@ -27,18 +27,20 @@ const PARTNERS = [
   {
     name: "世纪丝路融资租赁（天津）有限公司",
     dark: false,
-    logo: {src: "/brand/partners/century-silk-road.png", width: 496, height: 530, className: "h-36 w-auto shrink-0"},
+    logo: {src: "/brand/partners/century-silk-road.png", width: 496, height: 530, className: "h-[145%] w-auto shrink-0"},
   },
   {
     name: "天开高教科创园",
     dark: false,
-    logo: {src: "/brand/partners/tiankai.png", width: 750, height: 509, className: "h-24 w-auto max-w-full"},
+    logo: {src: "/brand/partners/tiankai.png", width: 750, height: 509, className: "h-[92%] w-auto max-w-full"},
   },
 ] as const;
 
-const TEXT_PARTNERS = [
-  "天河盈科智算（新星市）科技有限公司",
-  "京合云（上海）科技发展有限公司",
+const PLACEHOLDER_POSITIONS = [
+  "left-[-186.7%] top-[-448.9%]",
+  "left-[3.1%] top-[-634.1%]",
+  "left-[-88.1%] top-[-453.4%]",
+  "left-[-186.7%] top-[-636.4%]",
 ] as const;
 
 type Partner = (typeof PARTNERS)[number];
@@ -78,33 +80,28 @@ function PartnerTile({
     <motion.li
       variants={tilePop}
       transition={revealTransition}
-      className="col-span-2 min-w-0 text-center last:col-start-2 sm:last:col-start-4 sm:[&:nth-child(4)]:col-start-2"
+      className="min-w-0"
     >
       <div
         data-partner-logo
-        className={`flex h-28 items-center justify-center overflow-hidden rounded-xl border border-cs-divider/70 ${partner.dark ? "bg-cs-proof-title" : "bg-white"}`}
+        className={`flex aspect-[113/44] items-center justify-center overflow-hidden rounded-xl border border-cs-divider/70 ${partner.dark ? "bg-cs-proof-title" : "bg-white"}`}
       >
         <Image
           src={partner.logo.src}
-          alt=""
-          aria-hidden="true"
+          alt={partner.name}
           width={partner.logo.width}
           height={partner.logo.height}
           unoptimized
           className={`pointer-events-none select-none object-contain ${partner.logo.className}`}
         />
       </div>
-      <p className="mx-auto mt-3 max-w-[16em] text-balance text-xs leading-5 text-cs-proof-text">
-        {partner.name}
-      </p>
     </motion.li>
   );
 }
 
 /**
- * Original partner assets retain their proportions and colors. Partners
- * without an identified logo appear in a separate text list. Reveals
- * respect reduced motion; source details live in docs/partners.md.
+ * Five confirmed logos replace the first five demo tiles. The remaining
+ * original tiles stay as placeholders; source details live in docs/partners.md.
  */
 export function PartnersSection() {
   const prefersReducedMotion = useReducedMotion();
@@ -150,30 +147,39 @@ export function PartnersSection() {
           </motion.p>
         </motion.div>
 
-        <motion.div
+        <motion.ul
           variants={tileGrid}
           initial="hidden"
           whileInView="show"
           viewport={{once: true, margin: "0px 0px -10% 0px"}}
-          className="min-w-0"
+          className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:gap-6"
         >
-          <ul className="grid grid-cols-4 gap-x-4 gap-y-6 sm:grid-cols-6 sm:gap-x-5">
-            {PARTNERS.map((partner) => (
-              <PartnerTile
-                key={partner.name}
-                partner={partner}
-                revealTransition={revealTransition}
+          {PARTNERS.map((partner) => (
+            <PartnerTile
+              key={partner.name}
+              partner={partner}
+              revealTransition={revealTransition}
+            />
+          ))}
+          {PLACEHOLDER_POSITIONS.map((position) => (
+            <motion.li
+              key={position}
+              aria-hidden="true"
+              variants={tilePop}
+              transition={revealTransition}
+              className="relative aspect-[113/44] overflow-hidden rounded-xl border border-border bg-black"
+            >
+              <Image
+                src="/compute-spot/partners-demo.png"
+                alt=""
+                width={658}
+                height={877}
+                unoptimized
+                className={`pointer-events-none absolute h-[996.6%] w-[291.2%] max-w-none select-none ${position}`}
               />
-            ))}
-          </ul>
-          <motion.ul
-            variants={copyRise}
-            transition={revealTransition}
-            className="mt-8 flex flex-col items-center gap-x-8 gap-y-3 border-t border-cs-divider/70 pt-5 text-center text-xs leading-5 text-cs-proof-text sm:flex-row sm:justify-center sm:text-balance"
-          >
-            {TEXT_PARTNERS.map((name) => <li key={name}>{name}</li>)}
-          </motion.ul>
-        </motion.div>
+            </motion.li>
+          ))}
+        </motion.ul>
       </div>
     </section>
   );

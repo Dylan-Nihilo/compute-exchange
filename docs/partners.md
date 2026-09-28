@@ -4,9 +4,9 @@
 > 本文记录 landing 合作伙伴区（`src/components/landing/partners-section.tsx`）展示主体的工商信息、
 > 真实性核实证据与素材状态。上墙主体变更时必须同步更新本文，未经核实的公司不得展示。
 
-## 当前确认展示名单（7 家，2026-09-28）
+## 当前确认合作伙伴名单（7 家，2026-09-28）
 
-名单以 Dylan 本次确认及新增为准；Logo 寻源与交付见 [本轮素材记录](partner-logo-sourcing-20260928.md)。网页组件已使用以下 7 家名单：5 家展示原图，完整名称置于 Logo 卡片下方；天河盈科和京合云以独立文字列表展示。
+名单以 Dylan 本次确认及新增为准；Logo 寻源与交付见 [本轮素材记录](partner-logo-sourcing-20260928.md)。页面保留原来的 9 个卡片位置：前 5 个使用已取得的 Logo，其余 4 个沿用原演示卡片作占位。按用户最新要求，不另行展示公司名称；天河盈科和京合云暂不上墙。占位卡片不计入已确认合作伙伴数量。
 
 | # | 合作主体名称 | 用户提供的统一社会信用代码 | Logo 素材状态 |
 |---|---|---|---|
@@ -77,7 +77,7 @@
 - 关联集团品牌候选：HOYINN 合盈数据，已记录其与郑州主体的关联及官网名称差异。
 - 待补：天河盈科、京合云；天津丰盈科技集团 Logo 也尚未确认。
 - 天开高教科创园来源：[南开大学首发](https://news.nankai.edu.cn/ywsd/system/2023/04/21/030055572.shtml)、[官方园区资料页](https://cy.ncss.cn/parks/8a80808d8a5f8fd5018b93fba5a61e26)。
-- 原件、预览与来源详见 [本轮素材记录](partner-logo-sourcing-20260928.md)。缺少 Logo 的主体可先使用公司名称文字，不绘制假标识或挪用同名公司 Logo。
+- 原件、预览与来源详见 [本轮素材记录](partner-logo-sourcing-20260928.md)。缺少 Logo 的主体暂不上墙，不绘制假标识或挪用同名公司 Logo。
 
 ## 页面使用文件
 
@@ -85,10 +85,12 @@
 |---|---|---|
 | 阿里云 | `public/brand/partners/aliyun.svg` | 官方中文矢量原稿 |
 | 郑州合盈 | `public/brand/partners/hoyinn.png` | 经用户确认采用的关联集团 HOYINN 品牌，深色底保留白字 |
-| 天河盈科 | — | 公司名称文字 |
-| 京合云 | — | 公司名称文字 |
+| 天河盈科 | — | 待取得 Logo 后替换占位卡片 |
+| 京合云 | — | 待取得 Logo 后替换占位卡片 |
 | 大京集团 | `public/brand/partners/dajing.png` | 官网蓝色透明原图 |
 | 世纪丝路 | `public/brand/partners/century-silk-road.png` | 用户供稿，完整竖版白底原图 |
 | 天开高教科创园 | `public/brand/partners/tiankai.png` | 南开大学首发白底蓝字原图 |
 
 所有图片均保留原始内容、颜色和比例；来源与主体差异见本轮寻源记录。用户已于 2026-09-28 确认“直接替换，有几个替换几个”。
+
+页面保留的 4 个原演示占位为 Magic Media Productions、depove、Opal、roctop，复用 `public/compute-spot/partners-demo.png`；它们不是新增确认的合作伙伴。公司全称仅用于已确认 Logo 的无障碍替代文本。
