@@ -15,10 +15,9 @@ export function AssessmentResult({result}: {result: AgentSearchResult}) {
     <dl className={styles.estimates}>
       {[["预计总显存", estimate.total_vram_gb, "GB"], ["参考单卡显存", estimate.per_card_vram_gb, "GB"], ["起步卡数", estimate.min_cards, "卡"]].map(([label, value, unit]) => <div key={String(label)}><dt>{label}</dt><dd>{Number(value) > 0 ? <>{number.format(Number(value))}<span>{unit}</span></> : "待明确"}</dd></div>)}
     </dl>
-    {estimate.basis ? <p className={styles.basis}>{estimate.basis}</p> : null}
 
     {result.machine_plans.length ? <section className={styles.resultSection} aria-label="建议机器方案">
-      <div className={styles.sectionLabel}><h4>建议配置</h4><span>{result.machine_plans.length} 个可行方案</span></div>
+      <details><summary className={styles.sectionLabel}><span>建议配置</span><span>{result.machine_plans.length} 个方案</span></summary>
       <div className={styles.plans}>
         {result.machine_plans.map((plan, index) => <article className={styles.plan} key={`${index}-${plan.gpu_model}`}>
           <p className={styles.planName}><span>0{index + 1}</span>{plan.name || `方案 ${index + 1}`}</p>
@@ -28,11 +27,12 @@ export function AssessmentResult({result}: {result: AgentSearchResult}) {
         </article>)}
       </div>
       <p className={styles.caption}>配置建议供选型参考，具体可售规格与价格以下方商品为准。</p>
+      </details>
     </section> : null}
 
     <section className={styles.resultSection} aria-label="平台在售商品">
-      <div className={styles.sectionLabel}><h4>平台在售</h4><span>{result.matches.length} 个匹配商品</span></div>
-      {result.matches.length ? <div className={styles.offers}>
+      <details><summary className={styles.sectionLabel}><span>平台在售</span><span>{result.matches.length ? `${result.matches.length} 个商品` : "暂无匹配"}</span></summary>
+      {result.matches.length ? <div>
         {result.matches.map((match) => {
           const supply = mapComputeProduct(match.product);
           const unit = supply.unitLabel === "GPU" ? "卡" : supply.unitLabel || "卡";
@@ -46,8 +46,9 @@ export function AssessmentResult({result}: {result: AgentSearchResult}) {
           </article>;
         })}
       </div> : <div className={styles.noMatches}><p>{result.note || "当前没有符合条件的在售商品，可以调整预算、地域或型号后再评估。"}</p><Link href="/market">查看算力市场 ↗</Link></div>}
+      </details>
     </section>
 
-    {result.analysis_steps.length ? <details className={styles.analysis}><summary>查看评估依据</summary><ol>{result.analysis_steps.map((step, index) => <li key={index}><strong>{step.title}</strong><p>{step.detail}</p></li>)}</ol></details> : null}
+    {estimate.basis || result.analysis_steps.length ? <details className={styles.analysis}><summary>评估依据</summary>{estimate.basis ? <p className={styles.basis}>{estimate.basis}</p> : null}<ol>{result.analysis_steps.map((step, index) => <li key={index}><strong>{step.title}</strong><p>{step.detail}</p></li>)}</ol></details> : null}
   </div>;
 }
