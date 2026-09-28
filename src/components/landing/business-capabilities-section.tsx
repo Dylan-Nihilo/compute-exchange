@@ -24,8 +24,9 @@ const PRIMARY_CAPABILITIES = [
   {
     title: "AI Token 工厂",
     description: "为大模型部署、Token 智能服务与推理业务提供稳定算力。",
-    action: "查看 Token 服务",
-    href: "#network",
+    action: "进入 Token 工厂",
+    // 备案已通过(2026-09-28), 直达独立部署的 Token 工厂服务(new-api), 外链新开标签页
+    href: "https://token.omnisline.com/",
     image: "/compute-spot/business-token.png",
   },
 ] as const;
@@ -173,6 +174,9 @@ function CapabilityCard({
         <Link
           href={capability.href}
           aria-label={capability.action}
+          {...(capability.href.startsWith("http")
+            ? {target: "_blank", rel: "noopener noreferrer"}
+            : {})}
           className="mt-auto inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-[#17201f] outline-none after:absolute after:inset-0 after:content-[''] focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-cs-ink/45"
         >
           <span aria-hidden className="relative">
