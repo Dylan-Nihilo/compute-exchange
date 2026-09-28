@@ -6,7 +6,7 @@ import {computeProductSchema} from "./market-api.ts";
 export const agentSearchQuerySchema = z.string().trim().min(1, "请描述算力需求").refine((value) => [...value].length <= 500, "需求描述最多500字");
 const estimateSchema = z.object({total_vram_gb: z.number().nonnegative(), per_card_vram_gb: z.number().nonnegative(), min_cards: z.number().int().nonnegative(), compute_class: z.string(), basis: z.string()});
 const machinePlanSchema = z.object({name: z.string(), gpu_model: z.string().min(1), cards: z.number().int().positive().max(4096), nodes: z.number().int().positive().max(1024), per_card_vram_gb: z.number().nonnegative(), note: z.string()});
-const resultSchema = z.discriminatedUnion("relevant", [
+export const agentSearchResultSchema = z.discriminatedUnion("relevant", [
   z.object({relevant: z.literal(false), reject_reason: z.string().optional()}),
   z.object({relevant: z.literal(true),
     summary: z.string().optional().default(""),
@@ -18,7 +18,7 @@ const resultSchema = z.discriminatedUnion("relevant", [
     note: z.string().optional(),
   }),
 ]);
-export type AgentSearchResult = z.infer<typeof resultSchema>;
+export type AgentSearchResult = z.infer<typeof agentSearchResultSchema>;
 
 export function buildAgentQuery(previous: string, update: string) {
   const addition = update.trim();
@@ -43,7 +43,7 @@ export async function searchCompute(query: string, fetchImplementation = fetch, 
     const message = response.code === 40100 ? "登录已过期，请重新登录后再试" : response.code === 42900 ? "请求较频繁，请稍后再试" : response.code === 40001 ? response.message || "请检查需求描述" : "智能选型暂不可用，请稍后重试，或使用市场筛选";
     throw new ApiError(message, {code: String(response.code), status: response.code === 40100 ? 401 : 200});
   }
-  const result = resultSchema.safeParse(response.data);
+  const result = agentSearchResultSchema.safeParse(response.data);
   if (!result.success) throw new Error("选型结果不完整，请重新分析");
   return result.data;
 }
