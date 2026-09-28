@@ -34,10 +34,14 @@ const PARTNERS = [
     dark: false,
     logo: {src: "/brand/partners/tiankai.png", width: 750, height: 509, className: "h-[92%] w-auto max-w-full"},
   },
+  {
+    name: "联合绿能新能源科技（天津）有限公司",
+    dark: false,
+    logo: {src: "/brand/partners/united-green-energy.png", width: 1280, height: 1343, className: "h-[145%] w-auto shrink-0"},
+  },
 ] as const;
 
 const PLACEHOLDER_POSITIONS = [
-  "left-[-186.7%] top-[-448.9%]",
   "left-[3.1%] top-[-634.1%]",
   "left-[-88.1%] top-[-453.4%]",
   "left-[-186.7%] top-[-636.4%]",
@@ -100,7 +104,7 @@ function PartnerTile({
 }
 
 /**
- * Five confirmed logos replace the first five demo tiles. The remaining
+ * Confirmed logos replace the first demo tiles. The remaining
  * original tiles stay as placeholders; source details live in docs/partners.md.
  */
 export function PartnersSection() {
