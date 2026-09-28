@@ -16,7 +16,6 @@ import {
 } from "@heroui/react";
 import Image from "next/image";
 import {useQuery} from "@tanstack/react-query";
-import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {type FormEvent, type ReactNode, useEffect, useState, useTransition} from "react";
 
@@ -144,6 +143,7 @@ export function MarketView({query}: MarketViewProps) {
           isPending ? "translate-y-px opacity-80" : ""
         }`}
       >
+        {/* 2026-09-28: 「智能选型」按钮下线, 算力评估 agent 改由首页入口承载(/market/agent-search 页面保留) */}
         <header className="mb-5 flex flex-wrap items-end justify-between gap-4"><div>
           <h1 className="text-[36px] leading-tight font-semibold tracking-[-0.03em] text-[#071627] sm:text-[44px] sm:leading-[56px]">
             算力市场
@@ -151,7 +151,7 @@ export function MarketView({query}: MarketViewProps) {
           <p className="mt-1 text-sm leading-[22px] text-[#4b6276] sm:text-base">
             合规机房挂牌 · 实时比价 · 线上成交
           </p>
-        </div><Link className="rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" href="/market/agent-search">智能选型</Link></header>
+        </div></header>
 
         <section
           aria-label="算力商品类型"
