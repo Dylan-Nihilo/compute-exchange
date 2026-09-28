@@ -85,14 +85,14 @@
 | 合作伙伴 | 页面文件 | 展示方式 |
 |---|---|---|
 | 阿里云 | `public/brand/partners/aliyun.svg` | 官方中文矢量原稿 |
-| 郑州合盈 | `public/brand/partners/hoyinn.png` | 经用户确认采用的关联集团 HOYINN 品牌，深色底保留白字 |
+| 郑州合盈 | `public/brand/partners/hoyinn.png` | 经用户确认采用的关联集团 HOYINN 品牌，黑色底保留白字 |
 | 天河盈科 | — | 待取得 Logo 后替换占位卡片 |
 | 京合云 | — | 待取得 Logo 后替换占位卡片 |
 | 大京集团 | `public/brand/partners/dajing.png` | 官网蓝色透明原图 |
-| 世纪丝路 | `public/brand/partners/century-silk-road.png` | 用户供稿，完整竖版白底原图 |
+| 世纪丝路 | `public/brand/partners/century-silk-road-dark.png` | 用户供稿的黑底衍生版，原图另存 |
 | 天开高教科创园 | `public/brand/partners/tiankai.png` | 南开大学首发白底蓝字原图 |
-| 联合绿能 | `public/brand/partners/united-green-energy.png` | 本轮用户供稿，保留原文件 |
+| 联合绿能 | `public/brand/partners/united-green-energy-dark.png` | 用户供稿的黑底衍生版，原图另存 |
 
-所有图片均保留原始内容、颜色和比例；来源与主体差异见本轮寻源记录。用户已于 2026-09-28 确认“直接替换，有几个替换几个”。
+所有供稿原文件均保留。按用户要求，世纪丝路和联合绿能另制黑底衍生图，深色文字改为白色；其余图片继续使用原件。六家展示顺序不变，背景按白、黑、白、黑、白、黑交替；来源、编辑提示词与主体差异见本轮寻源记录。用户已于 2026-09-28 确认“直接替换，有几个替换几个”。
 
 页面保留的 3 个原演示占位为 depove、Opal、roctop，复用 `public/compute-spot/partners-demo.png`；它们不是新增确认的合作伙伴。公司全称仅用于已确认 Logo 的无障碍替代文本。

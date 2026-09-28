@@ -26,8 +26,8 @@ const PARTNERS = [
   },
   {
     name: "世纪丝路融资租赁（天津）有限公司",
-    dark: false,
-    logo: {src: "/brand/partners/century-silk-road.png", width: 496, height: 530, className: "h-[145%] w-auto shrink-0"},
+    dark: true,
+    logo: {src: "/brand/partners/century-silk-road-dark.png", width: 1213, height: 1297, className: "h-[145%] w-auto shrink-0"},
   },
   {
     name: "天开高教科创园",
@@ -36,8 +36,8 @@ const PARTNERS = [
   },
   {
     name: "联合绿能新能源科技（天津）有限公司",
-    dark: false,
-    logo: {src: "/brand/partners/united-green-energy.png", width: 1280, height: 1343, className: "h-[145%] w-auto shrink-0"},
+    dark: true,
+    logo: {src: "/brand/partners/united-green-energy-dark.png", width: 1225, height: 1284, className: "h-[145%] w-auto shrink-0"},
   },
 ] as const;
 
@@ -88,7 +88,7 @@ function PartnerTile({
     >
       <div
         data-partner-logo
-        className={`flex aspect-[113/44] items-center justify-center overflow-hidden rounded-xl border border-cs-divider/70 ${partner.dark ? "bg-cs-proof-title" : "bg-white"}`}
+        className={`flex aspect-[113/44] items-center justify-center overflow-hidden rounded-xl border border-cs-divider/70 ${partner.dark ? "bg-black" : "bg-white"}`}
       >
         <Image
           src={partner.logo.src}

@@ -68,4 +68,19 @@ Workspace 相对目录：`artifacts/partner-logos-20260928/`。
 - `OmniS-partner-logo-assets-20260928.zip`：上述素材、预览和本记录，可整体交接。
 - `heying-tianhe/findings.md`、`jinghe-dajing/findings.md`、`century-silk/findings.md`：逐组检索过程、证据和排除项。
 
-当前页面使用 6 个已取得的原始 Logo，不额外展示公司名称；缺少 Logo 的两家暂不上墙，剩余 3 个位置保留原演示卡片作占位。占位不是已确认合作关系，不绘制虚构商标、不挪用近名企业标识。合盈的集团品牌对应说明保留如上。
+当前页面使用 6 个已取得的 Logo（世纪丝路、联合绿能使用黑底衍生版），不额外展示公司名称；缺少 Logo 的两家暂不上墙，剩余 3 个位置保留原演示卡片作占位。占位不是已确认合作关系，不绘制虚构商标、不挪用近名企业标识。合盈的集团品牌对应说明保留如上。
+
+## 黑底衍生素材（2026-09-28）
+
+按用户要求改变 Logo 底色，保持六家顺序及三个占位不变。使用内置 imagegen 对用户供稿制作黑底版本，深色文字改为白色，原件保留；这些是页面用衍生图，并非官方发布的黑底标识。已核对可见图形与中英文名称。
+
+- `public/brand/partners/century-silk-road-dark.png`：1213×1297，源图 `century-silk-road.png`。
+- `public/brand/partners/united-green-energy-dark.png`：1225×1284，源图 `united-green-energy.png`。
+
+### 世纪丝路编辑提示词
+
+Edit target: the supplied Century Silk Road financing lease logo image. Create a dark-background version for a website partner tile. Change ONLY the white canvas background to solid pure black (#000000), and change the gray text FINANCING LEASE and 世纪丝路 融资租赁 to white for readability. Preserve the red symbol, the warm gray/gold center lines, the red CENTURY SILK ROAD lettering, the exact symbol contours, font shapes, text spelling, layout, relative positions, original margins and proportions. Keep the logo design exactly recognizable with no redesign, extra decoration or new text. Exact text: CENTURY SILK ROAD / FINANCING LEASE / 世纪丝路 融资租赁. The surrounding canvas must be perfectly uniform black to blend with a black website card. Match the supplied portrait canvas aspect ratio. Output one image.
+
+### 联合绿能编辑提示词
+
+Edit target: the supplied United Green Energy Technology (Tianjin) logo image. Create a dark-background version for a website partner tile. Change ONLY the white canvas background to solid pure black (#000000), and change the dark Chinese and English company lettering to white. Preserve the green spherical swirl symbol, its exact contours, green gradients and highlights, and the white curved separators inside the symbol. Preserve the font shapes, exact text, relative positions, margins and proportions of the original composition. Exact text: 联合绿能新能源科技（天津）有限公司 / United Green Energy Technology (Tianjin) Co., Ltd. Do not redesign, add symbols, decorations, words, glows or borders. The surrounding canvas must be perfectly uniform black to blend seamlessly with a black website card. Match the supplied nearly square portrait canvas aspect ratio. Output one image.
