@@ -22,7 +22,7 @@
 ### `/market` 算力市场列表 ✅（浏览需登录：middleware + 后端 AuthRequired 双层）
 - `GET /products`（需登录，经 `/api/market-proxy/products`）— 筛选参数：`q` `product_type(card_rental|outright|center|colocation)` `gpu_model` `region` `delivery_mode(bare_metal|container|rack|vm)` `pricing_mode(hourly|daily|weekly|monthly|perpetual)` `available_hours` `price_min/price_max`(分) `card_count_min` `sort` `page` `page_size`
 - 商品卡片关键字段：`gpu_model` `card_count` `stock` `unit_price`(分/卡·周期) `pricing_mode` `region` `self_operated` **`health`**(unknown/healthy/degraded/offline —— offline 应显示「暂不可下单」灰态，unknown 不显示徽章)
-- **首页悬浮算力顾问**（`/?agent=open`，市场入口跳转；旧 `/market/agent-search` 保留）：`POST /market/agent-search`（需登录），入参 `{query: string ≤500字}`；响应字段：
+- **首页悬浮算力顾问**（`/?agent=open`，市场旧选型按钮已移除；旧 `/market/agent-search` 保留）：`POST /market/agent-search`（需登录），入参 `{query: string ≤500字}`；响应字段：
   - `relevant` false 时只渲染 `reject_reason`
   - `summary` — 评估结论；`machine_plans[] {name, gpu_model, cards, nodes, per_card_vram_gb, note}` — 最多三档建议配置，独立于在售商品展示
   - `analysis_steps[] {title, detail}` — 响应到达后在评估依据中展开，不模拟流式推理
