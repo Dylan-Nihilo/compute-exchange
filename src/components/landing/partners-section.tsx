@@ -10,18 +10,48 @@ import {
 import Image from "next/image";
 
 const PARTNERS = [
-  {name: "Grow", position: "left-[3.1%] top-[-58%]"},
-  {name: "Harbour Studio", position: "left-[-88.1%] top-[-61.4%]"},
-  {name: "EventRise", position: "left-[-186.7%] top-[-255.7%]"},
-  {name: "wised", position: "left-[3.1%] top-[-448.9%]"},
-  {name: "Prismis", position: "left-[-88.1%] top-[-258%]"},
   {
-    name: "Magic Media Productions",
-    position: "left-[-186.7%] top-[-448.9%]",
+    name: "阿里云计算有限公司",
+    brand: "阿里云",
+    dark: false,
+    logo: {src: "/brand/partners/aliyun.svg", width: 4608, height: 1024, className: "max-h-12 w-[180px]"},
   },
-  {name: "depove", position: "left-[3.1%] top-[-634.1%]"},
-  {name: "Opal", position: "left-[-88.1%] top-[-453.4%]"},
-  {name: "roctop", position: "left-[-186.7%] top-[-636.4%]"},
+  {
+    name: "郑州合盈数据有限责任公司",
+    brand: "合盈数据",
+    dark: true,
+    logo: {src: "/brand/partners/hoyinn.png", width: 215, height: 64, className: "max-h-14 w-[180px]"},
+  },
+  {
+    name: "天河盈科智算（新星市）科技有限公司",
+    brand: "天河盈科智算",
+    dark: false,
+    logo: null,
+  },
+  {
+    name: "京合云（上海）科技发展有限公司",
+    brand: "京合云",
+    dark: false,
+    logo: null,
+  },
+  {
+    name: "江苏大京投资控股集团有限公司",
+    brand: "大京集团",
+    dark: false,
+    logo: {src: "/brand/partners/dajing.png", width: 196, height: 57, className: "max-h-14 w-[180px]"},
+  },
+  {
+    name: "世纪丝路融资租赁（天津）有限公司",
+    brand: "世纪丝路融资租赁",
+    dark: false,
+    logo: {src: "/brand/partners/century-silk-road.png", width: 496, height: 530, className: "h-32 w-auto"},
+  },
+  {
+    name: "天开高教科创园",
+    brand: "天开高教科创园",
+    dark: false,
+    logo: {src: "/brand/partners/tiankai.png", width: 750, height: 509, className: "h-24 w-auto"},
+  },
 ] as const;
 
 type Partner = (typeof PARTNERS)[number];
@@ -64,27 +94,35 @@ function PartnerTile({
       variants={tilePop}
       transition={revealTransition}
       whileHover={hoverLift}
-      className="relative aspect-[113/44] overflow-hidden rounded-[1.125rem] border border-border bg-black transition-[border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#a8c4de] hover:shadow-[0_16px_36px_-12px_rgba(7,56,94,0.3)] hover:duration-200"
+      className={`flex min-h-[168px] flex-col items-center justify-center gap-3 overflow-hidden rounded-[1.125rem] border border-cs-divider px-4 py-4 text-center transition-[border-color,box-shadow] duration-300 hover:border-cs-proof-text/40 hover:shadow-sm last:col-span-2 sm:last:col-span-1 sm:last:col-start-2 ${partner.dark ? "bg-cs-proof-title text-white" : "bg-white text-cs-proof-title"}`}
     >
-      <Image
-        src="/compute-spot/partners-demo.png"
-        alt={partner.name}
-        width={658}
-        height={877}
-        unoptimized
-        className={`pointer-events-none absolute h-[996.6%] w-[291.2%] max-w-none select-none ${partner.position}`}
-      />
+      <div className="flex h-24 w-full items-center justify-center">
+        {partner.logo ? (
+          <Image
+            src={partner.logo.src}
+            alt=""
+            aria-hidden="true"
+            width={partner.logo.width}
+            height={partner.logo.height}
+            unoptimized
+            className={`pointer-events-none max-w-full select-none object-contain ${partner.logo.className}`}
+          />
+        ) : (
+          <span className="text-xl leading-8 font-medium tracking-wide">{partner.brand}</span>
+        )}
+      </div>
+      <p className={`min-h-8 max-w-full text-balance text-[11px] leading-4 ${partner.dark ? "text-white/80" : "text-cs-proof-text"}`}>
+        {partner.name}
+      </p>
     </motion.li>
   );
 }
 
 /**
  * Partner logo wall (Figma frame "04 / Partners and compliance").
- * Copy lines rise out of masks in sequence, then the 3x3 logo tiles
- * cascade in. Standard hover: the tile lifts on a spring with border and
- * shadow emphasis. The logo sprite is served unoptimized so the optimizer
- * never upscales or recompresses it. One-shot reveals; all motion is
- * instant or disabled under reduced motion.
+ * Original partner assets retain their proportions and colors. Partners
+ * without an identified logo use their names. Reveals and hover lifts
+ * respect reduced motion; source details live in docs/partners.md.
  */
 export function PartnersSection() {
   const prefersReducedMotion = useReducedMotion();
@@ -104,7 +142,7 @@ export function PartnersSection() {
       aria-labelledby="partners-title"
       className="bg-surface text-foreground"
     >
-      <div className="mx-auto grid w-[calc(100%-3rem)] max-w-[81rem] gap-12 py-20 lg:grid-cols-[30rem_minmax(0,1fr)] lg:gap-[5.625rem] lg:py-28">
+      <div className="mx-auto grid w-[calc(100%-3rem)] max-w-[81rem] gap-12 py-20 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-14 lg:py-28 xl:gap-20">
         <motion.div
           variants={copyStagger}
           initial="hidden"
@@ -132,7 +170,7 @@ export function PartnersSection() {
             transition={revealTransition}
             className="mt-[2.375rem] max-w-[26.25rem] text-[0.9375rem] leading-[1.65] text-muted"
           >
-            连接合规机构、设备厂商、支付与产业服务伙伴，形成可持续的算力供应链。
+            连接云服务、数据中心与产业伙伴，形成可持续的算力供应链。
           </motion.p>
         </motion.div>
 
