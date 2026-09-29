@@ -2,9 +2,9 @@
 
 **Base**: `http://localhost:8080/api/v1` | **Auth**: 需 `Bearer <token>`（登录用户，不限角色）
 
-**定位（2026-09-28）**：工作台首页的智能 agent 入口——用户描述业务，agent 评估算力需求、
+**定位（2026-09-28）**：官网首页的悬浮算力顾问入口——用户描述业务，agent 评估算力需求、
 给出**可行机器方案建议**并匹配平台在售商品。市场页的传统「智能选型」按钮由前端改版时移除，
-统一走首页 agent；接口路径不变（`POST /market/agent-search`）。
+统一走首页 agent；首页使用新增流式接口 `POST /market/agent-search/stream`，原 JSON 接口 `POST /market/agent-search` 保留兼容。
 
 **口径**
 - 设计见 `docs/23`：LLM 负责**算力推定**（任务需要多大显存/多少卡，推导带公式与数字）、
@@ -68,8 +68,8 @@ curl -X POST http://localhost:8080/api/v1/market/agent-search \
 **响应（无匹配）**：`matches:[]` + `note:"当前在售商品中暂无满足条件的配置..."`
 
 **前端展示建议（首页 agent，具体呈现由前端团队定）**
-- 首页 agent 卡：输入框（"描述你的业务，评估需要什么算力"）→ 提交后 `analysis_steps`
-  逐步打字机展示 → 亮出 `summary` 结论 + `machine_plans` 方案卡（2-3 档并排，含取舍 note）
+- 首页 agent 小窗：输入框（"描述你的业务，评估需要什么算力"）→ 提交后流式展示 `summary`
+  → 完整结果到达后展开 `machine_plans` 方案（2-3 档，含取舍 note）
   → `matches` 平台在售商品卡（可直接进详情/询价）；
 - `compute_estimate` 做成醒目的「算力推定卡」：总显存 / 建议卡数 / 推导依据（`basis` 带公式，是智能性的核心展示位）；
 - `machine_plans` 与 `matches` 要视觉区分：前者是"建议配置"（不代表在售），后者是"平台现货"；
@@ -95,3 +95,41 @@ curl -X POST http://localhost:8080/api/v1/market/agent-search \
 - **2026-09-28 起生产网关已接入**（自部署 DeepSeek，`deepseek-v4.1-flash`，超时 60s）：
   真实模型联调已通过（算力推定/机器方案/拒答防注入，见 `internal/agentsearch/live_test.go`，
   用 `TEST_AI_*` 环境变量可随时复跑）。前端可直接按本契约对接首页 agent。
+
+## 官网首页悬浮算力顾问（前端实现，2026-09-28）
+
+- 按用户最终要求，入口位于官网首页 `/` 与 `/landing`，点击 58px 粒子球展开同一容器内的轻量对话小窗；`?agent=open` 可直接打开。市场旧选型按钮已移除，旧 `/market/agent-search` 路由保留兼容。
+- 面板为非模态小窗，无全页遮罩、不模糊整页背景、不锁定页面滚动或焦点；浏览和页面操作保持可用。移除大标题引导区与需求侧栏，先展示评估结论，再按需展开机器方案、在售商品和推导依据。
+- 使用不透明白底、`thinking-orbs@0.3.2` 与 `border-beam@1.4.1`（MIT）。待机、悬停、等待输入、输入、评估、流式生成与完成分别使用 working、connecting、breathing、listening、solving、composing、shaping；取消、失败、拒答暂停动效。开合保留同一粒子画布，减少动态偏好下静态切换。通过真实 SSE 增量展示 summary，result 到达后再展示完整方案和商品，不伪造推理或进度。
+- 同源 BFF、鉴权与服务端限流沿用既有接口。游客可查看面板和填写需求，显式提交时进入登录，登录返回仍需再次提交。仅登录跳转前的需求草稿临时存入 sessionStorage（10 分钟有效，恢复即删除）；对话结果和已登录会话不持久化。
+- 补充条件由浏览器附加到上一次成功评估的需求，整体仍按 Unicode codepoint 限制 500 字。不会静默截断，也不声称后端具备会话记忆。新评估清空本次内容，账号变更会清空对话；失败、停止或拒答不会污染已成功需求。
+- 收起面板保留本页对话和正在进行的请求；停止、开启新评估或离开页面会中止当前等待。晚到的旧响应不得覆盖新评估。失败保留输入并提供显式重试。
+- 区分建议机器方案与真实在售商品，价格/单位复用商品 adapter；无匹配不生成商品。返回值经过 Zod 校验，旧响应缺少新增字段时仍兼容。
+- 组件：`src/components/agent/compute-advisor.tsx`、`assessment-result.tsx`；契约：`src/lib/agent-search.ts`。
+
+## 流式评估：POST /market/agent-search/stream（2026-09-28）
+
+与 JSON 接口使用相同的 Bearer 鉴权、`{query}` 请求和商品匹配逻辑；两者共享每用户每分钟 10 次限额。旧接口保持兼容。网关通过 OpenAI 兼容 `stream:true` 生成 JSON，仅把顶层用户可见的 `summary` 提前下发，原始模型 JSON、隐藏推理与网关错误正文不会转发给浏览器。
+
+响应为 `text/event-stream`，带 `Cache-Control: no-cache, no-transform` 和 `X-Accel-Buffering: no`。事件以空行分隔：
+
+```text
+event: summary
+data: {"text":"72B INT8 推理约需"}
+
+event: summary
+data: {"text":"72B INT8 推理约需 94GB 显存，建议 2 卡 A100。"}
+
+event: result
+data: {"code":0,"message":"success","data":{"relevant":true,"summary":"...","compute_estimate":{},"machine_plans":[],"requirement":{},"matches":[]},"request_id":"..."}
+
+```
+
+- `summary.text` 是累计文本（最多 120 个 Unicode codepoint），客户端替换当前前缀，不做定时打字模拟。结论在模型仍生成其他字段时即可显示。
+- `result` 是终止事件，`data` 与原 JSON 接口完全一致；示例内对象为节略，必须按完整原契约校验。机器方案与真实商品只有在解析、归一化和确定性匹配完成后展示。
+- `relevant=false` 时仅下发拒答 `result`，不发送分析或摘要。流中摘要是尚未完成的响应；遇到 `error` 或没有 `result` 的断流应撤去未完成摘要，保留输入并允许重新评估。
+- 尚未开始 SSE 时，参数错误、限流或网关错误返回原 JSON 错误信封；开始后使用 `event:error`，`data` 为 `{code,message,request_id}`，随后关闭。鉴权失败仍由认证中间件返回 HTTP 401。
+- 客户端中止或断连会取消网关请求。完整网关流须收到 `[DONE]` 后才可进入最终解析；不完整流不会当作成功。
+- 浏览器等待上限 70 秒，单个 SSE 缓冲事件上限 256 KiB、总流上限 4 MiB。BFF `/api/market/agent-search/stream` 复用鉴权/刷新逻辑，直接转发响应流，禁用缓存与缓冲。
+
+网关协议参考：[DeepSeek Chat Completions streaming](https://api-docs.deepseek.com/api/create-chat-completion/)。
