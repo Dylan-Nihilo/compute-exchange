@@ -37,6 +37,7 @@
     "@tiptap/react": "3.27.4",
     "@tiptap/starter-kit": "3.27.4",
     "@tiptap/suggestion": "3.27.4",
+    "border-beam": "1.4.1",
     "cap-widget": "0.1.57",
     "embla-carousel": "8.6.0",
     "embla-carousel-react": "8.6.0",

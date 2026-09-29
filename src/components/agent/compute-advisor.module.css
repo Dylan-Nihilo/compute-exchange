@@ -1,5 +1,5 @@
 .dock {
-  --advisor-paper: var(--color-cs-footer-action);
+  --advisor-paper: var(--color-white, #fff);
   --advisor-ink: var(--color-cs-ink);
   --advisor-muted: var(--color-cs-body);
   --advisor-line: var(--color-cs-divider);
@@ -11,13 +11,13 @@
   width: 58px; height: 58px; overflow: hidden; isolation: isolate; contain: layout paint; will-change: transform;
   color: var(--advisor-ink); font-family: var(--font-sans);
   border: 1px solid color-mix(in srgb, var(--advisor-paper) 80%, var(--advisor-line));
-  background-color: color-mix(in srgb, var(--advisor-paper) 94%, transparent);
-  box-shadow: 0 3px 14px color-mix(in srgb, var(--advisor-ink) 8%, transparent);
+  background: var(--advisor-paper);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--advisor-navy) 10%, transparent), inset 0 1px 0 var(--advisor-paper);
   transition: background-color 280ms, border-color 240ms, box-shadow 240ms;
 }
 .dock[data-has-messages="true"] {--advisor-panel-height: min(536px, calc(var(--advisor-viewport-height, 100dvh) - 48px));}
-.dock[data-open="true"] {z-index: 60; width: var(--advisor-panel-width); height: var(--advisor-panel-height); background-color: var(--advisor-paper); border-color: color-mix(in srgb, var(--advisor-navy) 13%, var(--advisor-paper)); box-shadow: 0 12px 38px color-mix(in srgb, var(--advisor-navy) 14%, transparent);}
-.dock[data-hovered="true"][data-open="false"] {background-color: var(--advisor-paper); border-color: var(--advisor-line); box-shadow: 0 5px 20px color-mix(in srgb, var(--advisor-ink) 12%, transparent);}
+.dock[data-open="true"] {z-index: 60; width: var(--advisor-panel-width); height: var(--advisor-panel-height); border-color: var(--advisor-line); box-shadow: 0 18px 54px -16px color-mix(in srgb, var(--advisor-navy) 25%, transparent), 0 2px 8px color-mix(in srgb, var(--advisor-navy) 6%, transparent);}
+.dock[data-hovered="true"][data-open="false"] {border-color: var(--advisor-paper); box-shadow: 0 7px 24px color-mix(in srgb, var(--advisor-navy) 16%, transparent), inset 0 1px 0 var(--advisor-paper);}
 .orbCore {position: absolute; z-index: 3; left: 7px; top: 7px; width: 42px; height: 42px; pointer-events: none; background: transparent; perspective: 280px;}
 .orbCore::after {content: ""; position: absolute; inset: -3px; border: 1px solid color-mix(in srgb, var(--advisor-ink) 4%, transparent); border-left-color: color-mix(in srgb, var(--advisor-ink) 16%, transparent); border-radius: 50%; opacity: .35; transform: rotate(-26deg); transition: opacity 220ms, transform 300ms;}
 .dock[data-hovered="true"] .orbCore::after {opacity: .85; transform: rotate(24deg);}
@@ -27,96 +27,102 @@
 .launcher {position: absolute; inset: 0; z-index: 4; width: 100%; height: 100%; padding: 0; border: 0; color: var(--advisor-paper); background: transparent; cursor: pointer; border-radius: inherit;}
 .launcher:focus-visible {outline: 2px solid var(--advisor-lime); outline-offset: -4px;}
 .unread {position: absolute; right: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--advisor-lime);}
-.panel {position: absolute; inset: 0 auto auto 0; display: flex; flex-direction: column; width: calc(var(--advisor-panel-width) - 2px); height: calc(var(--advisor-panel-height) - 2px); overflow: hidden; outline: none;}
+.panel {position: absolute; z-index: 1; inset: 0 auto auto 0; display: flex; flex-direction: column; width: calc(var(--advisor-panel-width) - 2px); height: calc(var(--advisor-panel-height) - 2px); overflow: hidden; outline: none;}
 .panel[aria-hidden="true"] {pointer-events: none;}
-.header {display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; height: 60px; padding: 10px 12px 10px 55px; gap: 8px; border-bottom: 1px solid color-mix(in srgb, var(--advisor-navy) 7%, transparent); background: linear-gradient(105deg, color-mix(in srgb, var(--advisor-lime) 10%, var(--advisor-paper)), var(--advisor-paper) 68%);}
-.identity {display: flex; flex-direction: column; gap: 3px;}
+.header {display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; height: 62px; padding: 10px 10px 10px 55px; background: transparent; gap: 8px; border-bottom: 1px solid color-mix(in srgb, var(--advisor-navy) 7%, transparent);}
+.identity {display: flex; flex-direction: column; gap: 2px;}
 .identity h2 {font-size: 14px; font-weight: 600; letter-spacing: -.025em; color: var(--advisor-navy);}
-.identity h2 span {font-size: 10px; font-weight: 400; color: var(--advisor-muted); margin-left: 6px; letter-spacing: .015em;}
-.connection {font-size: 9px; color: var(--advisor-muted);}
-.connection::before {content: ""; display: inline-block; width: 4px; height: 4px; margin-right: 5px; vertical-align: 2px; border-radius: 50%; background: color-mix(in srgb, var(--advisor-navy) 40%, var(--advisor-lime));}
+.identity h2 span {font-size: 11px; font-weight: 400; color: var(--advisor-muted); margin-left: 6px; letter-spacing: 0;}
+.connection {font-size: 10px; color: var(--advisor-muted);}
+.connection::before {content: ""; display: inline-block; width: 4px; height: 4px; margin-right: 5px; vertical-align: 2px; border-radius: 50%; background: var(--advisor-muted);}
 .headerActions {display: flex; align-items: center; gap: 2px;}
-.headerActions button {width: 30px; min-width: 30px; height: 30px; color: var(--advisor-muted); transition: color 150ms, background 150ms;}
-.headerActions button:hover {color: var(--advisor-navy); background: color-mix(in srgb, var(--advisor-lime) 18%, transparent);}
-.transcript {position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 10px 19px 8px;}
+.headerActions button {width: 36px; min-width: 36px; height: 36px; border-radius: 50%; color: var(--advisor-muted); transition: color 150ms, background 150ms;}
+.headerActions button:hover {color: var(--advisor-navy); background: color-mix(in srgb, var(--advisor-navy) 5%, transparent);}
+.transcript {position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--advisor-line) transparent; padding: 12px 19px; background: transparent;}
 .welcome {padding: 15px 0 10px;}
-.welcome h3 {font-size: 17px; font-weight: 500; letter-spacing: -.03em; color: var(--advisor-navy);}
-.welcome > p {font-size: 12px; line-height: 1.8; color: var(--advisor-muted); margin-top: 6px;}
-.examples {display: flex; flex-wrap: wrap; gap: 6px; margin-top: 15px;}
-.examples button {padding: 6px 9px; border: 1px solid color-mix(in srgb, var(--advisor-navy) 8%, transparent); border-radius: 9px; background: color-mix(in srgb, var(--advisor-navy) 3%, transparent); color: var(--advisor-navy); font-size: 10px; cursor: pointer; transition: color 180ms, background 180ms, transform 180ms;}
-.examples button:hover {background: color-mix(in srgb, var(--advisor-lime) 24%, var(--advisor-paper)); transform: translateY(-1px);}
+.welcome h3 {font-size: 19px; font-weight: 500; letter-spacing: -.03em; color: var(--advisor-navy);}
+.welcome > p {font-size: 13px; line-height: 1.8; color: var(--advisor-muted); margin-top: 6px;}
+.examples {display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px;}
+.examples button {min-height: 36px; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--advisor-navy) 14%, transparent); border-radius: 18px; background: transparent; color: var(--advisor-navy); font-size: 11px; cursor: pointer; transition: background 180ms, transform 180ms;}
+.examples button:hover {background: color-mix(in srgb, var(--advisor-navy) 5%, transparent); transform: translateY(-1px);}
 .examples button:active {transform: translateY(0) scale(.98);}
-.composer {flex-shrink: 0; padding: 7px 10px 10px;}
-.inputBox {padding: 10px 10px 7px; border: 1px solid var(--advisor-line); border-radius: 12px; background: color-mix(in srgb, var(--advisor-paper) 70%, transparent); transition: border-color 160ms;}
-.inputBox:focus-within {border-color: color-mix(in srgb, var(--advisor-navy) 32%, var(--advisor-lime)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--advisor-lime) 14%, transparent);}
-.inputBox textarea {display: block; width: 100%; min-height: 43px; resize: none; outline: none; border: 0; background: transparent; color: var(--advisor-ink); padding: 0 2px; font-size: 13px; line-height: 1.65;}
-.inputBox textarea::placeholder {color: var(--color-cs-placeholder);}
+.composer {flex-shrink: 0; padding: 10px 12px;}
+.composerBeam {display: block !important; width: 100%;}
+.inputBox {padding: 10px 10px 7px; border: 1px solid color-mix(in srgb, var(--advisor-navy) 14%, transparent); border-radius: 17px; background: transparent; transition: border-color 160ms, background 160ms;}
+.inputBox:focus-within {border-color: color-mix(in srgb, var(--advisor-navy) 28%, var(--advisor-paper));}
+.inputBox textarea {display: block; width: 100%; min-height: 40px; resize: none; outline: none; border: 0; background: transparent; color: var(--advisor-ink); padding: 0 2px; font-size: 13px; line-height: 1.65;}
+.inputBox textarea::placeholder {color: var(--advisor-muted);}
 .inputBox textarea:disabled {opacity: .7;}
 .composerBottom {display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px;}
-.composerBottom > p {font-size: 9px; color: var(--advisor-muted);}
+.composerBottom > p {font-size: 10px; color: var(--advisor-muted);}
 .sendActions {display: flex; align-items: center; gap: 7px;}
-.sendActions > span {font-size: 9px; color: var(--advisor-muted); font-variant-numeric: tabular-nums;}
-.send {width: 29px; min-width: 29px; height: 29px; border-radius: 8px; background: var(--advisor-lime); color: var(--advisor-navy); transition: transform 150ms, box-shadow 150ms;}
+.sendActions > span {font-size: 10px; color: var(--advisor-muted); font-variant-numeric: tabular-nums;}
+.send {width: 32px; min-width: 32px; height: 32px; border-radius: 50%; background: var(--advisor-lime); color: var(--advisor-navy); transition: transform 150ms, box-shadow 150ms;}
 .send:enabled:hover {background: var(--advisor-lime); transform: translateY(-1px); box-shadow: 0 3px 10px color-mix(in srgb, var(--advisor-lime) 22%, transparent);}
 .send:enabled:active {transform: scale(.94);}
-.composerNote {margin-top: 7px; text-align: center; font-size: 9px; color: var(--advisor-muted);}
+.composerNote {margin-top: 10px; text-align: center; font-size: 10px; color: var(--advisor-muted);}
 .invalid, .validation {color: var(--danger) !important;}
 .validation {font-size: 11px; margin-top: 7px; line-height: 1.6;}
 .validation button {margin-left: 5px; text-decoration: underline; cursor: pointer;}
 .turn {padding: 5px 0 16px;}
 .turn + .turn {border-top: 1px solid var(--advisor-line); padding-top: 17px;}
 .userMessage {display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-bottom: 15px;}
-.userMessage > span {font-size: 9px; color: var(--advisor-muted);}
-.userMessage p {max-width: 94%; padding: 9px 12px; border-radius: 12px 12px 3px 12px; background: color-mix(in srgb, var(--color-cs-canvas) 70%, transparent); font-size: 12px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere;}
-.assistantMark {width: 6px; height: 6px; border-radius: 50%; background: var(--advisor-navy); box-shadow: 0 0 0 3px color-mix(in srgb, var(--advisor-lime) 25%, transparent);}
-.assistantLabel {display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--advisor-muted); font-size: 10px;}
+.userMessage > span {font-size: 10px; color: var(--advisor-muted);}
+.userMessage p {max-width: 94%; padding: 9px 12px; border-radius: 16px 16px 4px 16px; background: color-mix(in srgb, var(--advisor-navy) 4%, transparent); font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere;}
+.assistantMark {width: 6px; height: 6px; border-radius: 50%; background: var(--advisor-muted);}
+.assistantLabel {display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--advisor-muted); font-size: 11px;}
 .thinking {padding: 5px 0 12px; font-size: 12px; color: var(--advisor-muted);}
 .result .estimates, .result .resultSection {animation: advisor-enter 220ms ease-out;}
 .streamText, .conclusion {font-size: 14px; font-weight: 450; line-height: 1.85; color: var(--advisor-navy); overflow-wrap: anywhere;}
-.estimates {display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin: 14px 0 6px; padding: 12px 0; border-block: 1px solid var(--advisor-line);}
-.estimates dt {font-size: 9px; color: var(--advisor-muted); margin-bottom: 5px;}
-.estimates dd {color: var(--advisor-navy); font-size: 20px; font-variant-numeric: tabular-nums; letter-spacing: -.025em;}
-.estimates dd span {font-size: 9px; color: var(--advisor-muted); margin-left: 4px;}
-.resultSection {border-bottom: 1px solid var(--advisor-line);}
-.sectionLabel {display: flex; align-items: center; gap: 8px; padding: 12px 0; font-size: 12px; cursor: pointer; list-style: none;}
+.estimates {display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin: 18px 0;}
+.estimates > div {min-width: 0; padding-left: 10px; border-left: 1px solid color-mix(in srgb, var(--advisor-navy) 12%, transparent);}
+.estimates > div:first-child {padding-left: 0; border-left: 0;}
+.estimates dt {font-size: 10px; color: var(--advisor-muted); margin-bottom: 5px;}
+.estimates dd {color: var(--advisor-navy); font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: -.025em; overflow-wrap: anywhere;}
+.estimates dd span {font-size: 11px; color: var(--advisor-muted); margin-left: 4px;}
+.resultGroups {border-block: 1px solid color-mix(in srgb, var(--advisor-navy) 12%, transparent);}
+.resultSection + .resultSection {border-top: 1px solid color-mix(in srgb, var(--advisor-navy) 8%, transparent);}
+.sectionLabel {display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 12px 0; color: var(--advisor-navy); font-size: 13px; font-weight: 500; cursor: pointer; list-style: none; transition: background 160ms;}
+.sectionLabel:hover {background: color-mix(in srgb, var(--advisor-navy) 4%, transparent);}
 .sectionLabel::-webkit-details-marker {display: none;}
-.sectionLabel > span:nth-child(2) {margin-left: auto; font-size: 10px; color: var(--advisor-muted);}
-.sectionLabel::after {content: "⌄"; color: var(--advisor-muted); font-size: 15px; width: 12px; transition: transform 180ms;}
-.resultSection details[open] > .sectionLabel::after {transform: rotate(180deg);}
-.resultSection details[open] > :not(summary) {animation: advisor-enter 180ms ease-out;}
-.plans {display: grid;}
-.plan {padding: 11px 0;}
-.plan + .plan {border-top: 1px solid var(--advisor-line);}
-.planName {font-size: 10px; color: var(--advisor-muted); display: flex; gap: 8px;}
-.planName span {color: var(--color-cs-faint);}
-.plan h5 {margin: 6px 0 4px; font-size: 15px; font-weight: 550; overflow-wrap: anywhere;}
-.planSpecs {font-size: 10px; line-height: 1.7;}
-.planNote {font-size: 11px; line-height: 1.8; color: var(--advisor-muted); margin-top: 6px; overflow-wrap: anywhere;}
-.caption {font-size: 9px; line-height: 1.7; color: var(--advisor-muted); padding: 4px 0 12px;}
-.offer + .offer {border-top: 1px solid var(--advisor-line);}
-.offerLink {display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; color: inherit; text-decoration: none;}
-.offerLink > div {min-width: 0;}
-.offerMeta {font-size: 9px; color: var(--advisor-muted);}
-.offerLink h5 {margin-top: 5px; font-size: 14px; font-weight: 550; overflow-wrap: anywhere;}
-.offerLink p {margin-top: 5px; font-size: 9px; color: var(--advisor-muted);}
-.offerPrice {display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right; max-width: 48%; flex-shrink: 0;}
-.offerPrice strong {font-size: 14px; font-weight: 550; font-variant-numeric: tabular-nums; overflow-wrap: anywhere;}
-.offerPrice > span {font-size: 9px; color: var(--advisor-muted);}
-.offerPrice .offerAction {margin-top: 5px; color: var(--advisor-ink); font-size: 10px;}
+.sectionLabel .sectionCount {margin-left: auto; font-size: 11px; font-weight: 400; color: var(--advisor-muted); white-space: nowrap;}
+.sectionLabel::after {content: ""; width: 6px; height: 6px; flex-shrink: 0; margin: -3px 2px 0 4px; border-right: 1.5px solid var(--advisor-muted); border-bottom: 1.5px solid var(--advisor-muted); transform: rotate(45deg); transition: transform 180ms;}
+.resultSection details[open] > .sectionLabel::after {transform: translateY(3px) rotate(225deg);}
+.resultSection details[open] > .sectionBody {animation: advisor-enter 180ms ease-out;}
+.sectionBody {padding: 0;}
+.plan {padding: 14px 0; border-top: 1px solid color-mix(in srgb, var(--advisor-navy) 8%, transparent);}
+.planHeading, .offerHeading {display: flex; align-items: baseline; gap: 8px;}
+.planHeading h4, .offerHeading h4 {min-width: 0; color: var(--advisor-navy); font-size: 15px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere;}
+.planIndex {flex-shrink: 0; color: var(--advisor-muted); font-size: 10px; font-variant-numeric: tabular-nums;}
+.planName {margin-left: auto; max-width: 42%; color: var(--advisor-muted); font-size: 10px; text-align: right; overflow-wrap: anywhere;}
+.planSpecs {display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; font-size: 11px; color: var(--advisor-muted); line-height: 1.7;}
+.planSpecs strong {font-weight: 500; color: var(--advisor-ink);}
+.planNote {font-size: 12px; line-height: 1.75; color: var(--advisor-muted); margin-top: 7px; overflow-wrap: anywhere;}
+.caption {font-size: 10px; line-height: 1.7; color: var(--advisor-muted); padding: 0 0 14px;}
+.offer {border-top: 1px solid color-mix(in srgb, var(--advisor-navy) 8%, transparent);}
+.offerLink {display: block; padding: 14px 0 8px; color: inherit; text-decoration: none;}
+.matchScore {margin-left: auto; flex-shrink: 0; padding: 2px 6px; border-radius: 5px; background: color-mix(in srgb, var(--advisor-navy) 5%, transparent); color: var(--advisor-muted); font-size: 10px;}
+.offerMeta {margin-top: 7px; font-size: 11px; color: var(--advisor-muted); line-height: 1.7; overflow-wrap: anywhere;}
+.offerFooter {display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 14px;}
+.offerPrice {display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 5px; min-width: 0;}
+.offerPrice strong {font-size: 18px; font-weight: 550; color: var(--advisor-navy); font-variant-numeric: tabular-nums; overflow-wrap: anywhere;}
+.offerPrice > span {font-size: 10px; color: var(--advisor-muted);}
+.offerAction {flex-shrink: 0; padding-bottom: 3px; color: var(--advisor-navy); font-size: 11px;}
 .offerLink:hover .offerAction {text-decoration: underline; text-underline-offset: 3px;}
-.reasons {font-size: 10px; color: var(--advisor-muted); padding-bottom: 12px;}
-.reasons summary, .analysis summary {cursor: pointer;}
-.reasons ul {padding-left: 16px; list-style: disc; line-height: 1.8; margin-top: 8px;}
-.analysis {margin-top: 12px; color: var(--advisor-muted); font-size: 10px;}
+.reasons {font-size: 11px; color: var(--advisor-muted); padding: 0 0 8px;}
+.reasons summary, .analysis summary {cursor: pointer; padding: 8px 0;}
+.reasons ul {padding-left: 16px; list-style: disc; line-height: 1.8; margin-top: 4px; overflow-wrap: anywhere;}
+.analysis {margin-top: 10px; color: var(--advisor-muted); font-size: 11px;}
 .analysis ol {display: grid; gap: 12px; margin-top: 12px;}
 .analysis strong {color: var(--advisor-ink); font-weight: 500;}
 .analysis p, .basis {margin-top: 6px; line-height: 1.8; overflow-wrap: anywhere;}
-.noMatches {font-size: 11px; line-height: 1.8; color: var(--advisor-muted); padding-bottom: 12px;}
+.noMatches {font-size: 12px; line-height: 1.8; color: var(--advisor-muted); padding: 0 0 14px;}
 .noMatches a {display: inline-block; margin-top: 8px; color: var(--advisor-ink); text-decoration: underline; text-underline-offset: 3px;}
 .error, .rejection {padding: 5px 0 8px;}
 .error h3, .rejection h3 {font-size: 13px; font-weight: 500;}
 .error p, .rejection p {margin: 7px 0 11px; font-size: 12px; color: var(--advisor-muted); line-height: 1.8;}
 .panel button:focus-visible, .panel a:focus-visible, .panel summary:focus-visible {outline: 2px solid var(--advisor-ink); outline-offset: 3px;}
+.panel .sectionLabel:focus-visible {outline-offset: -3px; border-radius: 12px;}
 @keyframes advisor-enter {from {opacity: 0; transform: translateY(6px);} to {opacity: 1; transform: translateY(0);}}
 .streamingAnswer .thinking {font-size: 10px; margin-top: 10px; padding-bottom: 6px;}
 .streamCaret {display: inline-block; width: 3px; height: 12px; margin-left: 4px; vertical-align: -1px; border-radius: 2px; background: var(--advisor-navy); animation: advisor-caret 900ms ease-in-out infinite;}
@@ -126,9 +132,16 @@
   .dock {right: 14px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + var(--advisor-keyboard-inset, 0px)); --advisor-panel-width: min(376px, calc(100vw - 28px)); --advisor-panel-height: min(344px, calc(var(--advisor-viewport-height, 100dvh) - 38px));}
   .dock[data-has-messages="true"] {--advisor-panel-height: min(500px, calc(var(--advisor-viewport-height, 100dvh) - 38px));}
   .inputBox textarea {font-size: 16px;}
+  .headerActions button, .send {width: 40px; min-width: 40px; height: 40px;}
 }
 @media (prefers-reduced-motion: reduce) {
   .dock, .orbCore::after, .examples button, .inputBox, .send, .sectionLabel::after {transition: none;}
   .examples button:hover, .examples button:active, .send:enabled:hover, .send:enabled:active {transform: none;}
   .result .estimates, .result .resultSection, .resultSection details[open] > :not(summary), .streamCaret, .thinkingDots {animation: none;}
+}
+
+@media (forced-colors: active) {
+  .dock {background: Canvas; border: 1px solid CanvasText;}
+  .composerBeam::before, .composerBeam::after, .composerBeam [data-beam-bloom] {display: none;}
+  .resultGroups, .inputBox {border: 1px solid CanvasText;}
 }

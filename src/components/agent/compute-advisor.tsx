@@ -1,10 +1,11 @@
 "use client";
 
 import {Button} from "@heroui/react";
+import {BorderBeam} from "border-beam";
 import {ArrowUp, Minus, Plus, RotateCcw, Square} from "lucide";
 import {motion, useReducedMotion, useSpring, useTransform} from "motion/react";
 import {useEffect, useRef, useState, type FormEvent} from "react";
-import {ThinkingOrb} from "thinking-orbs";
+import {ThinkingOrb, type OrbState} from "thinking-orbs";
 
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {agentSearchQuerySchema, buildAgentQuery, type AgentSearchResult} from "@/lib/agent-search";
@@ -47,6 +48,7 @@ function AdvisorSession({open, setOpen, signedIn, authPending, authError, retryA
   const restoreFocus = useRef(false);
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const panel = useRef<HTMLElement>(null);
   const transcript = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -60,7 +62,17 @@ function AdvisorSession({open, setOpen, signedIn, authPending, authError, retryA
   const morphTransition = {duration: reducedMotion ? 0 : 0.42, ease: [0.16, 1, 0.3, 1] as const};
   const effectiveQuery = buildAgentQuery(context, draft);
   const length = [...effectiveQuery].length;
-  const latestResult = turns[turns.length - 1]?.result;
+  const latestTurn = turns[turns.length - 1];
+  const latestResult = latestTurn?.result;
+  const streaming = pending && Boolean(latestTurn?.summary);
+  let activity: {state: OrbState; label: string; paused?: boolean} = {state: "working", label: "随时聊聊"};
+  if (authPending) activity = {state: "connecting", label: "确认登录状态"};
+  else if (pending) activity = streaming ? {state: "composing", label: "正在生成方案"} : {state: "solving", label: "正在评估需求"};
+  else if (open && inputFocused) activity = {state: "listening", label: "说说你的需求"};
+  else if (authError || latestTurn?.error) activity = {state: "breathing", label: authError ? "登录状态不可用" : latestTurn?.cancelled ? "评估已停止" : latestTurn?.needsLogin ? "请重新登录" : "评估未完成", paused: true};
+  else if (latestResult) activity = latestResult.relevant ? {state: "shaping", label: "评估已完成"} : {state: "breathing", label: "请补充算力需求", paused: true};
+  else if (open) activity = {state: "breathing", label: "等待你的需求"};
+  else if (hovered) activity = {state: "connecting", label: "打开算力顾问"};
 
   useEffect(() => {
     openRef.current = open;
@@ -158,10 +170,10 @@ function AdvisorSession({open, setOpen, signedIn, authPending, authError, retryA
     void evaluate(draft.trim(), effectiveQuery);
   }
 
-  return <motion.div ref={shell} layout={!reducedMotion} className={styles.dock} data-open={open} data-has-messages={turns.length > 0} data-hovered={hovered} data-pressed={pressed} data-busy={pending} data-streaming={pending && Boolean(turns[turns.length - 1]?.summary)} style={{borderRadius: open ? 22 : 29}} transition={{layout: morphTransition}}>
+  return <motion.div ref={shell} layout={!reducedMotion} className={styles.dock} data-open={open} data-has-messages={turns.length > 0} data-hovered={hovered} data-pressed={pressed} data-busy={pending} data-streaming={streaming} style={{borderRadius: open ? 24 : 29}} transition={{layout: morphTransition}}>
     <motion.div layout={!reducedMotion} transition={{layout: morphTransition}} className={styles.orbCore} style={{borderRadius: 999}} aria-hidden="true">
       <motion.span className={styles.orbTilt} style={{x: reducedMotion ? 0 : pointerX, y: reducedMotion ? 0 : pointerY, rotateX: reducedMotion ? 0 : tiltX, rotateY: reducedMotion ? 0 : tiltY}} animate={{scale: reducedMotion ? 1 : pressed ? 0.91 : hovered ? 1.06 : 1}} transition={{duration: pressed ? 0.12 : 0.22}}>
-        <ThinkingOrb theme="light" state={pending ? "searching" : "weaving"} size={64} style={{width: "100%", height: "100%"}} paused={Boolean(reducedMotion)} aria-hidden="true" />
+        <ThinkingOrb theme="light" state={activity.state} data-orb-state={activity.state} size={64} style={{width: "100%", height: "100%"}} paused={Boolean(reducedMotion || activity.paused)} aria-hidden="true" />
       </motion.span>
     </motion.div>
     <motion.button ref={launcher} className={styles.launcher} type="button" aria-label={unread ? "打开算力顾问，评估已完成" : "打开算力顾问"} aria-expanded={open} aria-controls="compute-advisor" aria-haspopup="dialog" aria-hidden={open} inert={open} tabIndex={open ? -1 : 0} onClick={() => setOpen(true)} onPointerEnter={() => setHovered(true)} onPointerDown={() => setPressed(true)} onPointerUp={() => setPressed(false)} onPointerCancel={() => setPressed(false)} onBlur={() => setPressed(false)} onKeyDown={(event) => {if (event.key === "Enter" || event.key === " ") setPressed(true);}} onKeyUp={() => setPressed(false)} onPointerLeave={() => {setHovered(false); setPressed(false); pointerX.set(0); pointerY.set(0);}} onPointerMove={(event) => {
@@ -175,7 +187,7 @@ function AdvisorSession({open, setOpen, signedIn, authPending, authError, retryA
     </motion.button>
     <motion.section layout={reducedMotion ? false : "position"} ref={panel} id="compute-advisor" role="dialog" aria-modal="false" aria-labelledby="advisor-title" aria-hidden={!open} inert={!open} tabIndex={-1} className={styles.panel} initial={false} animate={open ? {opacity: 1, y: 0} : {opacity: 0, y: 5}} transition={{layout: morphTransition, duration: reducedMotion ? 0 : open ? 0.24 : 0.12, delay: reducedMotion || !open ? 0 : 0.09, ease: [0.16, 1, 0.3, 1]}} onKeyDown={(event) => {if (event.key === "Escape" && !event.nativeEvent.isComposing) {event.stopPropagation(); close();}}}>
       <header className={styles.header}>
-        <div className={styles.identity}><h2 id="advisor-title">OmniS <span>算力顾问</span></h2><span className={styles.connection}>{pending ? "评估中" : "随时聊聊"}</span></div>
+        <div className={styles.identity}><h2 id="advisor-title">OmniS <span>算力顾问</span></h2><span className={styles.connection} role="status">{activity.label}</span></div>
         <div className={styles.headerActions}><Button variant="ghost" size="sm" isIconOnly onPress={reset} aria-label="开启新评估"><InteractiveIcon icon={Plus} size={16} /></Button><Button variant="ghost" size="sm" isIconOnly onPress={close} aria-label="收起算力顾问"><InteractiveIcon icon={Minus} size={17} /></Button></div>
       </header>
       <div ref={transcript} className={styles.transcript} role="log" aria-label="算力顾问对话" aria-live="polite" aria-busy={pending}>
@@ -190,12 +202,13 @@ function AdvisorSession({open, setOpen, signedIn, authPending, authError, retryA
         </div>)}
       </div>
       <form onSubmit={submit} className={styles.composer}>
-
+        <BorderBeam className={styles.composerBeam} theme="light" colorVariant="colorful" size="md" borderRadius={17} strength={pending ? 0.9 : 0.7} duration={4} active={open && !reducedMotion}>
         <div className={styles.inputBox}>
           <label className="sr-only" htmlFor="advisor-query">{context ? "补充或调整算力需求" : "描述算力需求"}</label>
-          <textarea ref={input} id="advisor-query" rows={2} maxLength={1000} value={draft} disabled={pending || authPending} aria-describedby="advisor-input-hint" aria-invalid={length > 500 || Boolean(validation)} placeholder={context ? "补充预算、并发或地域，再比较一次…" : "描述你的需求…"} onChange={(event) => {setDraft(event.target.value); setValidation("");}} onKeyDown={(event) => {if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {event.preventDefault(); event.currentTarget.form?.requestSubmit();}}} />
+          <textarea ref={input} id="advisor-query" rows={2} maxLength={1000} value={draft} disabled={pending || authPending} aria-describedby="advisor-input-hint" aria-invalid={length > 500 || Boolean(validation)} placeholder={context ? "补充预算、并发或地域，再比较一次…" : "描述你的需求…"} onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)} onChange={(event) => {setDraft(event.target.value); setValidation("");}} onKeyDown={(event) => {if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {event.preventDefault(); event.currentTarget.form?.requestSubmit();}}} />
           <div className={styles.composerBottom}><p id="advisor-input-hint" className={length > 500 ? styles.invalid : undefined}>{pending ? "可收起窗口，评估会继续" : authPending ? "正在确认登录状态…" : signedIn ? "Enter 发送" : "登录后开始评估"}</p><div className={styles.sendActions}>{length > 0 ? <span className={length > 500 ? styles.invalid : undefined}>{length}/500</span> : null}{pending ? <Button key="stop" className={styles.send} type="button" isIconOnly aria-label="停止评估" onPress={cancel}><InteractiveIcon icon={Square} size={16} /></Button> : <Button key="send" className={styles.send} type="submit" isIconOnly aria-label={signedIn ? "发送算力需求" : "登录并继续评估"} isDisabled={!draft.trim() || length > 500 || authPending || authError}><InteractiveIcon icon={ArrowUp} size={19} /></Button>}</div></div>
         </div>
+        </BorderBeam>
         {validation || length > 500 ? <p className={styles.validation} role="alert">{validation || "当前需求与补充内容合计最多 500 字，请精简描述或开启新评估。"}</p> : null}
         {authError ? <p className={styles.validation} role="alert">登录状态暂不可用。<button type="button" onClick={retryAuth}>重新读取</button></p> : null}
         <p className={styles.composerNote}>评估供参考，库存与价格以商品为准。</p>
