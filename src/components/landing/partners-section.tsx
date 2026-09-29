@@ -3,25 +3,48 @@
 import {
   motion,
   useReducedMotion,
-  type TargetAndTransition,
   type Transition,
   type Variants,
 } from "motion/react";
 import Image from "next/image";
 
 const PARTNERS = [
-  {name: "Grow", position: "left-[3.1%] top-[-58%]"},
-  {name: "Harbour Studio", position: "left-[-88.1%] top-[-61.4%]"},
-  {name: "EventRise", position: "left-[-186.7%] top-[-255.7%]"},
-  {name: "wised", position: "left-[3.1%] top-[-448.9%]"},
-  {name: "Prismis", position: "left-[-88.1%] top-[-258%]"},
   {
-    name: "Magic Media Productions",
-    position: "left-[-186.7%] top-[-448.9%]",
+    name: "江苏大京投资控股集团有限公司",
+    dark: false,
+    logo: {src: "/brand/partners/dajing.png", width: 196, height: 57, className: "w-[76%] max-w-40"},
   },
-  {name: "depove", position: "left-[3.1%] top-[-634.1%]"},
-  {name: "Opal", position: "left-[-88.1%] top-[-453.4%]"},
-  {name: "roctop", position: "left-[-186.7%] top-[-636.4%]"},
+  {
+    name: "郑州合盈数据有限责任公司",
+    dark: true,
+    logo: {src: "/brand/partners/hoyinn.png", width: 215, height: 64, className: "w-[76%] max-w-40"},
+  },
+  {
+    name: "阿里云计算有限公司",
+    dark: false,
+    logo: {src: "/brand/partners/aliyun.svg", width: 4608, height: 1024, className: "w-[76%] max-w-40"},
+  },
+  {
+    name: "世纪丝路融资租赁（天津）有限公司",
+    dark: true,
+    logo: {src: "/brand/partners/century-silk-road-dark.png", width: 1213, height: 1297, className: "h-[145%] w-auto shrink-0"},
+  },
+  {
+    name: "天开高教科创园",
+    dark: false,
+    logo: {src: "/brand/partners/tiankai.png", width: 750, height: 509, className: "h-[92%] w-auto max-w-full"},
+  },
+  {
+    name: "联合绿能新能源科技（天津）有限公司",
+    dark: true,
+    logo: {src: "/brand/partners/united-green-energy-dark.png", width: 1225, height: 1284, className: "h-[145%] w-auto shrink-0"},
+  },
+] as const;
+
+const PLACEHOLDER_POSITIONS = [
+  "left-[3.1%] top-[-634.1%]",
+  "left-[-88.1%] top-[-453.4%]",
+  "left-[-186.7%] top-[-636.4%]",
 ] as const;
 
 type Partner = (typeof PARTNERS)[number];
@@ -46,57 +69,49 @@ const tileGrid: Variants = {
 };
 
 const tilePop: Variants = {
-  hidden: {opacity: 0, y: 24, scale: 0.92},
-  show: {opacity: 1, y: 0, scale: 1},
+  hidden: {opacity: 0, y: 20},
+  show: {opacity: 1, y: 0},
 };
 
 function PartnerTile({
   partner,
   revealTransition,
-  hoverLift,
 }: {
   partner: Partner;
   revealTransition: Transition;
-  hoverLift?: TargetAndTransition;
 }) {
   return (
     <motion.li
       variants={tilePop}
       transition={revealTransition}
-      whileHover={hoverLift}
-      className="relative aspect-[113/44] overflow-hidden rounded-[1.125rem] border border-border bg-black transition-[border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#a8c4de] hover:shadow-[0_16px_36px_-12px_rgba(7,56,94,0.3)] hover:duration-200"
+      className="min-w-0"
     >
-      <Image
-        src="/compute-spot/partners-demo.png"
-        alt={partner.name}
-        width={658}
-        height={877}
-        unoptimized
-        className={`pointer-events-none absolute h-[996.6%] w-[291.2%] max-w-none select-none ${partner.position}`}
-      />
+      <div
+        data-partner-logo
+        className={`flex aspect-[113/44] items-center justify-center overflow-hidden rounded-xl border border-cs-divider/70 ${partner.dark ? "bg-black" : "bg-white"}`}
+      >
+        <Image
+          src={partner.logo.src}
+          alt={partner.name}
+          width={partner.logo.width}
+          height={partner.logo.height}
+          unoptimized
+          className={`pointer-events-none select-none object-contain ${partner.logo.className}`}
+        />
+      </div>
     </motion.li>
   );
 }
 
 /**
- * Partner logo wall (Figma frame "04 / Partners and compliance").
- * Copy lines rise out of masks in sequence, then the 3x3 logo tiles
- * cascade in. Standard hover: the tile lifts on a spring with border and
- * shadow emphasis. The logo sprite is served unoptimized so the optimizer
- * never upscales or recompresses it. One-shot reveals; all motion is
- * instant or disabled under reduced motion.
+ * Confirmed logos replace the first demo tiles. The remaining
+ * original tiles stay as placeholders; source details live in docs/partners.md.
  */
 export function PartnersSection() {
   const prefersReducedMotion = useReducedMotion();
   const revealTransition: Transition = prefersReducedMotion
     ? {duration: 0}
     : {duration: 0.7, ease: EASE_OUT_EXPO};
-  const hoverLift = prefersReducedMotion
-    ? undefined
-    : ({
-        y: -4,
-        transition: {type: "spring", stiffness: 300, damping: 22},
-      } as const);
 
   return (
     <section
@@ -104,7 +119,7 @@ export function PartnersSection() {
       aria-labelledby="partners-title"
       className="bg-surface text-foreground"
     >
-      <div className="mx-auto grid w-[calc(100%-3rem)] max-w-[81rem] gap-12 py-20 lg:grid-cols-[30rem_minmax(0,1fr)] lg:gap-[5.625rem] lg:py-28">
+      <div className="mx-auto grid w-[calc(100%-3rem)] max-w-[81rem] gap-12 py-20 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-14 lg:py-28 xl:gap-20">
         <motion.div
           variants={copyStagger}
           initial="hidden"
@@ -132,7 +147,7 @@ export function PartnersSection() {
             transition={revealTransition}
             className="mt-[2.375rem] max-w-[26.25rem] text-[0.9375rem] leading-[1.65] text-muted"
           >
-            连接合规机构、设备厂商、支付与产业服务伙伴，形成可持续的算力供应链。
+            连接云服务、数据中心与产业伙伴，形成可持续的算力供应链。
           </motion.p>
         </motion.div>
 
@@ -141,15 +156,32 @@ export function PartnersSection() {
           initial="hidden"
           whileInView="show"
           viewport={{once: true, margin: "0px 0px -10% 0px"}}
-          className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:gap-6"
+          className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:gap-6"
         >
           {PARTNERS.map((partner) => (
             <PartnerTile
               key={partner.name}
               partner={partner}
               revealTransition={revealTransition}
-              hoverLift={hoverLift}
             />
+          ))}
+          {PLACEHOLDER_POSITIONS.map((position) => (
+            <motion.li
+              key={position}
+              aria-hidden="true"
+              variants={tilePop}
+              transition={revealTransition}
+              className="relative aspect-[113/44] overflow-hidden rounded-xl border border-border bg-black"
+            >
+              <Image
+                src="/compute-spot/partners-demo.png"
+                alt=""
+                width={658}
+                height={877}
+                unoptimized
+                className={`pointer-events-none absolute h-[996.6%] w-[291.2%] max-w-none select-none ${position}`}
+              />
+            </motion.li>
           ))}
         </motion.ul>
       </div>
