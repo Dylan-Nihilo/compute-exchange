@@ -24,12 +24,13 @@
 - 商品卡片关键字段：`gpu_model` `card_count` `stock` `unit_price`(分/卡·周期) `pricing_mode` `region` `self_operated` **`health`**(unknown/healthy/degraded/offline —— offline 应显示「暂不可下单」灰态，unknown 不显示徽章)
 - **首页悬浮算力顾问**（`/?agent=open`，市场旧选型按钮已移除；旧 `/market/agent-search` 保留）：`POST /market/agent-search/stream`（流式，需登录；原 JSON 接口保留），入参 `{query: string ≤500字}`；响应字段：
   - `relevant` false 时只渲染 `reject_reason`
-  - `summary` — 评估结论；`machine_plans[] {name, gpu_model, cards, nodes, per_card_vram_gb, note}` — 最多三档建议配置，独立于在售商品展示
+  - `summary` — 流式评估结论
   - `analysis_steps[] {title, detail}` — 响应到达后在评估依据中展开，不模拟流式推理
   - `compute_estimate {total_vram_gb(float), per_card_vram_gb, min_cards, compute_class, basis}` — 做成「算力推定卡」，`basis` 含推导公式是核心展示位
-  - `matches[] {product(同商品结构), score(0-100), reasons[]}` — 商品卡+匹配理由
+  - `machine_plans[] {name, gpu_model, cards, nodes, per_card_vram_gb, note}` — 2-3 档可行机器方案（建议配置，不限于在售），与 `matches` 视觉区分
+  - `matches[] {product(同商品结构), score(0-100), reasons[]}` — 平台在售商品卡+匹配理由
   - `note` 无匹配时的提示文案
-  - 错误码：42900 限流(10 次/分)、50000 网关异常；详见 [agent-search-api.md](agent-search-api.md)
+  - 错误码：42900 限流(10 次/分)、50000 网关异常；详见 [agent-search-api.md](agent-search-api.md)；市场页旧「智能选型」按钮随前端改版移除
 
 ### `/market/[productId]` 商品详情 ✅（需登录，客户端经 `/api/market-proxy/products/:id` 取数）
 - `GET /products/:id` — 全字段见 compute-api.md；注意 `machine_count`/`total_pflops_approx`/`power_capacity_kw`/`rack_count` 可为 `null`（colocation/center 专属字段）

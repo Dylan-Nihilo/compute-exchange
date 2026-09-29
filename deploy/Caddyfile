@@ -15,3 +15,10 @@ omnisline.com, www.omnisline.com {
 		reverse_proxy frontend:3000
 	}
 }
+
+# Omnis API (万象网关, host port 13920) — reverse-proxied via the docker
+# network gateway. Do not remove: token.omnisline.com is served by this
+# same Caddy instance and must survive every frontend release.
+token.omnisline.com {
+	reverse_proxy 172.30.2.1:13920
+}
