@@ -14,8 +14,6 @@ export const capabilities = [
   "publishCompute",
   "buyToken",
   "publishEquipment",
-  "submitFinanceLead",
-  "viewFinanceLeads",
   "reviewQualification",
   "manageProducts",
   "interveneOrder",
@@ -51,8 +49,6 @@ const allowedRoles: Record<Capability, readonly Role[]> = {
   // 平台只有供应方/采购方/运营方三种业务角色: 设备发布归 supplier。
   // vendor 是历史设计(设备厂商)遗留枚举, 无入驻通道, 不再授予任何能力。
   publishEquipment: ["supplier", "operator", "admin"],
-  submitFinanceLead: ["guest", "buyer", "supplier", "vendor"],
-  viewFinanceLeads: ["funder", "operator", "admin"],
   reviewQualification: ["operator", "admin"],
   manageProducts: ["operator", "admin"],
   interveneOrder: ["operator", "admin"],
@@ -73,13 +69,11 @@ const verificationRequired: readonly Capability[] = [
   "buyToken",
   "publishCompute",
   "publishEquipment",
-  "viewFinanceLeads",
 ];
 
 const qualificationRequired: readonly Capability[] = [
   "publishCompute",
   "publishEquipment",
-  "viewFinanceLeads",
 ];
 
 export function accessFor(

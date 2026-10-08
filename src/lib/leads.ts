@@ -1,6 +1,6 @@
 import {z} from "zod";
 
-export type LeadType = "equipment" | "construction" | "finance_lease";
+export type LeadType = "equipment" | "construction";
 
 export interface LeadInput {
   type: LeadType;

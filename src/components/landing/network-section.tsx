@@ -47,11 +47,13 @@ const SATELLITES = [
     icon: "/compute-spot/network-compliance.svg",
     position: "left-[73.4%] top-[42.2%]",
   },
+  // 易宝支付入网合规: 原「金融与设备 · 租赁/工程/资产」节点不再涉及金融业务,
+  // 收敛为与业务模块(设备整包销售 / 组网与机电安装)一一对应的设备与工程节点。
   {
-    key: "finance",
-    title: "金融与设备",
-    subtitle: "租赁/工程/资产",
-    icon: "/compute-spot/network-finance.svg",
+    key: "equipment",
+    title: "设备与工程",
+    subtitle: "设备/组网/机电",
+    icon: "/compute-spot/network-equipment.svg",
     position: "left-[60.2%] top-[78.6%]",
   },
   {

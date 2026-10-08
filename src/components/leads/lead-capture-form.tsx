@@ -14,7 +14,7 @@ export interface LeadCaptureFormProps {
   className?: string;
   intentValue?: string;
   leadType: LeadType;
-  /** 线索来源标识, 进 CRM 供转化追踪(如 leasing_page) */
+  /** 线索来源标识, 进 CRM 供转化追踪(如 equipment_page) */
   source: string;
   title: string;
   subtitle: string;
@@ -26,11 +26,11 @@ export interface LeadCaptureFormProps {
   intentOptions?: readonly string[];
   descriptionPlaceholder: string;
   companyRequired?: boolean;
-  /** 合规声明, 展示在表单下方(融资租赁为设计红线, 必传) */
+  /** 合规声明, 展示在表单下方 */
   disclaimer?: string;
 }
 
-// 三个板块(设备整包/组网机电/融资租赁)共用的留资表单: 字段集与 CRM leads 契约一致,
+// 两个板块(设备整包/组网机电)共用的留资表单: 字段集与 CRM leads 契约一致,
 // 意向方案不落独立列, 以「【意向方案】…」前缀并入需求描述。
 export function LeadCaptureForm(props: LeadCaptureFormProps) {
   const mutation = useMutation({mutationFn: (input: LeadInput) => submitLead(input)});
@@ -54,7 +54,6 @@ export function LeadCaptureForm(props: LeadCaptureFormProps) {
         <p className="mt-2 text-sm leading-6 text-muted">
           平台将通过你填写的联系方式与你沟通需求细节。
         </p>
-        {props.leadType === "finance_lease" ? <p className="mt-3 text-sm leading-6 text-muted">需求登记不代表融资审批通过，具体方案由资方评估与确认。</p> : null}
         {props.leadType === "construction" ? <p className="mt-3 text-sm leading-6 text-muted">工程范围、报价与工期需后续确认，本次登记不代表施工方已接单或开工。</p> : null}
       </div>
     );

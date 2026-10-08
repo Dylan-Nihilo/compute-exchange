@@ -7,7 +7,7 @@ import {useState} from "react";
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 
 import {LeadCaptureForm} from "./lead-capture-form";
-import base from "./leasing.module.css";
+import base from "./broker.module.css";
 import styles from "./construction.module.css";
 
 const services = [

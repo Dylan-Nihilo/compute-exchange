@@ -32,7 +32,7 @@ export default function HomePage() {
             连接算力供给、交易与交付
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted">
-            面向采购方、机房供给方、设备厂商与资方的一体化协作平台。
+            面向采购方与算力供给方的一体化协作平台。
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link className={buttonVariants({size: "lg", variant: "primary"})} href="/market">

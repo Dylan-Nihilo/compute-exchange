@@ -38,8 +38,6 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/tokens", label: "Token 工厂", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/broker/equipment", label: "设备居间", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/broker/construction", label: "机电施工", area: "portal", roles: publicRoles, capability: "browse"},
-  // 易宝支付入网合规(2026-09-21): 融资租赁入口整体下线(middleware 弹回首页), 恢复时取消注释。
-  // {href: "/leasing", label: "融资租赁", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/attestations/verify", label: "存证验证", area: "portal", roles: publicRoles, capability: "browse"},
   {href: "/market", label: "算力市场", area: "market", roles: publicRoles, capability: "browse"},
   {href: "/equipment-market", label: "设备市场", area: "market", roles: publicRoles, capability: "browse"},
@@ -82,9 +80,7 @@ export const routes: readonly RouteDefinition[] = [
   {href: "/console/supplier/messages", label: "消息中心", area: "console", roles: ["supplier"]},
   // vendor(设备厂商)为历史设计遗留角色, 无入驻通道; 设备商品管理已归入供给方工作台,
   // 因此不再注册 /console/vendor/* 路由(Role 枚举保留以兼容 DB user_roles)。
-  {href: "/console/funder", label: "资方工作台", area: "console", roles: ["funder"]},
-  {href: "/console/funder/qualifications", label: "资方资质", area: "console", roles: ["funder"]},
-  {href: "/console/funder/leads", label: "融资线索", area: "console", roles: ["funder"], capability: "viewFinanceLeads"},
+  // funder(资方)同理: 平台不经营融资租赁(易宝支付入网合规), 不再注册 /console/funder/* 路由。
   {href: "/admin", label: "运营工作台", area: "admin", roles: ["operator", "admin"]},
   {href: "/admin/reviews", label: "审核中心", area: "admin", roles: ["operator", "admin"], capability: "reviewQualification"},
   {href: "/admin/products", label: "商品管理", area: "admin", roles: ["operator", "admin"], capability: "manageProducts"},

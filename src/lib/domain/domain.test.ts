@@ -174,7 +174,6 @@ describe("role permissions", () => {
     const administrator = {role: "admin", verificationStatus: "unverified"} as const;
     assert.equal(accessFor(administrator, "publishCompute"), "allow");
     assert.equal(accessFor(administrator, "publishEquipment"), "allow");
-    assert.equal(accessFor(administrator, "viewFinanceLeads"), "allow");
   });
 
   it("requires approved qualification before publishing", () => {

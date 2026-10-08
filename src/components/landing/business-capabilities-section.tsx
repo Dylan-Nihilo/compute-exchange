@@ -31,11 +31,8 @@ const PRIMARY_CAPABILITIES = [
   },
 ] as const;
 
-// 易宝支付入网合规(2026-09-21): 融资租赁业务入口暂时下线, 卡片定义保留;
-// 恢复时把 SHOW_LEASING 置 true, 次级栅格会自动回到三列。
-const SHOW_LEASING = false;
-
-const ALL_SECONDARY_CAPABILITIES = [
+// 易宝支付入网合规: 平台不经营融资租赁, 次级业务只保留设备与工程两项(两列栅格)。
+const SECONDARY_CAPABILITIES = [
   {
     title: "设备整包销售",
     description: "一手/二手设备市场：发布、询价与采购撮合。",
@@ -50,18 +47,7 @@ const ALL_SECONDARY_CAPABILITIES = [
     href: "/broker/construction",
     image: "/compute-spot/business-engineering.png",
   },
-  {
-    title: "融资租赁",
-    description: "为持续算力需求提供灵活的资产解决方案。",
-    action: "提交需求",
-    href: "/leasing",
-    image: "/compute-spot/business-finance.png",
-  },
 ] as const;
-
-const SECONDARY_CAPABILITIES = ALL_SECONDARY_CAPABILITIES.filter(
-  (capability) => SHOW_LEASING || capability.href !== "/leasing",
-);
 
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 
@@ -266,7 +252,7 @@ export function BusinessCapabilitiesSection() {
           initial="hidden"
           whileInView="show"
           viewport={{once: true, margin: "0px 0px -10% 0px"}}
-          className={`mt-3.5 grid gap-4 ${SECONDARY_CAPABILITIES.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}
+          className="mt-3.5 grid gap-4 lg:grid-cols-2"
         >
           {SECONDARY_CAPABILITIES.map((capability) => (
             <CapabilityCard
