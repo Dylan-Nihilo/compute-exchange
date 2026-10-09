@@ -19,12 +19,7 @@ const PROTECTED_ROUTES = [
   "/broker",
 ] as const;
 
-/**
- * Temporary route lockdown while the landing page is built section by
- * section: `/` serves the landing page (rewrite, clean URL) and every
- * other application route bounces back to it. Public market and account-entry
- * routes stay available for product review while the rest remains locked.
- */
+/** Serve the public landing page at `/` while keeping account routes available. */
 export function middleware(request: NextRequest) {
   const {pathname, search} = request.nextUrl;
 
@@ -32,19 +27,31 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   if (pathname === "/") {
-    return NextResponse.rewrite(new URL("/landing", request.url));
+    const landingUrl = request.nextUrl.clone();
+    landingUrl.pathname = "/landing";
+    return NextResponse.rewrite(landingUrl);
   }
-  if (isProtectedRoute(pathname) && !hasSessionCookie(request)) {
+  if (pathname === "/landing" || pathname === "/landing/") {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = "/";
+    return NextResponse.redirect(homeUrl, 308);
+  }
+  if (pathname === "/robots.txt" || pathname === "/sitemap.xml") {
+    return NextResponse.next();
+  }
+  const protectedRoute = isProtectedRoute(pathname);
+  if (protectedRoute && !hasSessionCookie(request)) {
     const loginUrl = new URL("/auth/login", request.url);
     loginUrl.searchParams.set("next", `${pathname}${search}`);
-    return NextResponse.redirect(loginUrl);
+    const response = NextResponse.redirect(loginUrl);
+    response.headers.set("X-Robots-Tag", "noindex");
+    return response;
   }
   if (
     Object.hasOwn(legalDocuments, pathname.slice(1)) ||
     pathname === "/attestations/verify" ||
     pathname === "/broker" ||
     pathname.startsWith("/broker/") ||
-    pathname === "/landing" ||
     pathname.startsWith("/landing/") ||
     pathname === "/market" ||
     pathname.startsWith("/market/") ||
@@ -62,7 +69,16 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/admin/") ||
     pathname === "/unauthorized"
   ) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    if (
+      protectedRoute ||
+      pathname === "/auth" ||
+      pathname.startsWith("/auth/") ||
+      pathname === "/unauthorized"
+    ) {
+      response.headers.set("X-Robots-Tag", "noindex");
+    }
+    return response;
   }
   return NextResponse.redirect(new URL("/", request.url));
 }
