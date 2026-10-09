@@ -41,12 +41,6 @@ const PARTNERS = [
   },
 ] as const;
 
-const PLACEHOLDER_POSITIONS = [
-  "left-[3.1%] top-[-634.1%]",
-  "left-[-88.1%] top-[-453.4%]",
-  "left-[-186.7%] top-[-636.4%]",
-] as const;
-
 type Partner = (typeof PARTNERS)[number];
 
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
@@ -104,8 +98,8 @@ function PartnerTile({
 }
 
 /**
- * Confirmed logos replace the first demo tiles. The remaining
- * original tiles stay as placeholders; source details live in docs/partners.md.
+ * Only confirmed partner logos are displayed;
+ * source details live in docs/partners.md.
  */
 export function PartnersSection() {
   const prefersReducedMotion = useReducedMotion();
@@ -164,24 +158,6 @@ export function PartnersSection() {
               partner={partner}
               revealTransition={revealTransition}
             />
-          ))}
-          {PLACEHOLDER_POSITIONS.map((position) => (
-            <motion.li
-              key={position}
-              aria-hidden="true"
-              variants={tilePop}
-              transition={revealTransition}
-              className="relative aspect-[113/44] overflow-hidden rounded-xl border border-border bg-black"
-            >
-              <Image
-                src="/compute-spot/partners-demo.png"
-                alt=""
-                width={658}
-                height={877}
-                unoptimized
-                className={`pointer-events-none absolute h-[996.6%] w-[291.2%] max-w-none select-none ${position}`}
-              />
-            </motion.li>
           ))}
         </motion.ul>
       </div>
