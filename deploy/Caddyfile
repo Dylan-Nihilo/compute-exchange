@@ -1,4 +1,11 @@
 omnisline.com, www.omnisline.com {
+	@wwwPublic {
+		host www.omnisline.com
+		method GET HEAD
+		path / /landing /landing/ /robots.txt /sitemap.xml /terms /privacy /resource-listing-rules /resource-usage-rules
+	}
+	redir @wwwPublic https://omnisline.com{uri} 308
+
 	handle /api/v1/auth/login {
 		respond 404
 	}

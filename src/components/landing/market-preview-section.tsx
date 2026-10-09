@@ -134,6 +134,7 @@ export function MarketPreviewSection() {
         </motion.h2>
 
         <motion.div
+          data-nosnippet=""
           variants={panelReveal}
           initial="hidden"
           whileInView="show"
