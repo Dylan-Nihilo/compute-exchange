@@ -1,7 +1,7 @@
 "use client";
 
-import {useQuery} from "@tanstack/react-query";
-import {Label, ListBox, Select, Skeleton} from "@heroui/react";
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {Button, Label, ListBox, Select, Skeleton} from "@heroui/react";
 import {ReceiptText} from "lucide";
 import {useState} from "react";
 
@@ -11,10 +11,14 @@ import {GlassCard} from "@/components/workspace/ui/glass-card";
 import {ListPagination} from "@/components/workspace/ui/list-pagination";
 import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
 import {formatDateTime} from "@/lib/format/date";
+import {notify} from "@/lib/notify";
 import {
+  fetchSupplierPaymentAccount,
   fetchSupplierSettlements,
   fetchSupplierSettlementSummary,
+  paymentAccountStatusCopy,
   settlementStatusCopy,
+  startSupplierPaymentAccount,
 } from "@/lib/supplier-workspace";
 
 const pageSize = 10;
@@ -30,6 +34,8 @@ const statusOptions = [
   {id: "processing", label: "结算中"},
   {id: "success", label: "已分账"},
   {id: "failed", label: "结算失败"},
+  {id: "cancelled", label: "已取消"},
+  {id: "reversed", label: "已退回"},
 ] as const;
 
 const statusTone: Record<string, string> = {
@@ -37,6 +43,8 @@ const statusTone: Record<string, string> = {
   processing: "bg-[#e3f2fd] text-[#1d63ae]",
   success: "bg-[#e5f7d9] text-[#4c7c0f]",
   failed: "bg-[#fdeaea] text-[#c4392f]",
+  cancelled: "bg-[#edf2f4] text-[#647c88]",
+  reversed: "bg-[#edf2f4] text-[#647c88]",
 };
 
 export default function SupplierSettlementsPage() {
@@ -59,6 +67,8 @@ export default function SupplierSettlementsPage() {
   return (
     <section className="mx-auto flex w-full max-w-[1228px] flex-col gap-5 px-4 pt-6 pb-8 sm:px-6 lg:px-8">
       <WorkspacePageHeader title="结算中心" />
+
+      <PaymentAccountCard />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <GlassCard className="px-5 py-4">
@@ -155,6 +165,9 @@ export default function SupplierSettlementsPage() {
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone[item.status] ?? statusTone.pending}`}>
                           {settlementStatusCopy[item.status] ?? item.status}
                         </span>
+                        {item.status === "failed" && item.fail_reason ? (
+                          <p className="mt-1 truncate text-[11px] text-[#c4392f]" title={item.fail_reason}>{item.fail_reason}</p>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3.5 text-[12px] text-[#78909c]">
                         {formatDateTime(item.created_at)}
@@ -166,7 +179,7 @@ export default function SupplierSettlementsPage() {
             </div>
           ) : (
             <EmptyState
-              description="订单完成分账后, 结算流水会显示在这里。当前分账尚未接入真实支付流水。"
+              description="买家支付成功后生成结算流水, 交付确认且款项清算后经易宝分账到你的收款账户。"
               icon={ReceiptText}
               title="暂无结算记录"
             />
@@ -180,5 +193,49 @@ export default function SupplierSettlementsPage() {
         ) : null}
       </GlassCard>
     </section>
+  );
+}
+
+// 收款账户: 供给方所得经易宝分账直接进入其易宝商户账户, 平台不经手资金。
+function PaymentAccountCard() {
+  const client = useQueryClient();
+  const query = useQuery({queryKey: ["supplier", "payment-account"], queryFn: () => fetchSupplierPaymentAccount()});
+  const start = useMutation({
+    mutationFn: () => startSupplierPaymentAccount(),
+    onSuccess: async (account) => {
+      await client.invalidateQueries({queryKey: ["supplier", "payment-account"]});
+      if (account.netin_url) window.location.assign(account.netin_url);
+      else notify.error("暂未获取到开通链接，请稍后重试或联系平台运营");
+    },
+    onError: (error) => notify.error(error.message),
+  });
+  const account = query.data;
+  const completed = account?.status === "completed";
+  return (
+    <GlassCard className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-[#173447]">易宝收款账户</p>
+          {account ? (
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${completed ? statusTone.success : account.status === "pending" ? statusTone.processing : statusTone.pending}`}>
+              {paymentAccountStatusCopy[account.status]}
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1 text-xs leading-5 text-[#78909c]">
+          {query.isError
+            ? "收款账户状态暂时无法读取。"
+            : completed
+              ? `商户编号 ${account?.merchant_no ?? "—"}。订单交付确认且款项清算后, 你的应得金额将经易宝自动分账至该账户。`
+              : "订单款项由易宝支付托管, 开通易宝收款账户后才能接收分账。开通需提交企业资料并完成易宝审核与签约。"}
+        </p>
+        {account?.audit_opinion && !completed ? <p className="mt-1 text-xs text-[#c4392f]">审核意见：{account.audit_opinion}</p> : null}
+      </div>
+      {account && !completed ? (
+        <Button className="shrink-0" isPending={start.isPending} onPress={() => start.mutate()}>
+          {account.status === "pending" ? "继续开通" : "开通收款账户"}
+        </Button>
+      ) : null}
+    </GlassCard>
   );
 }

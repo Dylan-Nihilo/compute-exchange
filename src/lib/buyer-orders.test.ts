@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {startBuyerOrderPayment} from "./buyer-orders.ts";
+import {fetchBuyerPaymentChannels, startBuyerOrderPayment, syncBuyerOrderPayment} from "./buyer-orders.ts";
 import {fetchBuyerOrderRenewalQuote, renewBuyerOrder} from "./buyer-orders.ts";
 
 test("renewal preserves the accepted quote, consent and retry identity", async () => {
@@ -311,4 +311,23 @@ test("buyer credential stays masked until an explicit reveal", async () => {
   assert.deepEqual(methods, ["GET", "POST"]);
   assert.equal(masked.masked, true);
   assert.equal(revealed.access_value, "secret");
+});
+
+test("syncBuyerOrderPayment reports confirmed payments and tolerates provider failures", async () => {
+  assert.equal(await syncBuyerOrderPayment("ORD20261016abcdef", async (input) => {
+    assert.equal(String(input), "/api/buyer/payment/status/ORD20261016abcdef");
+    return Response.json({code: 0, message: "success", data: [{order_no: "ORD20261016abcdef", status: "paid"}]});
+  }), true);
+  assert.equal(await syncBuyerOrderPayment("ORD20261016abcdef", async () => Response.json({code: 0, message: "success", data: [{order_no: "ORD20261016abcdef", status: "pending"}]})), false);
+  assert.equal(await syncBuyerOrderPayment("ORD20261016abcdef", async () => { throw new Error("offline"); }), false);
+});
+
+test("fetchBuyerPaymentChannels only offers known channels the platform enabled, in a fixed order", async () => {
+  assert.deepEqual(await fetchBuyerPaymentChannels(async (input) => {
+    assert.equal(String(input), "/api/buyer/payment/channels");
+    return Response.json({code: 0, message: "success", data: {channels: ["bank", "unionpay"]}});
+  }), ["bank"]);
+  assert.deepEqual(await fetchBuyerPaymentChannels(async () => Response.json({code: 0, data: {channels: ["bank", "wechat"]}})), ["wechat", "bank"]);
+  assert.deepEqual(await fetchBuyerPaymentChannels(async () => Response.json({code: 0, data: {channels: []}})), []);
+  await assert.rejects(fetchBuyerPaymentChannels(async () => Response.json({code: 40100, message: "请先登录"}, {status: 401})), /请先登录/);
 });

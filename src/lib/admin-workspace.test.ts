@@ -3,6 +3,9 @@ import {describe, it} from "node:test";
 
 import {
   approveQualification,
+  bindAdminMerchant,
+  executeAdminRefund,
+  fetchAdminRefunds,
   fetchAdminProducts,
   fetchAdminQualifications,
   fetchAdminNotices,
@@ -15,6 +18,31 @@ import {
 } from "./admin-workspace.ts";
 
 describe("admin workspace API", () => {
+  it("executes Yeepay refunds and binds supplier merchants through the admin BFF", async () => {
+    const refunds = await fetchAdminRefunds(async (input) => {
+      assert.equal(String(input), "/api/admin/payment/refunds");
+      return Response.json({code: 0, message: "success", data: [{order_no: "ORD001", order_status: "refunding", buyer_id: 2, amount: 13800, payment_status: "paid", refund_status: null, refund_reason: "", paid_at: "2026-10-16T10:00:00+08:00", cleared_at: null, refunded_at: null}]});
+    });
+    assert.equal(refunds[0]?.refund_status, null);
+    const status = await executeAdminRefund("ORD001", " 买家申请退款 ", async (input, init) => {
+      assert.equal(String(input), "/api/admin/payment/refunds/ORD001");
+      assert.equal(init?.method, "POST");
+      assert.deepEqual(JSON.parse(String(init?.body)), {reason: "买家申请退款"});
+      return Response.json({code: 0, message: "success", data: {refund_status: "pending"}});
+    });
+    assert.equal(status, "pending");
+    await assert.rejects(executeAdminRefund("ORD001", "", async () => Response.json({code: 40900, message: "当前订单不可退款"})), /当前订单不可退款/);
+    await bindAdminMerchant(101, " 10089000101 ", async (input, init) => {
+      assert.equal(String(input), "/api/admin/payment/merchants/101");
+      assert.equal(init?.method, "PUT");
+      assert.deepEqual(JSON.parse(String(init?.body)), {merchant_no: "10089000101"});
+      return Response.json({code: 0, message: "success"});
+    });
+    const unreachable = async () => { throw new Error("must validate before calling the backend"); };
+    await assert.rejects(bindAdminMerchant(101, "abc", unreachable), /8-32 位数字/);
+    await assert.rejects(bindAdminMerchant(0, "10089000101", unreachable), /UID/);
+  });
+
   it("loads the selected ticket and preserves conversation participants", async () => {
     const ticket = {id: 1, ticket_no: "WO-20260914-001", buyer_id: 2, order_no: "ORD001", type: "other", title: "问题说明", content: "请核查资源状态", status: "processing", resolved_at: null, closed_at: null, created_at: "2026-09-14T10:00:00+08:00", updated_at: "2026-09-14T10:00:00+08:00"};
     const detail = await fetchAdminTicketDetail(1, async (input) => {

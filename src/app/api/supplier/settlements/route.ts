@@ -2,7 +2,7 @@ import {NextResponse} from "next/server";
 
 import {proxyAuthenticatedBackend} from "@/lib/api/auth-backend";
 
-const settlementStatuses = ["pending", "processing", "success", "failed"] as const;
+const settlementStatuses = ["pending", "processing", "success", "failed", "cancelled", "reversed"] as const;
 
 export function GET(request: Request) {
   const source = new URL(request.url).searchParams;

@@ -12,13 +12,18 @@ import {
   type AdminRiskAlert,
   type AdminLead,
   type AdminOrder,
+  type AdminRefund,
   assignAdminLead,
+  bindAdminMerchant,
+  executeAdminRefund,
   fetchAdminAuditLogs,
   fetchAdminInvoices,
   fetchAdminLeads,
+  fetchAdminMerchants,
   fetchAdminOrders,
   fetchAdminPayments,
   fetchAdminProducts,
+  fetchAdminRefunds,
   fetchAdminRiskAlerts,
   fetchAdminTickets,
   fetchAdminUsers,
@@ -143,24 +148,118 @@ export function AdminOrders() {
         </Modal.Dialog></Modal.Container>
       </Modal.Backdrop>
       <ConfirmDialog open={action !== null} title={action?.status === "frozen" ? "冻结订单" : "关闭订单"} confirmLabel={action?.status === "frozen" ? "冻结订单" : "关闭订单"} isDestructive isPending={mutation.isPending}
-        description={action ? `订单 ${action.order.order_no} ${action.status === "frozen" ? "冻结后，平台访问凭证将失效，资源仍保留占用。" : "关闭后将释放占用资源并使平台访问凭证失效，无法恢复。已支付款项不会自动退款。"}关联的待支付续租订单将一并取消。` : ""}
+        description={action ? `订单 ${action.order.order_no} ${action.status === "frozen" ? "冻结后，平台访问凭证将失效，资源仍保留占用。" : "关闭后将释放占用资源并使平台访问凭证失效，无法恢复。尚未开始租期的已付订单将经易宝原路自动退款；已开始租期的订单不会自动退款，需在「资金与对账」的退款待办中由运营执行。"}关联的待支付续租订单将一并取消。` : ""}
         onCancel={() => setAction(null)} onConfirm={() => {if (action) mutation.mutate(action);}} />
     </AdminPage>
   );
 }
 
+const refundStatusCopy: Record<string, string> = {pending: "排队中", processing: "退款中", success: "已退款", failed: "退款失败"};
+const merchantStatusCopy: Record<string, string> = {
+  COMPLETED: "已开通", INIT: "待提交", WAIT_SIGN: "待签约", REVIEWING: "审核中", REVIEW_BACK: "已驳回",
+  AUTHENTICITY_VERIFYING: "真实性验证中", AGREEMENT_SIGNING: "协议签署中", BUSINESS_OPENING: "业务开通中",
+};
+
 export function AdminFinance() {
+  const client = useQueryClient();
   const invoices = useQuery({queryKey: ["admin", "invoices"], queryFn: () => fetchAdminInvoices({pageSize: 100})});
   const payments = useQuery({queryKey: ["admin", "payments"], queryFn: () => fetchAdminPayments()});
+  const refunds = useQuery({queryKey: ["admin", "payment", "refunds"], queryFn: () => fetchAdminRefunds()});
+  const merchants = useQuery({queryKey: ["admin", "payment", "merchants"], queryFn: () => fetchAdminMerchants()});
+  const [refundTarget, setRefundTarget] = useState<AdminRefund | null>(null);
+  const [refundReason, setRefundReason] = useState("");
+  const refund = useMutation({
+    mutationFn: (item: AdminRefund) => executeAdminRefund(item.order_no, refundReason),
+    onSuccess: async (status) => {
+      await client.invalidateQueries({queryKey: ["admin", "payment", "refunds"]});
+      setRefundTarget(null);
+      setRefundReason("");
+      notify.success(status === "pending" ? "款项尚未清算，已排队，清算后自动提交易宝退款" : "已提交易宝原路退款");
+    },
+    onError: (error) => notify.error(messageFor(error)),
+  });
+  const [bindUserId, setBindUserId] = useState("");
+  const [bindMerchantNo, setBindMerchantNo] = useState("");
+  const bind = useMutation({
+    mutationFn: () => bindAdminMerchant(Number(bindUserId), bindMerchantNo),
+    onSuccess: async () => {
+      await client.invalidateQueries({queryKey: ["admin", "payment", "merchants"]});
+      setBindUserId("");
+      setBindMerchantNo("");
+      notify.success("收款商编已绑定，该供给方的待分账订单将自动分账");
+    },
+    onError: (error) => notify.error(messageFor(error)),
+  });
+  const pendingRefunds = refunds.data?.filter((item) => item.refund_status !== "success").length;
+  const canExecute = (item: AdminRefund) => item.payment_status === "paid" && (item.refund_status === null || item.refund_status === "failed");
+
   return (
-    <AdminPage title="资金与对账" eyebrow="Finance" description="核对开票状态与支付流水。">
-      <div className="grid gap-4 sm:grid-cols-2">
+    <AdminPage title="资金与对账" eyebrow="Finance" description="易宝支付退款处理、供给方收款商编与开票状态。">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <AdminPanel className="px-5 py-4"><p className="text-xs text-[#78909c]">待处理退款</p><p className="mt-2 text-2xl font-semibold text-[#173447]">{pendingRefunds ?? "—"}</p></AdminPanel>
+        <AdminPanel className="px-5 py-4"><p className="text-xs text-[#78909c]">今日支付流水</p><p className="mt-2 text-2xl font-semibold text-[#173447]">{payments.data?.length ?? "—"}</p></AdminPanel>
         <AdminPanel className="px-5 py-4"><p className="text-xs text-[#78909c]">发票申请</p><p className="mt-2 text-2xl font-semibold text-[#173447]">{invoices.data?.total ?? "—"}</p></AdminPanel>
-        <AdminPanel className="px-5 py-4"><p className="text-xs text-[#78909c]">支付流水</p><p className="mt-2 text-2xl font-semibold text-[#173447]">{payments.data?.length ?? "—"}</p></AdminPanel>
       </div>
-      <AdminPanel className="overflow-hidden p-3 sm:p-4"><AdminTableShell {...tableState(invoices, "暂无发票记录", "开票申请会显示在这里。") }>
+
+      <AdminPanel className="overflow-hidden p-3 sm:p-4">
+        <h2 className="px-1 pb-3 text-sm font-semibold text-[#173447]">退款待办</h2>
+        <AdminTableShell {...tableState(refunds, "暂无退款待办", "买家申请退款或交付后关闭的已付订单会显示在这里。") }>
+          {refunds.data?.length ? <table className={adminTableClass}><caption className="sr-only">退款待办</caption>
+            <AdminTableHead><th scope="col">订单</th><th scope="col">买家</th><th scope="col">金额</th><th scope="col">订单状态</th><th scope="col">退款状态</th><th scope="col">清算</th><th scope="col">说明</th><th className="text-right" scope="col">操作</th></AdminTableHead>
+            <tbody>{refunds.data.map((item) => <tr key={item.order_no}>
+              <th className="whitespace-nowrap px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.order_no}</th>
+              <td>UID-{item.buyer_id}</td>
+              <td className="whitespace-nowrap">{money.format(item.amount / 100)}</td>
+              <td><StatusBadge status={item.order_status} /></td>
+              <td>{item.refund_status ? <StatusBadge status={item.refund_status} label={refundStatusCopy[item.refund_status]} /> : <StatusBadge status="pending" label="待运营处理" />}</td>
+              <td className="whitespace-nowrap">{item.cleared_at ? formatDateTime(item.cleared_at) : "未清算"}</td>
+              <td><p className="max-w-48 truncate" title={item.refund_reason}>{item.refund_reason || "—"}</p></td>
+              <td className="text-right">{canExecute(item) ? <Button size="sm" variant="danger-soft" onPress={() => {setRefundTarget(item); setRefundReason(item.refund_reason);}}>{item.refund_status === "failed" ? "重试退款" : "执行退款"}</Button> : null}</td>
+            </tr>)}</tbody>
+          </table> : null}
+        </AdminTableShell>
+      </AdminPanel>
+
+      <AdminPanel className="overflow-hidden p-3 sm:p-4">
+        <h2 className="px-1 pb-1 text-sm font-semibold text-[#173447]">供给方收款商编</h2>
+        <p className="px-1 pb-3 text-xs text-[#78909c]">供给方自助开通或运营绑定易宝商编后，交付确认且清算完成的订单自动分账。商编不能填写平台收单商编。</p>
+        <form className="flex flex-wrap items-end gap-3 px-1 pb-4" onSubmit={(event) => {event.preventDefault(); bind.mutate();}}>
+          <TextField className="w-40" value={bindUserId} onChange={setBindUserId}><Label>供给方 UID</Label><Input inputMode="numeric" placeholder="如 101" /></TextField>
+          <TextField className="w-64" value={bindMerchantNo} onChange={setBindMerchantNo}><Label>易宝商编</Label><Input inputMode="numeric" placeholder="8-32 位数字" /></TextField>
+          <Button type="submit" isPending={bind.isPending} isDisabled={!bindUserId.trim() || !bindMerchantNo.trim()}>绑定商编</Button>
+        </form>
+        <AdminTableShell {...tableState(merchants, "暂无收款商编", "供给方开通或运营绑定后会显示在这里。") }>
+          {merchants.data?.length ? <table className={adminTableClass}><caption className="sr-only">供给方收款商编</caption>
+            <AdminTableHead><th scope="col">供给方</th><th scope="col">商编</th><th scope="col">状态</th><th scope="col">来源</th><th scope="col">审核意见</th><th scope="col">更新时间</th></AdminTableHead>
+            <tbody>{merchants.data.map((item) => <tr key={item.id}>
+              <th className="whitespace-nowrap px-4 py-3.5 font-medium text-[#173447]" scope="row">UID-{item.user_id}</th>
+              <td className="whitespace-nowrap">{item.merchant_no ?? "—"}</td>
+              <td><StatusBadge status={item.application_status === "COMPLETED" ? "success" : "pending"} label={merchantStatusCopy[item.application_status] ?? item.application_status} /></td>
+              <td>{item.bound_by ? `运营绑定 (UID-${item.bound_by})` : "自助开通"}</td>
+              <td><p className="max-w-56 truncate" title={item.audit_opinion}>{item.audit_opinion || "—"}</p></td>
+              <td className="whitespace-nowrap">{formatDateTime(item.updated_at)}</td>
+            </tr>)}</tbody>
+          </table> : null}
+        </AdminTableShell>
+      </AdminPanel>
+
+      <AdminPanel className="overflow-hidden p-3 sm:p-4"><h2 className="px-1 pb-3 text-sm font-semibold text-[#173447]">发票</h2><AdminTableShell {...tableState(invoices, "暂无发票记录", "开票申请会显示在这里。") }>
         {invoices.data?.items.length ? <table className={adminTableClass}><caption className="sr-only">发票记录</caption><AdminTableHead><th scope="col">申请单</th><th scope="col">买家</th><th scope="col">抬头</th><th scope="col">金额</th><th scope="col">状态</th><th scope="col">申请时间</th></AdminTableHead><tbody>{invoices.data.items.map((item) => <tr key={item.id}><th className="px-4 py-3.5 font-medium text-[#173447]" scope="row">{item.invoice_no}</th><td>UID-{item.buyer_id}</td><td>{item.company_name}</td><td>{money.format(item.amount_fen / 100)}</td><td><StatusBadge status={item.status} /></td><td>{formatDateTime(item.applied_at)}</td></tr>)}</tbody></table> : null}
       </AdminTableShell></AdminPanel>
+
+      <Modal.Backdrop isOpen={refundTarget !== null} onOpenChange={(open) => {if (!open && !refund.isPending) setRefundTarget(null);}}>
+        <Modal.Container><Modal.Dialog className="sm:max-w-md">
+          <Modal.Header><Modal.Heading>执行原路退款</Modal.Heading></Modal.Header>
+          <Modal.Body className="space-y-3 text-sm text-[#24495d]">
+            <p>订单 {refundTarget?.order_no} 将全额 {refundTarget ? money.format(refundTarget.amount / 100) : ""} 经易宝原路退回买家。已分账给供给方的部分会从其易宝账户同步退回；供给方余额不足时退款会失败，需联系供给方后重试。</p>
+            <TextField value={refundReason} onChange={setRefundReason}><Label>退款说明</Label><Input maxLength={80} placeholder="如：买家申请退款，运营已核实" /></TextField>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="tertiary" isDisabled={refund.isPending} onPress={() => setRefundTarget(null)}>取消</Button>
+            <Button variant="danger" isPending={refund.isPending} onPress={() => {if (refundTarget) refund.mutate(refundTarget);}}>确认退款</Button>
+          </Modal.Footer>
+        </Modal.Dialog></Modal.Container>
+      </Modal.Backdrop>
     </AdminPage>
   );
 }

@@ -46,6 +46,14 @@ export const settlementStatusCopy: Record<string, string> = {
   processing: "结算中",
   success: "已分账",
   failed: "结算失败",
+  cancelled: "已取消",
+  reversed: "已退回",
+};
+
+export const paymentAccountStatusCopy: Record<string, string> = {
+  not_started: "未开通",
+  pending: "开通中",
+  completed: "已开通",
 };
 
 // ===== Schemas =====
@@ -144,7 +152,17 @@ const settlementSchema = z.object({
   payee_id: z.number().int().nonnegative(),
   amount: z.number().int().nonnegative(),
   status: z.string(),
+  fail_reason: z.string().optional(),
   created_at: z.string(),
+});
+
+// 供给方易宝收款账户(分账接收商编)开通状态。
+const paymentAccountSchema = z.object({
+  status: z.enum(["not_started", "pending", "completed"]),
+  application_status: z.string(),
+  merchant_no: z.string().nullable(),
+  audit_opinion: z.string(),
+  netin_url: z.string().url().refine((value) => new URL(value).protocol === "https:").optional(),
 });
 
 const settlementSummarySchema = z.object({
@@ -238,6 +256,7 @@ export type SupplierProduct = z.infer<typeof productSchema>;
 export type SupplierProductGroup = z.infer<typeof productGroupSchema>;
 export type SupplierOrder = z.infer<typeof supplierOrderSchema>;
 export type SupplierSettlement = z.infer<typeof settlementSchema>;
+export type SupplierPaymentAccount = z.infer<typeof paymentAccountSchema>;
 export type SupplierSettlementSummary = z.infer<typeof settlementSummarySchema>;
 export type SupplierResourceSync = z.infer<typeof resourceSyncSchema>;
 
@@ -395,6 +414,27 @@ export function fetchSupplierSettlements(
       page: data.data?.page ?? 1,
       pageSize: data.data?.page_size ?? 20,
     }));
+}
+
+const paymentAccountEnvelopeSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+  data: paymentAccountSchema.optional(),
+});
+
+async function paymentAccountRequest(init: RequestInit | undefined, fallback: string, fetchImplementation: typeof fetch) {
+  const result = await request("/api/supplier/payment-account", paymentAccountEnvelopeSchema, fallback, {cache: "no-store", ...init}, fetchImplementation);
+  if (!result.data) throw new Error(fallback);
+  return result.data;
+}
+
+export function fetchSupplierPaymentAccount(fetchImplementation: typeof fetch = fetch) {
+  return paymentAccountRequest(undefined, "收款账户状态读取失败", fetchImplementation);
+}
+
+// startSupplierPaymentAccount 获取易宝入网(开通收款商编)链接; 已有申请时复用同一申请单。
+export function startSupplierPaymentAccount(fetchImplementation: typeof fetch = fetch) {
+  return paymentAccountRequest({method: "POST"}, "收款账户开通链接获取失败", fetchImplementation);
 }
 
 export function fetchSupplierSettlementSummary(fetchImplementation: typeof fetch = fetch) {

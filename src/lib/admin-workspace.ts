@@ -164,6 +164,32 @@ const paymentSchema = z.object({
   created_at: z.string().optional(),
 }).passthrough();
 
+// 退款待办: 买家申请退款、交付后被关闭或已进入易宝退款流程的支付。
+const refundSchema = z.object({
+  order_no: z.string(),
+  order_status: z.string(),
+  buyer_id: z.number().int().positive(),
+  amount: z.number().int().nonnegative(),
+  payment_status: z.string(),
+  refund_status: z.enum(["pending", "processing", "success", "failed"]).nullable(),
+  refund_reason: z.string(),
+  paid_at: z.string().nullable(),
+  cleared_at: z.string().nullable(),
+  refunded_at: z.string().nullable(),
+});
+
+// 供给方易宝收款商编(分账接收方)。
+const merchantSchema = z.object({
+  id: z.number().int().positive(),
+  user_id: z.number().int().positive(),
+  merchant_no: z.string().nullable(),
+  application_status: z.string(),
+  audit_opinion: z.string(),
+  bound_by: z.number().int().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
 const configSchema = z.object({
   fee_rate: z.number().int().nonnegative(),
   trading_enabled: z.boolean(),
@@ -205,6 +231,8 @@ export type AdminRiskAlert = z.infer<typeof alertSchema>;
 export type AdminAuditLog = z.infer<typeof auditLogSchema>;
 export type AdminUser = z.infer<typeof userSchema>;
 export type AdminPayment = z.infer<typeof paymentSchema>;
+export type AdminRefund = z.infer<typeof refundSchema>;
+export type AdminMerchant = z.infer<typeof merchantSchema>;
 export type AdminConfig = z.infer<typeof configSchema>;
 export type AdminNotice = z.infer<typeof noticeSchema>;
 
@@ -381,6 +409,41 @@ export function updateAdminTicket(
 export function fetchAdminPayments(fetchImplementation: typeof fetch = fetch) {
   return request("/api/admin/payment/list", listEnvelope(paymentSchema), "支付流水读取失败", undefined, fetchImplementation)
     .then(({data}) => data ?? []);
+}
+
+export function fetchAdminRefunds(fetchImplementation: typeof fetch = fetch) {
+  return request("/api/admin/payment/refunds", listEnvelope(refundSchema), "退款待办读取失败", {cache: "no-store"}, fetchImplementation)
+    .then(({data}) => data ?? []);
+}
+
+// executeAdminRefund 经易宝原路退款; 款项未清算时先排队(pending), 清算后自动提交。
+export async function executeAdminRefund(orderNo: string, reason: string, fetchImplementation: typeof fetch = fetch) {
+  const result = await request(
+    `/api/admin/payment/refunds/${encodeURIComponent(orderNo)}`,
+    envelope(z.object({refund_status: z.enum(["pending", "processing", "success", "failed"])})),
+    "退款提交失败",
+    {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({reason: reason.trim()})},
+    fetchImplementation,
+  );
+  if (!result.data) throw new Error("退款提交失败");
+  return result.data.refund_status;
+}
+
+export function fetchAdminMerchants(fetchImplementation: typeof fetch = fetch) {
+  return request("/api/admin/payment/merchants", listEnvelope(merchantSchema), "收款商编读取失败", {cache: "no-store"}, fetchImplementation)
+    .then(({data}) => data ?? []);
+}
+
+export function isYeepayMerchantNo(value: string) {
+  return /^\d{8,32}$/.test(value.trim());
+}
+
+export function bindAdminMerchant(userId: number, merchantNo: string, fetchImplementation: typeof fetch = fetch) {
+  if (!Number.isInteger(userId) || userId <= 0) return Promise.reject(new Error("请输入有效的供给方 UID"));
+  if (!isYeepayMerchantNo(merchantNo)) return Promise.reject(new Error("易宝商编应为 8-32 位数字"));
+  return action(`/api/admin/payment/merchants/${userId}`, "商编绑定失败", {
+    method: "PUT", headers: {"content-type": "application/json"}, body: JSON.stringify({merchant_no: merchantNo.trim()}),
+  }, fetchImplementation);
 }
 
 export function fetchAdminLeads(query: FetchPage = {}, fetchImplementation: typeof fetch = fetch) {

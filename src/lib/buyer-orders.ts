@@ -378,7 +378,26 @@ const paymentEnvelopeSchema = z.object({
   data: z.object({pay_url: z.string().url().refine((value) => new URL(value).protocol === "https:"), tx_id: z.string().min(1)}).optional(),
 });
 
-export async function startBuyerOrderPayment(orderNo: string, channel: "wechat" | "alipay" | "bank", fetchImplementation: typeof fetch = fetch) {
+export const buyerPaymentChannels = ["wechat", "alipay", "bank"] as const;
+export type BuyerPaymentChannel = (typeof buyerPaymentChannels)[number];
+export const buyerPaymentChannelCopy: Record<BuyerPaymentChannel, string> = {wechat: "微信支付", alipay: "支付宝", bank: "网银/银行卡"};
+
+const paymentChannelsEnvelopeSchema = z.object({
+  code: z.number(), message: z.string().optional(),
+  data: z.object({channels: z.array(z.string())}).optional(),
+});
+
+// fetchBuyerPaymentChannels 只展示平台在易宝已开通的支付方式; 未知值直接丢弃。
+export async function fetchBuyerPaymentChannels(fetchImplementation: typeof fetch = fetch): Promise<BuyerPaymentChannel[]> {
+  const response = await fetchImplementation("/api/buyer/payment/channels", {cache: "no-store"});
+  const parsed = paymentChannelsEnvelopeSchema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) throw new Error("支付服务返回格式错误");
+  if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) throw new Error(parsed.data.message || "支付方式加载失败");
+  const enabled = new Set(parsed.data.data.channels);
+  return buyerPaymentChannels.filter((channel) => enabled.has(channel));
+}
+
+export async function startBuyerOrderPayment(orderNo: string, channel: BuyerPaymentChannel, fetchImplementation: typeof fetch = fetch) {
   const response = await fetchImplementation("/api/buyer/payment/pay", {
     method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({order_no: orderNo, channel}),
   });
@@ -387,6 +406,24 @@ export async function startBuyerOrderPayment(orderNo: string, channel: "wechat" 
   if (parsed.data.code === 50000) throw new Error("在线支付暂不可用，请稍后重试或联系平台");
   if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) throw new Error(parsed.data.message || "支付发起失败");
   return parsed.data.data;
+}
+
+const paymentStatusEnvelopeSchema = z.object({
+  code: z.number(), message: z.string().optional(),
+  data: z.array(z.object({order_no: z.string(), status: z.string()})).nullable().optional(),
+});
+
+// syncBuyerOrderPayment 从收银台返回后主动核对支付结果(后端会向易宝查询一次), 不必等异步通知。
+// 返回是否已确认收款; 查询失败时返回 false, 由订单轮询继续等待通知。
+export async function syncBuyerOrderPayment(orderNo: string, fetchImplementation: typeof fetch = fetch) {
+  try {
+    const response = await fetchImplementation(`/api/buyer/payment/status/${encodeURIComponent(orderNo)}`, {cache: "no-store"});
+    const parsed = paymentStatusEnvelopeSchema.safeParse(await response.json().catch(() => null));
+    if (!response.ok || !parsed.success || parsed.data.code !== 0) return false;
+    return (parsed.data.data ?? []).some((payment) => payment.status === "paid");
+  } catch {
+    return false;
+  }
 }
 
 export function summarizeBuyerOrders(

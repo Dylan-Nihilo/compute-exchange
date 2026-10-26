@@ -13,16 +13,20 @@ import {ErrorState} from "@/components/system/operation-state";
 import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {
   buyerOrderStatusCopy,
+  buyerPaymentChannelCopy,
   confirmBuyerOrder,
   cancelBuyerOrder,
   refundBuyerOrder,
   fetchBuyerOrderCredential,
   fetchBuyerOrderDetail,
+  fetchBuyerPaymentChannels,
   isBuyerOrderNo,
   revealBuyerOrderCredential,
   startBuyerOrderPayment,
+  syncBuyerOrderPayment,
   type BuyerOrderAccessCredential,
   type BuyerOrderDetail,
+  type BuyerPaymentChannel,
 } from "@/lib/buyer-orders";
 import {formatDateTime} from "@/lib/format/date";
 import {notify} from "@/lib/notify";
@@ -51,7 +55,12 @@ export default function BuyerOrderDetailPage() {
   const orderQuery = useQuery({
     enabled: validOrderNo,
     queryKey: ["buyer", "orders", "detail", orderId],
-    queryFn: () => fetchBuyerOrderDetail(orderId),
+    queryFn: async () => {
+      const detail = await fetchBuyerOrderDetail(orderId);
+      // 从易宝收银台返回时支付通知可能尚未送达: 主动核对一次, 已收款则重新读取订单。
+      if (detail.order.status === "pending_payment" && await syncBuyerOrderPayment(orderId)) return fetchBuyerOrderDetail(orderId);
+      return detail;
+    },
     refetchInterval: (query) => (query.state.data?.pending_renewal_order_no || ["pending_payment", "paid", "provisioning"].includes(query.state.data?.order.status ?? "")) ? 5000 : false,
   });
 
@@ -119,9 +128,14 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
     },
     onError: (error) => notify.error(error.message),
   });
-  const [paymentChannel, setPaymentChannel] = useState<"wechat" | "alipay" | "bank">("wechat");
+  const channels = useQuery({
+    queryKey: ["buyer", "payment-channels"], queryFn: () => fetchBuyerPaymentChannels(),
+    enabled: order.status === "pending_payment", staleTime: 5 * 60_000,
+  });
+  const [selectedChannel, setSelectedChannel] = useState<BuyerPaymentChannel | null>(null);
+  const paymentChannel = selectedChannel ?? channels.data?.[0] ?? null;
   const payment = useMutation({
-    mutationFn: () => startBuyerOrderPayment(order.order_no, paymentChannel),
+    mutationFn: () => startBuyerOrderPayment(order.order_no, paymentChannel!),
     onSuccess: ({pay_url}) => window.location.assign(pay_url),
   });
   const paymentExpired = !order.payment_expires_at || new Date(order.payment_expires_at).getTime() <= Date.now();
@@ -184,18 +198,21 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
         <section className={`${cardClass} mt-4 px-5 py-4`}>
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm text-[#173447]">支付方式
-              <select className="ml-3 rounded-lg border border-[#afc4ce] bg-white px-3 py-2" value={paymentChannel}
-                disabled={payment.isPending || paymentExpired}
-                onChange={(event) => setPaymentChannel(event.target.value as typeof paymentChannel)}>
-                <option value="wechat">微信支付</option><option value="alipay">支付宝</option><option value="bank">银行卡</option>
+              <select className="ml-3 rounded-lg border border-[#afc4ce] bg-white px-3 py-2" value={paymentChannel ?? ""}
+                disabled={payment.isPending || paymentExpired || !paymentChannel}
+                onChange={(event) => setSelectedChannel(event.target.value as BuyerPaymentChannel)}>
+                {channels.data?.length ? channels.data.map((channel) => <option key={channel} value={channel}>{buyerPaymentChannelCopy[channel]}</option>)
+                  : <option value="">{channels.isPending ? "加载中…" : "暂无可用支付方式"}</option>}
               </select>
             </label>
-            <Button isDisabled={paymentExpired} isPending={payment.isPending} onPress={() => payment.mutate()}>
+            <Button isDisabled={paymentExpired || !paymentChannel} isPending={payment.isPending} onPress={() => payment.mutate()}>
               {paymentExpired ? "支付已超时" : "前往支付"}
             </Button>
             <Button variant="outline" isDisabled={payment.isPending} onPress={() => setOrderAction("cancel")}>取消订单</Button>
           </div>
           {payment.isError ? <p className="mt-3 text-sm text-danger" role="alert">{payment.error.message}</p> : null}
+          {channels.isError ? <p className="mt-3 text-sm text-danger" role="alert">{channels.error.message}</p> : null}
+          {channels.isSuccess && channels.data.length === 0 ? <p className="mt-3 text-sm text-[#7b929e]">在线支付暂未开通，请联系平台客服完成付款。</p> : null}
         </section>
       ) : null}
 

@@ -12,6 +12,8 @@ import {
   isSupplierOrderStatusFilter,
   fetchSupplierSettlements,
   fetchSupplierSettlementSummary,
+  fetchSupplierPaymentAccount,
+  startSupplierPaymentAccount,
   submitPassiveResourceSync,
   submitQualification,
 } from "./supplier-workspace.ts";
@@ -225,4 +227,21 @@ test("qualification expiry status follows server calendar days and preserves rev
     expires_in_days: days, superseded: i >= 8, status, created_at: "2026-08-25T10:00:00Z",
   }))}));
   assert.deepEqual(list.map((q) => q.status), cases.map((c) => c[2]));
+});
+
+test("supplier payment account reads status and only accepts https onboarding links", async () => {
+  const account = await fetchSupplierPaymentAccount(async (input, init) => {
+    assert.equal(String(input), "/api/supplier/payment-account");
+    assert.equal(init?.method, undefined);
+    return Response.json({code: 0, message: "success", data: {status: "completed", application_status: "COMPLETED", merchant_no: "10089000101", audit_opinion: ""}});
+  });
+  assert.equal(account.merchant_no, "10089000101");
+  const started = await startSupplierPaymentAccount(async (_input, init) => {
+    assert.equal(init?.method, "POST");
+    return Response.json({code: 0, message: "success", data: {status: "pending", application_status: "WAIT_SIGN", merchant_no: null, audit_opinion: "", netin_url: "https://netin.yeepay.com/h5?token=1"}});
+  });
+  assert.equal(started.netin_url, "https://netin.yeepay.com/h5?token=1");
+  await assert.rejects(startSupplierPaymentAccount(async () =>
+    Response.json({code: 0, message: "success", data: {status: "pending", application_status: "WAIT_SIGN", merchant_no: null, audit_opinion: "", netin_url: "javascript:alert(1)"}})), /返回格式错误/);
+  await assert.rejects(startSupplierPaymentAccount(async () => Response.json({code: 50000, message: "易宝支付未接入"})), /易宝支付未接入/);
 });
