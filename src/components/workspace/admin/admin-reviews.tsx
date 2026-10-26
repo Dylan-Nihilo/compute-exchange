@@ -449,6 +449,12 @@ function ProductDetailDrawer({
                     <ProductDetailRow label="GPU 型号" value={product.gpu_model || "—"} />
                     {product.product_type === "card_rental" ? <ProductDetailRow label="卡数" value={`${product.card_count} 张`} /> : null}
                     {product.machine_count ? <ProductDetailRow label="机器数量" value={`${product.machine_count} 台`} /> : null}
+                    {product.product_type === "outright" || product.product_type === "center" ? (
+                      <ProductDetailRow
+                        label="每台卡数"
+                        value={product.card_count > 0 && product.machine_count && product.card_count % product.machine_count === 0 ? `${product.card_count / product.machine_count} 张（共 ${product.card_count} 张）` : "未填写，需驳回补全"}
+                      />
+                    ) : null}
                     {product.total_pflops_approx ? <ProductDetailRow label="总算力" value={`${product.total_pflops_approx} PFLOPS`} /> : null}
                     {product.power_capacity_kw ? <ProductDetailRow label="电力容量" value={`${product.power_capacity_kw} kW`} /> : null}
                     {product.rack_count ? <ProductDetailRow label="机柜数量" value={`${product.rack_count} 个`} /> : null}

@@ -112,6 +112,14 @@ type ProductForm = {
 
 type FormErrors = Partial<Record<keyof ProductForm, string>>;
 
+// 买断/算力中心表单里填每台卡数; 早期商品没有卡数时留空让供给方补全。
+function initialCardCount(product?: SupplierProduct) {
+  if (!product?.card_count) return "";
+  if (product.product_type !== "outright" && product.product_type !== "center") return String(product.card_count);
+  const machines = product.machine_count ?? 0;
+  return machines > 0 && product.card_count % machines === 0 ? String(product.card_count / machines) : "";
+}
+
 export function SupplierProductForm({product, category}: {product?: SupplierProduct; category?: "center" | "colocation"}) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -122,7 +130,7 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
   const returnPath = initialType === "center" ? "/console/supplier/centers" : initialType === "colocation" ? "/console/supplier/colocation" : "/console/supplier/products";
   const title = initialType === "center" ? "发布算力中心" : initialType === "colocation" ? "登记空心机房" : "发布算力";
   const [form, setForm] = useState<ProductForm>(() => ({
-    gpuModel: product?.gpu_model ?? "", cardCount: String(product?.card_count || ""),
+    gpuModel: product?.gpu_model ?? "", cardCount: initialCardCount(product),
     machineCount: String(product?.machine_count ?? ""), totalPflops: product?.total_pflops_approx ?? "",
     powerCapacityKw: String(product?.power_capacity_kw ?? ""), rackCount: String(product?.rack_count ?? ""),
     cpuSpec: product?.cpu_spec ?? "", memorySpec: product?.memory_spec ?? "",
@@ -175,8 +183,10 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
     const nextErrors: FormErrors = {};
 
     if (!isColocation && !form.gpuModel.trim()) nextErrors.gpuModel = "请选择 GPU 型号";
+    const perMachine = productType === "outright" || productType === "center";
     if (productType === "card_rental" && int(form.cardCount) <= 0) nextErrors.cardCount = "请输入大于 0 的卡数";
-    if ((productType === "outright" || productType === "center") && int(form.machineCount) <= 0) nextErrors.machineCount = "请输入大于 0 的台数";
+    if (perMachine && int(form.cardCount) <= 0) nextErrors.cardCount = "请输入大于 0 的每台卡数";
+    if (perMachine && int(form.machineCount) <= 0) nextErrors.machineCount = "请输入大于 0 的台数";
     if (productType === "center" && !form.totalPflops.trim()) nextErrors.totalPflops = "请输入中心约算力";
     if (isColocation && int(form.powerCapacityKw) <= 0) nextErrors.powerCapacityKw = "请输入电力容量";
     if (isColocation && int(form.rackCount) <= 0) nextErrors.rackCount = "请输入机柜数";
@@ -195,7 +205,8 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
     createMutation.mutate({
       product_type: productType,
       gpu_model: form.gpuModel.trim() || undefined,
-      card_count: int(form.cardCount) || undefined,
+      // 买断/算力中心填的是每台卡数, 后端存总卡数。
+      card_count: (perMachine ? int(form.cardCount) * int(form.machineCount) : int(form.cardCount)) || undefined,
       machine_count: int(form.machineCount) || undefined,
       total_pflops_approx: form.totalPflops.trim() || undefined,
       power_capacity_kw: int(form.powerCapacityKw) || undefined,
@@ -219,7 +230,7 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
 
   const pricing = pricingByType[productType] ?? [];
   const showGpu = productType !== "colocation";
-  const showCard = productType === "card_rental";
+  const showCard = productType !== "colocation";
   const showMachine = productType === "outright" || productType === "center";
   const showPflops = productType === "center";
   const showColocation = productType === "colocation";
@@ -281,7 +292,7 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
             <PresetField
               error={errors.cardCount}
               id="product-cardCount"
-              label="卡数 *"
+              label={productType === "card_rental" ? "卡数 *" : "每台卡数 *"}
               onChange={(value) => set("cardCount", value)}
               options={cardCountOptions}
               placeholder="填写卡数"
