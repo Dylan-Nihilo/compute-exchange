@@ -25,11 +25,14 @@ const fieldInputClass = (error?: string) =>
 
 export function ManagedProductFields({
   deliveryMode,
+  derivedStock,
   errors,
   onChange,
   state,
 }: {
   deliveryMode: string;
+  // Present only when editing an existing managed product; stock is read-only (docs/26 §26.6).
+  derivedStock?: {maxFreePerNode?: number | null; stock: number};
   errors: ManagedErrors;
   onChange: (next: ManagedProductState) => void;
   state: ManagedProductState;
@@ -172,9 +175,18 @@ export function ManagedProductFields({
         <p className="text-xs text-[#5e7786]">裸金属交付按整机出租，买家不可分卡。</p>
       )}
 
-      <p className="rounded-xl border border-[#dce9ee] bg-white/45 px-4 py-3 text-xs leading-5 text-[#5e7786]">
-        托管商品的可售库存由平台按探活通过节点的空闲卡自动计算；上架审核需要至少一台关联本商品且探活通过的节点（在「节点管理」中接入）。
-      </p>
+      <div className="rounded-xl border border-[#dce9ee] bg-white/45 px-4 py-3 text-xs leading-5 text-[#5e7786]">
+        {derivedStock ? (
+          <p className="mb-1 text-[13px] text-[#24495d]">
+            当前可售 <span className="font-semibold tabular-nums">{derivedStock.stock}</span> 卡
+            {derivedStock.maxFreePerNode != null ? `，单机最多可租 ${derivedStock.maxFreePerNode} 卡` : ""}
+            （只读）
+          </p>
+        ) : null}
+        <p>
+          托管商品的可售库存由平台按探活通过节点的空闲卡自动计算，不能手动修改；上架审核需要至少一台关联本商品且探活通过的节点（在「节点管理」中接入）。
+        </p>
+      </div>
     </div>
   );
 }

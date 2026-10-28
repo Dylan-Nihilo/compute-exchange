@@ -14,6 +14,7 @@ import {
 import {useEffect, useState} from "react";
 
 import {
+  isManagedProduct,
   productTypeCopy,
   type SubmitResourceSyncInput,
   type SupplierProduct,
@@ -44,6 +45,9 @@ export function ReportStockModal({
   const [stockAfter, setStockAfter] = useState("");
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  // Managed listings derive stock from verified node slots; the backend rejects manual reports (docs/26 §26.6).
+  const reportable = products.filter((product) => !isManagedProduct(product));
+  const managedCount = products.length - reportable.length;
 
   useEffect(() => {
     if (open) {
@@ -56,14 +60,14 @@ export function ReportStockModal({
 
   const selectProduct = (value: string) => {
     setProductId(value);
-    const product = products.find((item) => String(item.id) === value);
+    const product = reportable.find((item) => String(item.id) === value);
     // Prefill with the platform stock so the reporter only edits when it differs.
     if (product) setStockAfter(String(product.stock));
   };
 
   const submit = () => {
     const nextErrors: Partial<Record<FieldKey, string>> = {};
-    const product = products.find((item) => String(item.id) === productId);
+    const product = reportable.find((item) => String(item.id) === productId);
     if (!product) nextErrors.productId = "请选择要上报的商品";
     const stock = Number(stockAfter);
     if (!/^\d+$/.test(stockAfter.trim()) || !Number.isSafeInteger(stock)) {
@@ -105,7 +109,7 @@ export function ReportStockModal({
                   </Select.Trigger>
                   <Select.Popover>
                     <ListBox>
-                      {products.map((product) => {
+                      {reportable.map((product) => {
                         const model = (product.gpu_model || "算力资源").replace(/^NVIDIA\s+/i, "");
                         const type = productTypeCopy[product.product_type] ?? product.product_type;
                         return (
@@ -123,6 +127,11 @@ export function ReportStockModal({
                 </Select>
                 {errors.productId ? (
                   <p className="text-xs text-[#c4392f]" role="alert">{errors.productId}</p>
+                ) : null}
+                {managedCount > 0 ? (
+                  <p className="text-xs leading-5 text-[#5e7786]">
+                    已隐藏 {managedCount} 个平台托管商品：托管商品库存由平台按卡槽自动计算，无需上报。
+                  </p>
                 ) : null}
               </div>
               <TextField

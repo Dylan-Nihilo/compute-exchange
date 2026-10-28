@@ -9,6 +9,8 @@ import {
   fetchMyQualifications,
   fetchResourceSyncs,
   fetchSupplierOrders,
+  isManagedOrder,
+  isManagedProduct,
   isSupplierOrderStatusFilter,
   fetchSupplierSettlements,
   fetchSupplierSettlementSummary,
@@ -85,6 +87,31 @@ test("createProduct posts and returns id; backend validation errors surface", as
     ),
     /不适用于该商品类型/,
   );
+});
+
+test("createProduct surfaces price warnings as strings and tolerates odd shapes", async () => {
+  const input = {product_type: "card_rental", pricing_mode: "hourly", price_negotiable: false, stock: 0, region: "北京", compliance_agreed: true};
+  const strings = await createProduct(input, async () =>
+    Response.json({code: 0, message: "success", data: {id: 8, warnings: ["日价高于 24 小时价"]}}));
+  assert.deepEqual(strings.data?.warnings, ["日价高于 24 小时价"]);
+
+  const objects = await createProduct(input, async () =>
+    Response.json({code: 0, message: "success", data: {id: 9, warnings: [{code: "daily_gt_hourly", message: "日价高于 24 小时价"}]}}));
+  assert.deepEqual(objects.data?.warnings, ["日价高于 24 小时价"]);
+
+  const malformed = await createProduct(input, async () =>
+    Response.json({code: 0, message: "success", data: {id: 10, warnings: [42]}}));
+  assert.equal(malformed.data?.id, 10);
+  assert.equal(malformed.data?.warnings, null);
+});
+
+test("isManagedProduct and isManagedOrder only trust an explicit managed field", () => {
+  assert.equal(isManagedProduct({fulfillment_mode: "managed"}), true);
+  assert.equal(isManagedProduct({fulfillment_mode: "manual"}), false);
+  assert.equal(isManagedProduct({}), false);
+  assert.equal(isManagedProduct(undefined), false);
+  assert.equal(isManagedOrder({fulfillment_mode: "managed"}), true);
+  assert.equal(isManagedOrder({}), false);
 });
 
 test("fetchSupplierOrders forwards filters and parses page", async () => {

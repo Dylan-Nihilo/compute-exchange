@@ -6,6 +6,7 @@ import {ErrorState} from "@/components/system/operation-state";
 import {EmptyState} from "@/components/workspace/ui/empty-state";
 import {GlassCard} from "@/components/workspace/ui/glass-card";
 import {ListPagination} from "@/components/workspace/ui/list-pagination";
+import {ManagedStockCard} from "@/components/workspace/supplier/managed-stock-card";
 import {formatDate, formatDateTime} from "@/lib/format/date";
 import {
   productTypeCopy,
@@ -136,6 +137,8 @@ export function SupplierInventoryView({
           </div>
         ))}
       </div>
+
+      <ManagedStockCard products={products} />
 
       <GlassCard className="px-5 py-5 sm:px-6">
         <div className="flex items-center gap-2.5">

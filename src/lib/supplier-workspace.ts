@@ -153,6 +153,9 @@ const supplierOrderSchema = z.object({
   gpu_model: z.string().optional(),
   product_type: z.string().optional(),
   pricing_mode: z.string().optional(),
+  // v1.2 (docs/25 §25.7.6): absent on legacy backends, which keeps the manual-mode UX.
+  fulfillment_mode: fulfillmentModeSchema.optional(),
+  settle_ready_at: z.string().nullable().optional(),
 });
 
 const settlementSchema = z.object({
@@ -249,8 +252,13 @@ const createProductEnvelopeSchema = z.object({
   message: z.string(),
   data: z.object({
     id: z.number().int(),
-    // v1.2: non-blocking price inversion hints (docs/26 §26.3.2).
-    warnings: z.array(z.string()).nullable().optional(),
+    // v1.2: non-blocking price inversion hints (docs/26 §26.3.2). The element shape is not pinned
+    // in the doc, so accept plain strings or {message} objects; a malformed hint never fails a
+    // submit that the backend already accepted.
+    warnings: z.array(z.union([
+      z.string(),
+      z.object({message: z.string()}).passthrough().transform((warning) => warning.message),
+    ])).nullable().optional().catch(null),
   }).optional(),
 });
 
@@ -274,6 +282,15 @@ export type SupplierSettlement = z.infer<typeof settlementSchema>;
 export type SupplierPaymentAccount = z.infer<typeof paymentAccountSchema>;
 export type SupplierSettlementSummary = z.infer<typeof settlementSummarySchema>;
 export type SupplierResourceSync = z.infer<typeof resourceSyncSchema>;
+
+// Managed (platform-fulfilled) listings and orders; only an explicit backend field turns this on.
+export function isManagedProduct(product: Pick<SupplierProduct, "fulfillment_mode"> | undefined) {
+  return product?.fulfillment_mode === "managed";
+}
+
+export function isManagedOrder(order: Pick<SupplierOrder, "fulfillment_mode"> | undefined) {
+  return order?.fulfillment_mode === "managed";
+}
 
 export type CreateProductInput = {
   product_type: string;

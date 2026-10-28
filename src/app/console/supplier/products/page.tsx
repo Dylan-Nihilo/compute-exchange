@@ -8,9 +8,11 @@ import {ErrorState} from "@/components/system/operation-state";
 import {EmptyState} from "@/components/workspace/ui/empty-state";
 import {GlassCard} from "@/components/workspace/ui/glass-card";
 import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
+import {enabledRentalPrices, rentalPricingModeLabels} from "@/lib/flexible-pricing";
 import {notify} from "@/lib/notify";
 import {
   fetchMyProductGroups,
+  isManagedProduct,
   offlineMyProduct,
   pricingModeCopy,
   productStatusCopy,
@@ -22,6 +24,13 @@ const money = new Intl.NumberFormat("zh-CN", {
   minimumFractionDigits: 2,
   style: "currency",
 });
+
+// v1.2 listings may enable several rental periods (docs/26 §26.9 `prices[]`); legacy rows fall back to pricing_mode.
+function pricingLabel(product: {pricing_mode: string; prices?: Parameters<typeof enabledRentalPrices>[0]}) {
+  const enabled = enabledRentalPrices(product.prices);
+  if (enabled.length > 1) return enabled.map((price) => rentalPricingModeLabels[price.pricingMode]).join(" / ");
+  return pricingModeCopy[product.pricing_mode] ?? product.pricing_mode;
+}
 
 const statusTone: Record<string, string> = {
   draft: "bg-[#edf1f3] text-[#78909c]",
@@ -146,18 +155,22 @@ export default function SupplierProductsPage() {
                           {product.card_count > 0 ? `${product.card_count} 卡` : ""}
                           {product.machine_count ? `${product.machine_count} 台` : ""}
                           {product.total_pflops_approx ? ` · ${product.total_pflops_approx}` : ""}
+                          {isManagedProduct(product) ? " · 平台托管" : ""}
                         </p>
                       </th>
                       <td className="px-4 py-3.5 text-[13px] text-[#24495d]">
                         {productTypeCopy[product.product_type] ?? product.product_type}
                       </td>
                       <td className="px-4 py-3.5 text-[13px] text-[#24495d]">
-                        {pricingModeCopy[product.pricing_mode] ?? product.pricing_mode}
+                        {pricingLabel(product)}
                       </td>
                       <td className="px-4 py-3.5 text-[13px] font-semibold text-[#173447]">
                         {product.price_negotiable ? "面议" : money.format(product.unit_price / 100)}
                       </td>
-                      <td className="px-4 py-3.5 text-[13px] text-[#24495d]">{product.stock}</td>
+                      <td className="px-4 py-3.5 text-[13px] text-[#24495d]">
+                        {product.stock}
+                        {isManagedProduct(product) ? <span className="ml-1 text-[11px] text-[#8aa0ab]">自动</span> : null}
+                      </td>
                       <td className="px-4 py-3.5">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone[product.status] ?? statusTone.draft}`}>
                           {productStatusCopy[product.status] ?? product.status}

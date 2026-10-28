@@ -29,6 +29,7 @@ import {notify} from "@/lib/notify";
 import {createProduct, resubmitProduct, type SupplierProduct, type CreateProductInput} from "@/lib/supplier-workspace";
 
 import {ManagedProductFields} from "./managed-product-fields";
+import {SubmittedWarnings} from "./submitted-warnings";
 
 const inputClass = (error?: string) =>
   `h-11 w-full rounded-xl border bg-white/80 px-3.5 text-sm text-[#24495d] outline-none placeholder:text-[#9cb0ba] focus-visible:ring-2 focus-visible:ring-[#5f8fa3]/25 focus-visible:ring-offset-1 ${
@@ -153,14 +154,23 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
   const [managedState, setManagedState] = useState<ManagedProductState>(() => initialManagedState(product));
   const [managedErrors, setManagedErrors] = useState<ManagedErrors>({});
   const managed = productType === "card_rental" && managedState.fulfillmentMode === "managed";
+  // Editing a product from a backend without v1.2 fields keeps the legacy manual-only form.
+  const showFulfillmentChoice = productType === "card_rental" && (!product || product.fulfillment_mode !== undefined);
+  // Price inversion hints (docs/26 §26.3.2) stay on the publish page until the supplier leaves.
+  const [submittedWarnings, setSubmittedWarnings] = useState<string[] | null>(null);
 
   const createMutation = useMutation({
     mutationFn: (input: CreateProductInput) => product ? resubmitProduct(product.id, input) : createProduct(input),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({queryKey: ["supplier", "products"]});
       notify.success("商品已提交, 等待平台审核上架");
-      for (const warning of result.data?.warnings ?? []) notify.warning(warning);
-      router.push(returnPath);
+      const warnings = (result.data?.warnings ?? []).filter(Boolean);
+      if (warnings.length === 0) {
+        router.push(returnPath);
+        return;
+      }
+      setSubmittedWarnings(warnings);
+      window.scrollTo({behavior: "smooth", top: 0});
     },
     onError: (error) =>
       notify.error(error instanceof Error ? error.message : "商品发布失败"),
@@ -277,6 +287,10 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
         title={product ? "修改算力商品" : title}
       />
 
+      {submittedWarnings ? (
+        <SubmittedWarnings onDone={() => router.push(returnPath)} warnings={submittedWarnings} />
+      ) : null}
+
       {product?.rejected_reason ? (
         <p className="rounded-xl border border-[#ecc9c6] bg-[#fff8f7] px-4 py-3 text-sm text-[#b63b35]">驳回原因：{product.rejected_reason}</p>
       ) : null}
@@ -304,7 +318,7 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
         <p className="mt-2.5 text-xs text-[#5e7786]">{typeOptions.find((option) => option.id === productType)?.hint}</p>
       </fieldset>
 
-      {productType === "card_rental" ? (
+      {showFulfillmentChoice ? (
         <fieldset className="min-w-0">
           <legend className="mb-3 text-[13px] font-medium text-[#24495d]">履约方式</legend>
           <div className="flex flex-wrap gap-2">
@@ -423,6 +437,9 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
           <div className="mt-4">
             <ManagedProductFields
               deliveryMode={form.deliveryMode}
+              derivedStock={product?.fulfillment_mode === "managed"
+                ? {maxFreePerNode: product.max_free_per_node, stock: product.stock}
+                : undefined}
               errors={managedErrors}
               onChange={(next) => {
                 setManagedState(next);
@@ -520,7 +537,7 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
             <Button onPress={() => router.push(returnPath)} variant="tertiary">
               取消
             </Button>
-            <Button isPending={createMutation.isPending} onPress={submit} variant="primary">
+            <Button isDisabled={submittedWarnings !== null} isPending={createMutation.isPending} onPress={submit} variant="primary">
               <InteractiveIcon icon={SendHorizontal} size={16} />
               {createMutation.isPending ? "正在提交" : product ? "重新提交审核" : "提交审核"}
             </Button>
