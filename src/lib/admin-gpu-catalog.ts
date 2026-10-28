@@ -2,7 +2,13 @@ import {z} from "zod";
 import {createApiClient} from "./api/client.ts";
 import {gpuCatalogItemSchema} from "./gpu-catalog.ts";
 
-const itemSchema = gpuCatalogItemSchema.extend({spec_source: z.string().nullable().optional(), updated_at: z.string()});
+// probe_baseline_tflops (migration 026): measured single-card FP16 baseline for managed probe P13; null = not calibrated.
+const probeBaseline = z.number().positive("探针实测基准须为正数").max(9999999.9).nullable();
+const itemSchema = gpuCatalogItemSchema.extend({
+  spec_source: z.string().nullable().optional(),
+  probe_baseline_tflops: probeBaseline,
+  updated_at: z.string(),
+});
 const inputSchema = gpuCatalogItemSchema.omit({id: true}).extend({
   vendor: z.string().trim().min(1).max(32),
   model_name: z.string().trim().min(1).max(64),
@@ -12,6 +18,8 @@ const inputSchema = gpuCatalogItemSchema.omit({id: true}).extend({
   interconnect: z.string().max(32).nullable(),
   spec_source: z.string().max(255).nullable(),
   sort_weight: z.number().int().min(-2147483648).max(2147483647),
+  // PUT is a full replacement: omitting this would reset it to null (gpu-catalog-api.md), so the form always sends it.
+  probe_baseline_tflops: probeBaseline,
   // Empty means "not filled": deployments on this model are then judged undeterminable (docs/27 §27.2).
   compute_capability: z.string().regex(/^\d{1,2}\.\d$/, "计算能力格式应为 主版本.次版本，如 8.9").nullable().optional(),
 });
@@ -31,6 +39,7 @@ export function gpuModelFromForm(form: FormData): GpuModelInput {
     interconnect: text("interconnect") || null, spec_source: text("spec_source") || null,
     secure_certified: form.has("secure_certified"), status: form.has("enabled") ? "enabled" : "disabled", sort_weight: Number(text("sort_weight") || "0"),
     compute_capability: text("compute_capability") || null,
+    probe_baseline_tflops: number("probe_baseline_tflops"),
   });
 }
 

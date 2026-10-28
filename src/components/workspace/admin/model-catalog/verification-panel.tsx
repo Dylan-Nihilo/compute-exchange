@@ -30,7 +30,6 @@ export function VerificationPanel({entry, onClose}: {entry: AdminCatalogEntry; o
               <h3 className="mb-2 text-sm font-semibold">已录入记录</h3>
               {detail.isPending ? <p className="text-sm text-muted">正在读取…</p> : null}
               {detail.isError ? <p className="text-sm text-danger" role="alert">{detail.error.message}</p> : null}
-              {detail.isSuccess && records === undefined ? <p className="text-sm text-muted">条目详情未返回验证记录。</p> : null}
               {records && records.length === 0 ? <p className="text-sm text-muted">尚无验证记录。</p> : null}
               {records && records.length > 0 ? (
                 <ul className="divide-y divide-border text-sm">
@@ -87,11 +86,11 @@ function VerificationForm({modelId}: {modelId: number}) {
     >
       <h3 className="text-sm font-semibold">录入新记录</h3>
       <fieldset className="grid gap-3 sm:grid-cols-2" disabled={add.isPending}>
-        <label className="grid gap-2 text-sm">卡型<input className={catalogInputClass} maxLength={64} name="gpu_model" placeholder="与 GPU 型号库名称一致" required /></label>
+        <label className="grid gap-2 text-sm">卡型<input className={catalogInputClass} maxLength={64} name="gpu_model" placeholder="GPU 型号库中的标准型号名" required /></label>
         <label className="grid gap-2 text-sm">卡数<input className={catalogInputClass} min={1} name="cards" required step={1} type="number" /></label>
-        <label className="grid gap-2 text-sm">TP<input className={catalogInputClass} min={1} name="tp" required step={1} type="number" /></label>
+        <label className="grid gap-2 text-sm">TP（须属于条目允许的 TP，且不大于卡数）<input className={catalogInputClass} min={1} name="tp" required step={1} type="number" /></label>
         <label className="grid gap-2 text-sm">上下文<input className={catalogInputClass} min={1} name="max_model_len" required step={1} type="number" /></label>
-        <label className="grid gap-2 text-sm">实测运行时开销（字节，选填）<input className={catalogInputClass} min={0} name="measured_overhead_bytes" step={1} type="number" /></label>
+        <label className="grid gap-2 text-sm">实测运行时开销（字节，选填）<input className={catalogInputClass} min={1} name="measured_overhead_bytes" step={1} type="number" /></label>
         <label className="grid gap-2 text-sm">测试时间<input className={catalogInputClass} name="tested_at" required type="datetime-local" /></label>
         <fieldset className="text-sm">
           <legend className="mb-2">结果</legend>

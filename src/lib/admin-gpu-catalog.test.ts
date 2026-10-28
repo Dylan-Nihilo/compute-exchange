@@ -24,7 +24,7 @@ test("catalog form preserves unknown specs as null and validates numeric boundar
 });
 
 test("admin list includes disabled rows and private sources while forwarding real filters", async () => {
-  const item = {...gpuModelFromForm(form()), id: 1, status: "disabled", spec_source: "Internal source", updated_at: "2026-09-14T12:00:00Z"};
+  const item = {...gpuModelFromForm(form()), id: 1, status: "disabled", spec_source: "Internal source", probe_baseline_tflops: 600.5, updated_at: "2026-09-14T12:00:00Z"};
   const result = await fetchAdminGpuCatalog({q: " Test ", vendor: "Example", origin: "domestic"}, async (url, init) => {
     const parsed = new URL(String(url), "http://localhost");
     assert.equal(parsed.pathname, "/api/admin/gpu-catalog");
@@ -35,6 +35,7 @@ test("admin list includes disabled rows and private sources while forwarding rea
   });
   assert.equal(result.items[0]?.status, "disabled");
   assert.equal(result.items[0]?.spec_source, "Internal source");
+  assert.equal(result.items[0]?.probe_baseline_tflops, 600.5);
   assert.deepEqual(await fetchAdminGpuCatalog({}, async () => Response.json({code: 0, message: "success", data: {list: null, total: 0}})), {items: [], total: 0});
   await assert.rejects(fetchAdminGpuCatalog({}, async () => Response.json({code: 50000, message: "查询型号库失败"})), /查询型号库失败/);
 });
@@ -61,4 +62,18 @@ test("compute_capability is optional, sent as null when blank and validated as m
   assert.equal(gpuModelFromForm(data).compute_capability, "8.9");
   data.set("compute_capability", "sm_89");
   assert.throws(() => gpuModelFromForm(data));
+});
+
+test("probe_baseline_tflops is always sent so a full-replacement PUT never wipes it", async () => {
+  const data = form();
+  assert.equal(gpuModelFromForm(data).probe_baseline_tflops, null);
+  data.set("probe_baseline_tflops", "0"); assert.throws(() => gpuModelFromForm(data));
+  data.set("probe_baseline_tflops", "612.3");
+  const input = gpuModelFromForm(data);
+  await saveAdminGpuModel(1, input, async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    assert.equal(body.probe_baseline_tflops, 612.3);
+    assert.ok("compute_capability" in body);
+    return Response.json({code: 0, message: "success"});
+  });
 });
