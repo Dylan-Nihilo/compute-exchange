@@ -5,7 +5,7 @@ import {useQuery} from "@tanstack/react-query";
 import {useState} from "react";
 
 import {ListPagination} from "@/components/workspace/ui/list-pagination";
-import {adminLeaseStates, fetchAdminLeases, type LeaseFilter} from "@/lib/admin-managed";
+import {ADMIN_PAGE_SIZE, adminLeaseStates, deliveryKindCopy, fetchAdminLeases, type LeaseFilter} from "@/lib/admin-managed";
 import {formatDateTime} from "@/lib/format/date";
 import {leaseStateCopy, remedyCopy} from "@/lib/managed-orders";
 
@@ -13,11 +13,11 @@ import {AdminPanel, AdminTableHead, AdminTableShell, adminTableClass} from "../a
 
 export const adminInputClass = "min-h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground";
 
-/** GET /admin/leases?state=&node_id=&buyer_id= (docs/25 §25.10). */
+/** GET /admin/leases?state=&node_id=&buyer_id=&page=&page_size= (fleet AdminLeases, newest first). */
 export function AdminLeaseTable({onShowSessions}: {onShowSessions: (leaseNo: string) => void}) {
   const [filter, setFilter] = useState<LeaseFilter>({page: 1});
   const query = useQuery({queryKey: ["admin", "leases", filter], queryFn: () => fetchAdminLeases(filter), retry: false});
-  const pages = Math.max(1, Math.ceil((query.data?.total ?? 0) / 20));
+  const pages = Math.max(1, Math.ceil((query.data?.total ?? 0) / ADMIN_PAGE_SIZE));
 
   return (
     <div className="space-y-4">
@@ -57,10 +57,10 @@ export function AdminLeaseTable({onShowSessions}: {onShowSessions: (leaseNo: str
                   <tr key={lease.id}>
                     <th className="font-mono text-xs font-medium" scope="row">
                       {lease.lease_no}
-                      <span className="mt-1 block font-sans text-muted">{lease.order_no ?? (lease.order_id ? `订单 #${lease.order_id}` : "—")}</span>
+                      <span className="mt-1 block font-sans text-muted">订单 #{lease.order_id} · 商品 #{lease.product_id}</span>
                     </th>
                     <td>{leaseStateCopy[lease.state] ?? lease.state}</td>
-                    <td>{lease.node_name ?? `#${lease.node_id}`} · {lease.cards} 卡</td>
+                    <td>节点 #{lease.node_id} · {lease.cards} 卡<span className="block text-xs text-muted">{deliveryKindCopy[lease.delivery_kind]}</span></td>
                     <td>#{lease.buyer_id}</td>
                     <td className="text-xs">
                       {lease.access_until ? formatDateTime(lease.access_until) : "—"}
@@ -71,7 +71,10 @@ export function AdminLeaseTable({onShowSessions}: {onShowSessions: (leaseNo: str
                       {lease.fail_reason ? <span className="block text-danger">{lease.fail_reason}</span> : null}
                       {!lease.resource_alert && !lease.fail_reason ? "—" : null}
                     </td>
-                    <td>{lease.outage_remedy ? remedyCopy[lease.outage_remedy] : "—"}</td>
+                    <td className="text-xs">
+                      {remedyCopy[lease.outage_remedy]}
+                      <span className="block text-muted">买家选择入口未开放</span>
+                    </td>
                     <td><Button size="sm" variant="tertiary" onPress={() => onShowSessions(lease.lease_no)}>查看会话</Button></td>
                   </tr>
                 ))}
