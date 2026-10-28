@@ -116,7 +116,7 @@ const productSchema = z.object({
   availability: z.enum(["fulltime", "night_window"]).optional(),
   night_start_min: z.number().int().min(0).max(1439).nullable().optional(),
   night_end_min: z.number().int().min(0).max(1439).nullable().optional(),
-  card_split_options: z.union([z.string(), z.array(z.number().int())]).nullable().optional(),
+  card_split_options: z.array(z.number().int()).nullable().optional(),
   max_free_per_node: z.number().int().nonnegative().nullable().optional(),
   prices: z.array(productPriceSchema).nullable().optional(),
 });
@@ -322,7 +322,8 @@ export type CreateProductInput = {
   availability?: "fulltime" | "night_window";
   night_start_min?: number;
   night_end_min?: number;
-  card_split_options?: string;
+  // compute CreateProductReq.CardSplitOptions []int (values from {1,2,4,6,8}, ≤ card_count).
+  card_split_options?: number[];
   prices?: {pricing_mode: string; unit_price: number; min_duration: number; enabled: boolean}[];
 };
 

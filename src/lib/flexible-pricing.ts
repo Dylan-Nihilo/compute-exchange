@@ -40,7 +40,6 @@ export function isRentalPricingMode(value: unknown): value is RentalPricingMode 
 
 export const DEFAULT_NIGHT_START_MIN = 22 * 60;
 export const DEFAULT_NIGHT_END_MIN = 8 * 60;
-export const NIGHT_BOOKING_HORIZON_DAYS = 30;
 
 export function formatMinuteOfDay(minute: number) {
   const hours = Math.floor(minute / 60);
@@ -73,8 +72,8 @@ export function validateNightWindow(startMin: number, endMin: number): string | 
 export const halfHourOptions = Array.from({length: 48}, (_, index) => index * 30);
 
 /**
- * docs/26 stores `card_split_options` as a "1,2,4,8" string; the API shape is not pinned down,
- * so both the string and an array form are accepted. Unknown values are dropped.
+ * The API returns `card_split_options` as an ascending int array (null for non-split products);
+ * the DB stores "1,2,4,8", so the string form is still tolerated. Unknown values are dropped.
  */
 export function parseCardSplitOptions(value: unknown): CardSplitOption[] {
   const raw: unknown[] =
@@ -90,8 +89,9 @@ export function parseCardSplitOptions(value: unknown): CardSplitOption[] {
   return cardSplitOptions.filter((option) => options.has(option));
 }
 
-export function serializeCardSplitOptions(options: readonly number[]) {
-  return cardSplitOptions.filter((option) => options.includes(option)).join(",");
+/** Request form for POST/PUT /supplier/products: `card_split_options` is `[]int` (compute CreateProductReq). */
+export function serializeCardSplitOptions(options: readonly number[]): CardSplitOption[] {
+  return cardSplitOptions.filter((option) => options.includes(option));
 }
 
 export const productPriceSchema = z.object({
@@ -120,32 +120,38 @@ export function enabledRentalPrices(rows: readonly ProductPriceRow[] | null | un
   return rentalPricingModes.flatMap((mode) => prices.filter((price) => price.pricingMode === mode).slice(0, 1));
 }
 
-// ===== Market availability, quote and night calendar (docs/26 §26.9) =====
+// ===== Market availability and quote (compute-api.md GET /products/:id/availability, T-093) =====
+
+export const leaseStartRules = ["on_activation", "on_buyer_confirm"] as const;
+export type LeaseStartRule = (typeof leaseStartRules)[number];
 
 const availabilitySchema = z.object({
   available: z.boolean(),
-  reason: z.string().nullable().optional(),
+  // Display-ready Chinese reason when `available=false`, "" otherwise.
+  reason: z.string(),
+  // Same QuoteOrder result POST /orders will charge; null only for nightly (S4 not wired).
   quote: z
     .object({
+      pricing_mode: z.string(),
       unit_price: z.number().int().nonnegative(),
+      quantity: z.number().int().positive(),
+      duration: z.number().int().positive(),
       total_amount: z.number().int().nonnegative(),
       platform_fee: z.number().int().nonnegative(),
       fee_rate: z.number().int().min(0).max(10000),
     })
-    .nullable()
-    .optional(),
+    .nullable(),
   lease_preview: z
-    .object({start_at: z.string().nullable(), end_at: z.string().nullable()})
-    .nullable()
-    .optional(),
+    .object({start_rule: z.enum(leaseStartRules), start_at: z.string().nullable(), end_at: z.string().nullable()})
+    .nullable(),
 });
 export type ProductAvailabilityQuote = z.infer<typeof availabilitySchema>;
 
 export interface AvailabilityQuery {
-  pricingMode: RentalPricingMode;
+  /** Omitted for legacy single-price products: the backend then uses the display price mode. */
+  pricingMode?: string;
   cards: number;
   duration: number;
-  nightStartDate?: string;
 }
 
 export function fetchProductAvailability(
@@ -154,12 +160,10 @@ export function fetchProductAvailability(
   fetchImplementation: typeof fetch = fetch,
 ) {
   if (!/^[1-9]\d*$/.test(productId)) throw new Error("商品编号无效");
-  const params = new URLSearchParams({
-    pricing_mode: query.pricingMode,
-    cards: String(query.cards),
-    duration: String(query.duration),
-  });
-  if (query.nightStartDate) params.set("night_start_date", query.nightStartDate);
+  const params = new URLSearchParams();
+  if (query.pricingMode) params.set("pricing_mode", query.pricingMode);
+  params.set("cards", String(query.cards));
+  params.set("duration", String(query.duration));
   return requestEnvelope(`/api/market-proxy/products/${productId}/availability?${params}`, availabilitySchema, {
     fallback: "余量与报价读取失败",
     unavailable: "报价服务暂不可用",
@@ -167,44 +171,34 @@ export function fetchProductAvailability(
   });
 }
 
-const nightCalendarSchema = z
-  .array(z.object({night_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), max_cards: z.number().int().nonnegative()}))
-  .nullable()
-  .transform((value) => value ?? []);
-export type NightCalendarDay = {night_date: string; max_cards: number};
-
-export function fetchNightCalendar(
-  productId: string,
-  {cards, from, days = NIGHT_BOOKING_HORIZON_DAYS}: {cards: number; from: string; days?: number},
-  fetchImplementation: typeof fetch = fetch,
-): Promise<NightCalendarDay[]> {
-  if (!/^[1-9]\d*$/.test(productId)) throw new Error("商品编号无效");
-  const params = new URLSearchParams({
-    cards: String(cards),
-    from,
-    days: String(Math.min(Math.max(days, 1), NIGHT_BOOKING_HORIZON_DAYS)),
-  });
-  return requestEnvelope(`/api/market-proxy/products/${productId}/night-calendar?${params}`, nightCalendarSchema, {
-    fallback: "包夜日历读取失败",
-    unavailable: "包夜日历暂不可用",
-    fetchImplementation,
-  });
+/** How the lease term starts, per `lease_preview.start_rule`. */
+export function leaseStartRuleText(rule: LeaseStartRule) {
+  return rule === "on_activation"
+    ? "租期从平台开通并自检通过时起算，开通耗时不计入租期"
+    : "租期从你确认签收供给方交付的凭证时起算";
 }
 
-/** Today's date in Asia/Shanghai as YYYY-MM-DD. */
-export function shanghaiDate(now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-  }).formatToParts(now);
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
+export interface CheckoutAmounts {
+  /**
+   * quote: the backend availability quote (what POST /orders will charge);
+   * estimate: local calculation, shown only while the quote is loading or the quote endpoint failed;
+   * none: the backend answered without a quote (nightly not open) or nothing can be computed.
+   */
+  source: "quote" | "estimate" | "none";
+  totalMinor?: number;
+  feeMinor?: number;
+  feeRate?: number;
 }
 
-export function addDays(date: string, days: number) {
-  const [year, month, day] = date.split("-").map(Number);
-  const value = new Date(Date.UTC(year!, month! - 1, day! + days));
-  return value.toISOString().slice(0, 10);
+/** Which amounts the checkout shows: the backend quote wins whenever it exists, even if unavailable. */
+export function resolveCheckoutAmounts(
+  availability: ProductAvailabilityQuote | undefined,
+  estimate: {totalMinor: number; feeMinor: number; feeRate: number} | null,
+): CheckoutAmounts {
+  if (availability?.quote) {
+    const {total_amount, platform_fee, fee_rate} = availability.quote;
+    return {source: "quote", totalMinor: total_amount, feeMinor: platform_fee, feeRate: fee_rate};
+  }
+  if (availability || !estimate) return {source: "none"};
+  return {source: "estimate", ...estimate};
 }

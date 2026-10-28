@@ -3,7 +3,7 @@
 import {ProductHealth} from "@/components/market/product-health";
 import {LegalLink} from "@/components/legal/legal-link";
 
-import {useMutation, useQuery} from "@tanstack/react-query";
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {Button, Card, Chip, Skeleton, Spinner} from "@heroui/react";
 import Link from "next/link";
 import {useRouter, useSearchParams} from "next/navigation";
@@ -13,16 +13,16 @@ import {OptionChips} from "@/components/managed/option-chips";
 import {SectionQueryState, useDebouncedValue} from "@/components/managed/query-states";
 import {ErrorState, LoadingState} from "@/components/system/operation-state";
 import {useCurrentAccount} from "@/lib/auth/queries";
+import {isBackendRequestError} from "@/lib/api/envelope";
 import {
-  addDays,
-  fetchNightCalendar,
   fetchProductAvailability,
   formatNightWindow,
+  leaseStartRuleText,
   maxDurationByPricingMode,
-  NIGHT_BOOKING_HORIZON_DAYS,
   rentalPeriodUnits,
   rentalPricingModeLabels,
-  shanghaiDate,
+  resolveCheckoutAmounts,
+  type ProductAvailabilityQuote,
   type RentalPricingMode,
 } from "@/lib/flexible-pricing";
 import {useAuthStore} from "@/lib/auth/store";
@@ -60,7 +60,8 @@ function CheckoutPage() {
   const [duration, setDuration] = useState<number | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [pricingModeChoice, setPricingModeChoice] = useState<RentalPricingMode | null>(null);
-  const [nightStartChoice, setNightStartChoice] = useState<string | null>(null);
+  const [orderConflict, setOrderConflict] = useState("");
+  const queryClient = useQueryClient();
 
   // v1.2: multi-price / card-split / managed fields are only present when the backend sends them.
   const prices = product?.prices ?? [];
@@ -69,13 +70,13 @@ function CheckoutPage() {
   const managed = product?.fulfillmentMode === "managed";
   const nightly = selectedPrice?.pricingMode === "nightly";
   const unitPriceMinor = selectedPrice ? selectedPrice.unitPriceMinor : product?.unitPriceMinor;
+  // compute productToJSON: largest free-card count on one node (managed only); one order never spans nodes.
+  const perNodeMax = managed && typeof product?.maxFreePerNode === "number" ? product.maxFreePerNode : null;
 
   const minOrder = splitOptions[0] ?? product?.minimumOrder ?? 1;
   const minDuration = selectedPrice?.minDuration ?? product?.minimumDuration ?? 1;
   const maxDuration = selectedPrice ? maxDurationByPricingMode[selectedPrice.pricingMode] : undefined;
-  const maxQuantity = splitOptions.length && typeof product?.maxFreePerNode === "number"
-    ? product.maxFreePerNode
-    : (product?.availableUnits ?? 1);
+  const maxQuantity = perNodeMax ?? product?.availableUnits ?? 1;
   const isPerpetual = !selectedPrice && product?.pricingMode === "perpetual";
   const effectiveQuantity = splitOptions.length
     ? (splitOptions.find((option) => option === quantity) ?? minOrder)
@@ -84,25 +85,18 @@ function CheckoutPage() {
     ? 1
     : Math.min(Math.max(duration ?? minDuration, minDuration), maxDuration ?? Number.MAX_SAFE_INTEGER);
 
-  const today = shanghaiDate();
-  const calendarQuery = useQuery({
-    enabled: Boolean(product && nightly),
-    queryKey: ["market", "night-calendar", productId, effectiveQuantity, today],
-    queryFn: () => fetchNightCalendar(productId, {cards: effectiveQuantity, from: today}),
-    retry: false,
-    staleTime: 30_000,
-  });
-  const calendar = useMemo(() => calendarQuery.data ?? [], [calendarQuery.data]);
-  const nightStartDate = nightly
-    ? calendar.find((day) => day.night_date === nightStartChoice && day.max_cards >= effectiveQuantity)?.night_date
-    : undefined;
-
-  const availabilityInput = useDebouncedValue(
-    managed && selectedPrice && (!nightly || nightStartDate)
-      ? {pricingMode: selectedPrice.pricingMode, cards: effectiveQuantity, duration: effectiveDuration, nightStartDate}
+  // GET /products/:id/availability returns the same QuoteOrder result POST /orders charges, so every
+  // priced product is quoted by the backend; the local calculation is only a labelled fallback.
+  const selectedPricingMode = selectedPrice?.pricingMode;
+  const currentInput = useMemo(
+    () => product && unitPriceMinor
+      ? {...(selectedPricingMode ? {pricingMode: selectedPricingMode} : {}), cards: effectiveQuantity, duration: effectiveDuration}
       : null,
-    450,
+    [product, unitPriceMinor, selectedPricingMode, effectiveQuantity, effectiveDuration],
   );
+  const availabilityInput = useDebouncedValue(currentInput, 450);
+  // The shown quote must belong to the current selection, not to the one before the debounce settled.
+  const inputSettled = availabilityInput === currentInput;
   const availabilityQuery = useQuery({
     enabled: Boolean(product && availabilityInput),
     queryKey: ["market", "availability", productId, availabilityInput],
@@ -110,19 +104,18 @@ function CheckoutPage() {
     retry: false,
     staleTime: 15_000,
   });
-  const availability = availabilityQuery.data;
-  const quote = availability?.available ? availability.quote ?? null : null;
+  const availability = availabilityQuery.isError || !inputSettled ? undefined : availabilityQuery.data;
 
   const preview = useMemo(() => {
     if (!unitPriceMinor || !policy) return null;
-    try { return calcOrderPreview(unitPriceMinor, effectiveQuantity, effectiveDuration, policy.fee_rate); }
-    catch { return null; }
+    try {
+      return {...calcOrderPreview(unitPriceMinor, effectiveQuantity, effectiveDuration, policy.fee_rate), feeRate: policy.fee_rate};
+    } catch { return null; }
   }, [unitPriceMinor, policy, effectiveQuantity, effectiveDuration]);
-  const totalMinor = quote ? quote.total_amount : preview?.totalMinor;
-  const feeMinor = quote ? quote.platform_fee : preview?.feeMinor;
-  const feeRate = quote ? quote.fee_rate : policy?.fee_rate;
+  const amounts = resolveCheckoutAmounts(availability, preview);
+  const {totalMinor, feeMinor, feeRate} = amounts;
   const unavailable = availability?.available === false;
-  const awaitingNight = nightly && !nightStartDate;
+  const quoting = !inputSettled || availabilityQuery.isFetching || (!availabilityQuery.isError && !availability);
 
   const orderMutation = useMutation({
     mutationFn: () =>
@@ -132,8 +125,8 @@ function CheckoutPage() {
         duration: effectiveDuration,
         compliance_agreed: agreed,
         ...(selectedPrice ? {pricing_mode: selectedPrice.pricingMode} : {}),
-        ...(nightStartDate ? {night_start_date: nightStartDate} : {}),
       }),
+    onMutate: () => setOrderConflict(""),
     onSuccess: (result) => {
       notify.success(`下单成功(${result.order_no}), 请在 15 分钟内完成支付`);
       const target = `/console/buyer/orders/${result.order_no}`;
@@ -142,8 +135,17 @@ function CheckoutPage() {
       // AccessBoundary 不会消费 roleSwitchTarget, 必须自己跳转。
       router.push(target);
     },
-    onError: (error) =>
-      notify.error(error instanceof Error ? error.message : "下单失败"),
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "下单失败";
+      // 40900: capacity changed between quote and order (e.g. 所选卡数暂无整机余量); re-quote in place.
+      if (isBackendRequestError(error) && error.code === 40900) {
+        setOrderConflict(message);
+        void queryClient.invalidateQueries({queryKey: ["market", "availability", productId]});
+        void queryClient.invalidateQueries({queryKey: ["market", "product", productId]});
+        return;
+      }
+      notify.error(message);
+    },
   });
 
   if (!productId) {
@@ -222,7 +224,7 @@ function CheckoutPage() {
     ? `${money.format(selectedPrice.unitPriceMinor / 100)} / 卡·${rentalPeriodUnits[selectedPrice.pricingMode]}`
     : `${product.unitPrice} / ${product.priceUnit}`;
   const submitBlocked = !agreed || maxQuantity < minOrder || totalMinor === undefined || !policy?.trading_enabled ||
-    policyQuery.isError || product.health === "offline" || unavailable || awaitingNight;
+    policyQuery.isError || product.health === "offline" || unavailable || quoting;
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8">
@@ -250,10 +252,11 @@ function CheckoutPage() {
                   : product.availableHours || "—"}
               />
               <Spec label="网络带宽" value={product.network} />
-              <Spec
-                label={splitOptions.length && typeof product.maxFreePerNode === "number" ? "单机最多可租" : "可售库存"}
-                value={`${maxQuantity} ${product.unitLabel}`}
-              />
+              {perNodeMax !== null ? (
+                <Spec label="单机余量" value={`单机最多可租 ${perNodeMax} 卡`} />
+              ) : (
+                <Spec label="可售库存" value={`${maxQuantity} ${product.unitLabel}`} />
+              )}
               <Spec label="供给方" value={product.supplierName || "—"} />
               <Spec
                 label="供给方信用"
@@ -276,12 +279,6 @@ function CheckoutPage() {
                   <li>付款后平台自动开通，开通完成后经平台 SSH 网关登录使用；开通所用时间不计入租期。</li>
                   <li>开通失败时订单自动取消并全额退款。</li>
                   <li>租期结束后自动结算，无需确认签收。</li>
-                  {nightly && product.nightWindow ? (
-                    <li>
-                      包夜每晚可用时段为 {formatNightWindow(product.nightWindow.startMin, product.nightWindow.endMin)}；
-                      当晚时段开始后 2 小时内仍可预订当晚，按整晚计费，已过去的时段不补偿。
-                    </li>
-                  ) : null}
                 </ul>
               </section>
             ) : null}
@@ -305,7 +302,6 @@ function CheckoutPage() {
                 onChange={(mode) => {
                   setPricingModeChoice(mode);
                   setDuration(null);
-                  setNightStartChoice(null);
                 }}
                 value={selectedPrice?.pricingMode ?? null}
               />
@@ -318,7 +314,7 @@ function CheckoutPage() {
                   disabled: option > maxQuantity,
                 }))}
                 label="卡数（同一台节点内）"
-                onChange={setQuantity}
+                onChange={(value) => { setQuantity(value); setOrderConflict(""); }}
                 value={effectiveQuantity}
               />
             ) : (
@@ -327,18 +323,9 @@ function CheckoutPage() {
                 max={maxQuantity}
                 min={minOrder}
                 value={effectiveQuantity}
-                onChange={setQuantity}
+                onChange={(value) => { setQuantity(value); setOrderConflict(""); }}
               />
             )}
-            {nightly ? (
-              <NightStartPicker
-                calendarQuery={calendarQuery}
-                cards={effectiveQuantity}
-                onChange={setNightStartChoice}
-                today={today}
-                value={nightStartDate ?? ""}
-              />
-            ) : null}
             {isPerpetual ? (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted">计费周期</span>
@@ -354,15 +341,26 @@ function CheckoutPage() {
               />
             )}
 
-            {managed && selectedPrice ? (
-              <AvailabilityStatus
-                awaitingNight={awaitingNight}
-                availability={availability}
-                query={availabilityQuery}
-              />
+            <AvailabilityStatus
+              availability={availability}
+              query={{
+                error: availabilityQuery.error,
+                isError: inputSettled && availabilityQuery.isError,
+                isFetching: availabilityQuery.isFetching,
+                isPending: !inputSettled || availabilityQuery.isPending,
+                refetch: availabilityQuery.refetch,
+              }}
+            />
+            {orderConflict ? (
+              <p className="text-sm text-danger" role="alert">{orderConflict}，已按最新余量重新报价，请调整后再提交。</p>
             ) : null}
 
             <dl className="space-y-2 border-t border-border pt-4 text-sm">
+              {amounts.source === "estimate" ? (
+                <p className="text-xs text-warning" role="status">
+                  预估金额（平台报价{inputSettled && availabilityQuery.isError ? "暂不可用" : "读取中"}），实际以提交订单时平台报价为准。
+                </p>
+              ) : null}
               <div className="flex justify-between">
                 <dt className="text-muted">小计</dt>
                 <dd className="font-medium text-foreground">
@@ -391,7 +389,7 @@ function CheckoutPage() {
             ) : policyQuery.isPending ? <p role="status" className="text-sm text-muted">正在读取交易配置…</p>
               : !policy?.trading_enabled ? <p role="status" className="text-sm text-warning">平台暂时停止创建交易，请稍后再试。</p>
               : product.health === "offline" ? <p role="status" className="text-sm text-muted">该商品节点已离线，暂不可下单。</p>
-              : totalMinor === undefined ? <p role="alert" className="text-sm text-danger">请检查购买数量和计费周期，订单金额不能超过上限。</p> : null}
+              : totalMinor === undefined && !availability ? <p role="alert" className="text-sm text-danger">请检查购买数量和计费周期，订单金额不能超过上限。</p> : null}
 
             <label className="flex items-start gap-2.5 text-[13px] leading-5 text-foreground">
               <input
@@ -418,17 +416,19 @@ function CheckoutPage() {
                   <Spinner aria-hidden="true" color="current" size="sm" />
                   正在提交
                 </>
-              ) : maxQuantity < minOrder || unavailable ? (
+              ) : maxQuantity < minOrder ? (
                 "库存不足"
-              ) : awaitingNight ? (
-                "请选择开始日期"
+              ) : unavailable ? (
+                "暂不可下单"
+              ) : quoting ? (
+                "正在报价"
               ) : (
                 "提交订单"
               )}
             </Button>
             <p className="text-center text-xs text-muted">
               {maxQuantity < minOrder
-                ? `当前库存 ${maxQuantity} ${product.unitLabel}, 不足最小起订量 ${minOrder}`
+                ? `当前${perNodeMax !== null ? "单机最多可租" : "库存"} ${maxQuantity} ${product.unitLabel}, 不足最小起订量 ${minOrder}`
                 : `最小起订 ${minOrder} ${product.unitLabel} · 最短 ${minDuration} ${durationUnitLabel}${
                   maxDuration ? ` · 最长 ${maxDuration} ${durationUnitLabel}` : ""}`}
             </p>
@@ -447,36 +447,36 @@ function CheckoutPage() {
 
 function AvailabilityStatus({
   availability,
-  awaitingNight,
   query,
 }: {
-  availability: Awaited<ReturnType<typeof fetchProductAvailability>> | undefined;
-  awaitingNight: boolean;
+  availability: ProductAvailabilityQuote | undefined;
   query: {error: unknown; isError: boolean; isFetching: boolean; isPending: boolean; refetch: () => unknown};
 }) {
-  if (awaitingNight) return null;
+  const preview = availability?.lease_preview ?? null;
   return (
     <div aria-live="polite" className="text-sm">
       <SectionQueryState
         error={query.error}
         isError={query.isError}
-        isPending={query.isPending}
+        isPending={query.isPending && !availability}
         isRefetching={query.isFetching}
         loadingText="正在查询余量与报价"
-        notOpenText="实时余量查询暂未开放，下单时以平台校验结果为准。"
+        notOpenText="实时余量与报价暂未开放，下方为预估金额，下单时以平台校验结果为准。"
         onRetry={() => void query.refetch()}
       >
         {availability?.available ? (
-          <p className="text-success" role="status">
-            当前可租
-            {availability.lease_preview?.start_at
-              ? `，预计 ${formatDateTime(availability.lease_preview.start_at)} 起${
-                availability.lease_preview.end_at ? `至 ${formatDateTime(availability.lease_preview.end_at)}` : ""}`
-              : ""}
-          </p>
+          <p className="text-success" role="status">当前可租</p>
         ) : availability ? (
-          <p className="text-danger" role="alert">
-            所选配置当前不可租{availability.reason ? `（${availability.reason}）` : ""}，请调整卡数、日期或租期。
+          <p className="text-danger" role="alert">{availability.reason || "所选配置当前不可租"}</p>
+        ) : null}
+        {preview ? (
+          <p className="mt-1 text-xs leading-5 text-muted">
+            {leaseStartRuleText(preview.start_rule)}
+            {preview.start_rule === "on_activation" && preview.start_at
+              ? `；若现在支付并立即开通，预计 ${formatDateTime(preview.start_at)}${
+                preview.end_at ? ` 至 ${formatDateTime(preview.end_at)}` : " 起"}`
+              : ""}
+            。
           </p>
         ) : null}
       </SectionQueryState>
@@ -496,68 +496,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
 function formatDateTime(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : dateTimeFormatter.format(date);
-}
-
-const weekdayFormatter = new Intl.DateTimeFormat("zh-CN", {timeZone: "UTC", weekday: "short"});
-
-function NightStartPicker({
-  calendarQuery,
-  cards,
-  onChange,
-  today,
-  value,
-}: {
-  calendarQuery: {
-    data: Awaited<ReturnType<typeof fetchNightCalendar>> | undefined;
-    error: unknown;
-    isError: boolean;
-    isFetching: boolean;
-    isPending: boolean;
-    refetch: () => unknown;
-  };
-  cards: number;
-  onChange: (value: string) => void;
-  today: string;
-  value: string;
-}) {
-  const days = calendarQuery.data ?? [];
-  const lastDay = addDays(today, NIGHT_BOOKING_HORIZON_DAYS - 1);
-  return (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm text-muted" htmlFor="night-start-date">首晚日期</label>
-      <SectionQueryState
-        emptyText={`${today} 至 ${lastDay} 暂无可预订的夜晚。`}
-        error={calendarQuery.error}
-        isEmpty={days.length === 0}
-        isError={calendarQuery.isError}
-        isPending={calendarQuery.isPending}
-        isRefetching={calendarQuery.isFetching}
-        loadingText="正在读取包夜日历"
-        notOpenText="包夜日历暂未开放，暂不能预订包夜。"
-        onRetry={() => void calendarQuery.refetch()}
-      >
-        <select
-          className="h-10 rounded-lg border border-border bg-surface px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-accent"
-          id="night-start-date"
-          onChange={(event) => onChange(event.target.value)}
-          value={value}
-        >
-          <option value="">请选择</option>
-          {days.map((day) => {
-            const [year, month, date] = day.night_date.split("-").map(Number);
-            const weekday = weekdayFormatter.format(new Date(Date.UTC(year!, month! - 1, date!)));
-            const full = day.max_cards < cards;
-            return (
-              <option disabled={full} key={day.night_date} value={day.night_date}>
-                {`${day.night_date.slice(5)} ${weekday}${day.night_date === today ? "（今晚）" : ""} · ${
-                  full ? "余量不足" : `最多可租 ${day.max_cards} 卡`}`}
-              </option>
-            );
-          })}
-        </select>
-      </SectionQueryState>
-    </div>
-  );
 }
 
 function Spec({label, value}: {label: string; value: string}) {

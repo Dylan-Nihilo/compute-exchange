@@ -6,9 +6,8 @@ import {proxyAuthenticatedBackend} from "@/lib/api/auth-backend";
 const ALLOWED_PATHS = [
   /^products$/,
   /^products\/\d+$/,
-  // v1.2 (docs/26 §26.9): quote/余量试算与包夜日历, 只计算不预留; 后端每用户每分钟 30 次。
+  // v1.2 (compute-api.md): 余量与报价试算, 只计算不预留; 后端每用户每分钟 30 次(42900)。
   /^products\/\d+\/availability$/,
-  /^products\/\d+\/night-calendar$/,
   /^trading-config$/,
   /^gpu-catalog$/,
   // v1.2 (docs/27 §27.8): 可一键部署的模型目录(active 条目)。

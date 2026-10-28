@@ -3,15 +3,14 @@ import {describe, it} from "node:test";
 
 import {BackendRequestError} from "./api/envelope.ts";
 import {
-  addDays,
   enabledRentalPrices,
-  fetchNightCalendar,
   fetchProductAvailability,
   formatNightWindow,
+  leaseStartRuleText,
   nightWindowMinutes,
   parseCardSplitOptions,
+  resolveCheckoutAmounts,
   serializeCardSplitOptions,
-  shanghaiDate,
   validateNightWindow,
 } from "./flexible-pricing.ts";
 
@@ -32,11 +31,14 @@ describe("night window", () => {
 });
 
 describe("card split options", () => {
-  it("accepts string and array forms, drops unknown values and sorts", () => {
-    assert.deepEqual(parseCardSplitOptions("8, 2,1,3"), [1, 2, 8]);
+  it("accepts the API array (and legacy string), drops unknown values and sorts", () => {
     assert.deepEqual(parseCardSplitOptions([4, 1, 4, 16]), [1, 4]);
+    assert.deepEqual(parseCardSplitOptions("8, 2,1,3"), [1, 2, 8]);
     assert.deepEqual(parseCardSplitOptions(null), []);
-    assert.equal(serializeCardSplitOptions([8, 1, 2]), "1,2,8");
+  });
+
+  it("serializes as the []int the create/resubmit request binds", () => {
+    assert.deepEqual(serializeCardSplitOptions([8, 1, 2]), [1, 2, 8]);
   });
 });
 
@@ -57,64 +59,91 @@ describe("rental prices", () => {
   });
 });
 
-describe("availability and night calendar", () => {
-  it("queries availability with the selected options", async () => {
-    let url = "";
-    const result = await fetchProductAvailability(
-      "7",
-      {pricingMode: "nightly", cards: 2, duration: 3, nightStartDate: "2026-10-28"},
-      async (input) => {
-        url = String(input);
-        return Response.json({
-          code: 0,
-          message: "ok",
-          data: {
-            available: true,
-            reason: null,
-            quote: {unit_price: 5000, total_amount: 30000, platform_fee: 1500, fee_rate: 500},
-            lease_preview: {start_at: "2026-10-28T14:00:00Z", end_at: "2026-10-31T00:00:00Z"},
-          },
-        });
-      },
-    );
-    assert.equal(
-      url,
-      "/api/market-proxy/products/7/availability?pricing_mode=nightly&cards=2&duration=3&night_start_date=2026-10-28",
-    );
-    assert.equal(result.quote?.total_amount, 30000);
-  });
+describe("availability quote", () => {
+  const managed = {
+    available: true,
+    reason: "",
+    quote: {pricing_mode: "hourly", unit_price: 1500, quantity: 4, duration: 2, total_amount: 12000, platform_fee: 780, fee_rate: 650},
+    lease_preview: {start_rule: "on_activation", start_at: "2026-10-28T15:04:05+08:00", end_at: "2026-10-28T17:04:05+08:00"},
+  };
 
-  it("surfaces rate limiting and not-open responses as errors", async () => {
-    await assert.rejects(
-      fetchProductAvailability("7", {pricingMode: "hourly", cards: 1, duration: 1}, async () =>
-        Response.json({code: 42900, message: "请求过于频繁"}, {status: 429})),
-      (error) => error instanceof BackendRequestError && error.code === 42900 && error.message === "请求过于频繁",
-    );
-    await assert.rejects(
-      fetchNightCalendar("7", {cards: 1, from: "2026-10-28"}, async () =>
-        Response.json({code: 50000, message: "该功能暂未开放"}, {status: 501})),
-      (error) => error instanceof BackendRequestError && error.notOpen,
-    );
-  });
-
-  it("caps the calendar horizon at 30 days and maps null to empty", async () => {
+  it("queries with pricing_mode/cards/duration and parses the exact backend shape", async () => {
     let url = "";
-    const days = await fetchNightCalendar("7", {cards: 2, from: "2026-10-28", days: 90}, async (input) => {
+    const result = await fetchProductAvailability("12", {pricingMode: "hourly", cards: 4, duration: 2}, async (input) => {
       url = String(input);
-      return Response.json({code: 0, message: "ok", data: null});
+      return Response.json({code: 0, message: "success", data: managed});
     });
-    assert.match(url, /days=30/);
-    assert.deepEqual(days, []);
+    assert.equal(url, "/api/market-proxy/products/12/availability?pricing_mode=hourly&cards=4&duration=2");
+    assert.equal(result.quote?.total_amount, 12000);
+    assert.equal(result.lease_preview?.start_rule, "on_activation");
   });
 
-  it("rejects invalid product ids before any request", () => {
-    assert.throws(() => fetchNightCalendar("abc", {cards: 1, from: "2026-10-28"}), /商品编号无效/);
+  it("omits pricing_mode for legacy single-price products and keeps the quote when unavailable", async () => {
+    let url = "";
+    const result = await fetchProductAvailability("12", {cards: 7, duration: 1}, async (input) => {
+      url = String(input);
+      return Response.json({code: 0, message: "success", data: {
+        available: false, reason: "库存不足: 当前可租 6",
+        quote: {pricing_mode: "hourly", unit_price: 2300, quantity: 7, duration: 1, total_amount: 16100, platform_fee: 1046, fee_rate: 650},
+        lease_preview: {start_rule: "on_buyer_confirm", start_at: null, end_at: null},
+      }});
+    });
+    assert.equal(url, "/api/market-proxy/products/12/availability?cards=7&duration=1");
+    assert.equal(result.available, false);
+    assert.equal(result.quote?.total_amount, 16100);
+    assert.equal(result.lease_preview?.start_at, null);
+  });
+
+  it("accepts the nightly not-open answer with null quote and preview", async () => {
+    const result = await fetchProductAvailability("12", {pricingMode: "nightly", cards: 1, duration: 1}, async () =>
+      Response.json({code: 0, message: "success", data: {available: false, reason: "包夜预订尚未开放(夜间日历与每晚开停机待接入), 暂不可下单", quote: null, lease_preview: null}}));
+    assert.equal(result.quote, null);
+    assert.match(result.reason, /包夜预订尚未开放/);
+  });
+
+  it("rejects an unknown start_rule instead of guessing", async () => {
+    await assert.rejects(
+      fetchProductAvailability("12", {cards: 1, duration: 1}, async () =>
+        Response.json({code: 0, data: {...managed, lease_preview: {start_rule: "immediately", start_at: null, end_at: null}}})),
+      (error) => error instanceof BackendRequestError && error.message === "服务返回格式错误",
+    );
+  });
+
+  it("surfaces 42900 rate limiting and 40001 parameter errors with the backend message", async () => {
+    await assert.rejects(
+      fetchProductAvailability("12", {pricingMode: "hourly", cards: 1, duration: 1}, async () =>
+        Response.json({code: 42900, message: "查询过于频繁, 每分钟最多 30 次, 请稍后再试"})),
+      (error) => error instanceof BackendRequestError && error.code === 42900 && /每分钟最多 30 次/.test(error.message),
+    );
+    await assert.rejects(
+      fetchProductAvailability("12", {pricingMode: "hourly", cards: 3, duration: 1}, async () =>
+        Response.json({code: 40001, message: "所选卡数 3 不在该商品可选卡数 1,2,4,8 内"})),
+      (error) => error instanceof BackendRequestError && error.code === 40001,
+    );
+  });
+
+  it("rejects invalid product ids before any request and labels start rules", () => {
+    assert.throws(() => fetchProductAvailability("abc", {cards: 1, duration: 1}), /商品编号无效/);
+    assert.match(leaseStartRuleText("on_activation"), /自检通过/);
+    assert.match(leaseStartRuleText("on_buyer_confirm"), /确认签收/);
   });
 });
 
-describe("dates", () => {
-  it("uses Asia/Shanghai for today and adds calendar days", () => {
-    assert.equal(shanghaiDate(new Date("2026-10-28T17:30:00Z")), "2026-10-29");
-    assert.equal(addDays("2026-10-28", 4), "2026-11-01");
+describe("checkout amounts", () => {
+  const estimate = {totalMinor: 100, feeMinor: 6, feeRate: 650};
+  const quote = {pricing_mode: "hourly", unit_price: 50, quantity: 2, duration: 1, total_amount: 120, platform_fee: 7, fee_rate: 600};
+
+  it("prefers the backend quote, also when the selection is unavailable", () => {
+    assert.deepEqual(resolveCheckoutAmounts({available: false, reason: "所选卡数暂无整机余量", quote, lease_preview: null}, estimate),
+      {source: "quote", totalMinor: 120, feeMinor: 7, feeRate: 600});
+  });
+
+  it("shows no amount when the backend answered without a quote (nightly not open)", () => {
+    assert.deepEqual(resolveCheckoutAmounts({available: false, reason: "包夜预订尚未开放", quote: null, lease_preview: null}, estimate), {source: "none"});
+  });
+
+  it("falls back to a labelled local estimate only when there is no backend answer", () => {
+    assert.deepEqual(resolveCheckoutAmounts(undefined, estimate), {source: "estimate", ...estimate});
+    assert.deepEqual(resolveCheckoutAmounts(undefined, null), {source: "none"});
   });
 });

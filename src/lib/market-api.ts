@@ -10,6 +10,7 @@ import {
   type MarketSupply,
 } from "../components/market/market-data.ts";
 import {ApiError, createApiClient, type ApiClient} from "./api/client.ts";
+import {BackendRequestError} from "./api/envelope.ts";
 import type {CardSplitOption, FulfillmentMode, ProductAvailability} from "./domain/contracts.ts";
 import {
   enabledRentalPrices,
@@ -52,7 +53,8 @@ const productSchema = z.object({
   availability: z.enum(["fulltime", "night_window"]).optional(),
   night_start_min: z.number().int().min(0).max(1439).nullable().optional(),
   night_end_min: z.number().int().min(0).max(1439).nullable().optional(),
-  card_split_options: z.union([z.string(), z.array(z.number().int())]).nullable().optional(),
+  // compute productToJSON: ascending []int for card-split products, null otherwise.
+  card_split_options: z.array(z.number().int()).nullable().optional(),
   max_free_per_node: z.number().int().nonnegative().nullable().optional(),
   prices: z.array(productPriceSchema).nullable().optional(),
 });
@@ -157,7 +159,10 @@ export type MarketQuery = {
   availableHours: string;
   priceMin: number | null;
   priceMax: number | null;
+  /** Product spec filter `card_count_min`: listing has at least N cards in total. */
   cardCountMin: number | null;
+  /** v1.2 `min_cards`: N cards can be rented at once (managed: within one node's free slots). */
+  minCards: number | null;
   sort: MarketSort;
   page: number;
   pageSize: number;
@@ -187,6 +192,7 @@ export const defaultMarketQuery: MarketQuery = {
   priceMin: null,
   priceMax: null,
   cardCountMin: null,
+  minCards: null,
   sort: "price_asc",
   page: 1,
   pageSize: 10,
@@ -391,6 +397,7 @@ export function parseMarketQuery(params: MarketSearchParams): MarketQuery {
     priceMin: decimalParam(params.price_min),
     priceMax: decimalParam(params.price_max),
     cardCountMin: integerParam(params.card_count_min, null),
+    minCards: integerParam(params.min_cards, null),
     sort: enumParam(params.sort, marketSorts) || defaultMarketQuery.sort,
     page: integerParam(params.page, 1) ?? 1,
     pageSize: enumNumberParam(
@@ -415,6 +422,7 @@ export function buildMarketHref(query: MarketQuery) {
   append(params, "price_min", query.priceMin);
   append(params, "price_max", query.priceMax);
   append(params, "card_count_min", query.cardCountMin);
+  append(params, "min_cards", query.minCards);
   if (query.sort !== defaultMarketQuery.sort) params.set("sort", query.sort);
   if (query.page !== 1) params.set("page", String(query.page));
   if (query.pageSize !== defaultMarketQuery.pageSize) {
@@ -456,8 +464,8 @@ export async function getMarketSupplies(
   append(params, "price_min", toMinorUnits(query.priceMin));
   append(params, "price_max", toMinorUnits(query.priceMax));
   append(params, "card_count_min", query.cardCountMin);
-  // v1.2 backend name for the same filter (docs/26 §26.9); older backends ignore it.
-  append(params, "min_cards", query.cardCountMin);
+  // v1.2 (compute ListProducts): separate from card_count_min; older backends ignore it.
+  append(params, "min_cards", query.minCards);
 
   const response = await client.request(
     `/products?${params.toString()}`,
@@ -587,8 +595,6 @@ export type PlaceOrderInput = {
   compliance_agreed: boolean;
   /** v1.2: required for multi-price rental products; omitted for legacy single-price ones. */
   pricing_mode?: string;
-  /** v1.2 nightly: YYYY-MM-DD of the first night (window start date). */
-  night_start_date?: string;
 };
 
 export type PlaceOrderResult = {
@@ -629,14 +635,18 @@ export async function placeOrder(
       body: JSON.stringify({...input, compliance_version: LEGAL_VERSION}),
     });
   } catch {
-    throw new Error("订单服务暂不可用");
+    throw new BackendRequestError("订单服务暂不可用", {code: null, status: 0});
   }
   const parsed = placeOrderResponseSchema.safeParse(
     await response.json().catch(() => null),
   );
-  if (!parsed.success) throw new Error("订单服务返回格式错误");
+  if (!parsed.success) throw new BackendRequestError("订单服务返回格式错误", {code: null, status: response.status});
   if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) {
-    throw new Error(parsed.data.message || "下单失败");
+    // Keep the backend code: 40900 (no whole-node capacity for the chosen cards) re-quotes the page.
+    throw new BackendRequestError(parsed.data.message || "下单失败", {
+      code: parsed.data.code,
+      status: response.status,
+    });
   }
   return parsed.data.data;
 }
