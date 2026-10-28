@@ -4,13 +4,16 @@ import {Navbar} from "@heroui-pro/react/navbar";
 import {Sidebar} from "@heroui-pro/react/sidebar";
 import {Avatar, Button, Dropdown, Label, Spinner} from "@heroui/react";
 import {
+  Activity,
   BadgeCheck,
   Banknote,
   Boxes,
   ClipboardList,
   Coins,
+  Cpu,
   FileClock,
   Gauge,
+  KeyRound,
   LayoutDashboard,
   Megaphone,
   ScrollText,
@@ -53,6 +56,9 @@ const navItems: readonly AdminNavItem[] = [
   {href: "/admin/access", label: "角色与权限", icon: Gauge, adminOnly: true},
   {href: "/admin/attestations", label: "存证管理", icon: ShieldCheck},
   {href: "/admin/nodes", label: "节点与调度", icon: Boxes},
+  {href: "/admin/leases", label: "租约与会话", icon: KeyRound},
+  {href: "/admin/model-catalog", label: "模型目录", icon: Cpu},
+  {href: "/admin/deployments", label: "部署总览", icon: Activity},
   {href: "/admin/audit", label: "审计日志", icon: FileClock},
   {href: "/admin/settings", label: "系统设置", icon: Settings2, adminOnly: true},
 ];

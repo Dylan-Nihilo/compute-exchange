@@ -23,6 +23,7 @@ import {fetchMyProducts, isManagedProduct, productTypeCopy} from "@/lib/supplier
 
 import {ManagedNodeFields, managedNodeInput, type ManagedNodeFieldState} from "./managed-node/registration-fields";
 
+import {AdminNodeManagedCell, AdminNodeSuspendButton, hasManagedColumns} from "./admin-node-managed";
 import {ScheduleAdvice} from "./schedule-advice";
 import styles from "./supplier-nodes.module.css";
 
@@ -204,14 +205,16 @@ function SupplierNodePanel({accountId}: {accountId: string | null}) {
 
 function NodesTable({nodes, admin = false, busy = false, onDelete}: {nodes: ComputeNode[]; admin?: boolean; busy?: boolean; onDelete?: (node: ComputeNode) => void}) {
   if (!nodes.length) return <p className="py-5 text-sm text-muted">暂无节点记录</p>;
+  // v1.2: only operators see managed columns, and only when the backend returns them.
+  const managedColumns = admin && hasManagedColumns(nodes);
   return <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm [&_th]:px-3 [&_th]:py-3 [&_td]:px-3 [&_td]:py-4">
-    <thead className="bg-surface-secondary text-xs text-muted"><tr><th scope="col">节点 / 商品</th>{admin ? <th scope="col">供应方</th> : null}<th scope="col">状态</th><th scope="col">可用 / 总卡数</th><th scope="col">GPU / 显存负载</th><th scope="col">最近心跳</th>{onDelete ? <th scope="col">操作</th> : null}</tr></thead>
+    <thead className="bg-surface-secondary text-xs text-muted"><tr><th scope="col">节点 / 商品</th>{admin ? <th scope="col">供应方</th> : null}<th scope="col">状态</th>{managedColumns ? <th scope="col">托管验证</th> : null}<th scope="col">可用 / 总卡数</th><th scope="col">GPU / 显存负载</th><th scope="col">最近心跳</th>{onDelete || managedColumns ? <th scope="col">操作</th> : null}</tr></thead>
     <tbody className="divide-y divide-border">{nodes.map((node) => <tr key={node.id}>
       <td><p className="max-w-48 break-all font-medium">{node.node_name}</p><p className="mt-1 text-xs text-muted">节点 #{node.id} · 商品 #{node.product_id}</p></td>
       {admin ? <td>{node.supplier_name || `#${node.supplier_id}`}</td> : null}
-      <td className="whitespace-nowrap">{nodeStatuses[node.status]}</td><td>{node.available_cards} / {node.total_cards} 卡</td><td>{node.gpu_util_pct == null ? "未上报" : `${node.gpu_util_pct}%`} / {node.vram_util_pct == null ? "未上报" : `${node.vram_util_pct}%`}</td>
+      <td className="whitespace-nowrap">{nodeStatuses[node.status]}</td>{managedColumns ? <td><AdminNodeManagedCell node={node} /></td> : null}<td>{node.available_cards} / {node.total_cards} 卡</td><td>{node.gpu_util_pct == null ? "未上报" : `${node.gpu_util_pct}%`} / {node.vram_util_pct == null ? "未上报" : `${node.vram_util_pct}%`}</td>
       <td className="whitespace-nowrap">{node.last_heartbeat_at ? formatDateTime(node.last_heartbeat_at) : "尚未收到心跳"}</td>
-      {onDelete ? <td><Button variant="danger-soft" size="sm" aria-label={`删除节点 ${node.node_name}`} isDisabled={busy} onPress={() => onDelete(node)}>删除</Button></td> : null}
+      {onDelete ? <td><Button variant="danger-soft" size="sm" aria-label={`删除节点 ${node.node_name}`} isDisabled={busy} onPress={() => onDelete(node)}>删除</Button></td> : managedColumns ? <td><AdminNodeSuspendButton node={node} /></td> : null}
     </tr>)}</tbody>
   </table></div>;
 }

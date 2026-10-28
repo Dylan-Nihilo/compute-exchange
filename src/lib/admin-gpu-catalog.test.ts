@@ -53,3 +53,12 @@ test("create and update use their real methods and surface duplicate and HTTP fa
   }), /型号已存在/);
   await assert.rejects(saveAdminGpuModel(1, input, async () => Response.json({message: "无权限"}, {status: 403})), /无权限/);
 });
+
+test("compute_capability is optional, sent as null when blank and validated as major.minor", () => {
+  const data = form();
+  assert.equal(gpuModelFromForm(data).compute_capability, null);
+  data.set("compute_capability", "8.9");
+  assert.equal(gpuModelFromForm(data).compute_capability, "8.9");
+  data.set("compute_capability", "sm_89");
+  assert.throws(() => gpuModelFromForm(data));
+});

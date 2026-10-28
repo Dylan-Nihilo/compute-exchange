@@ -15,6 +15,8 @@ export const gpuCatalogItemSchema = z.object({
   secure_certified: z.boolean(),
   status: z.enum(["enabled", "disabled"]),
   sort_weight: z.number().int(),
+  // v1.2 (docs/27 §27.2): CUDA compute capability such as "8.9"; absent on older backends.
+  compute_capability: z.string().nullable().optional(),
 });
 
 const gpuCatalogResponseSchema = z.object({

@@ -12,6 +12,8 @@ const inputSchema = gpuCatalogItemSchema.omit({id: true}).extend({
   interconnect: z.string().max(32).nullable(),
   spec_source: z.string().max(255).nullable(),
   sort_weight: z.number().int().min(-2147483648).max(2147483647),
+  // Empty means "not filled": deployments on this model are then judged undeterminable (docs/27 §27.2).
+  compute_capability: z.string().regex(/^\d{1,2}\.\d$/, "计算能力格式应为 主版本.次版本，如 8.9").nullable().optional(),
 });
 const listSchema = z.object({code: z.number().int(), message: z.string(), data: z.object({list: z.array(itemSchema).nullable(), total: z.number().int().nonnegative()}).optional()});
 const actionSchema = z.object({code: z.number().int(), message: z.string()});
@@ -28,6 +30,7 @@ export function gpuModelFromForm(form: FormData): GpuModelInput {
     vram_gb: number("vram_gb"), vram_type: text("vram_type") || null, fp16_tflops: number("fp16_tflops"),
     interconnect: text("interconnect") || null, spec_source: text("spec_source") || null,
     secure_certified: form.has("secure_certified"), status: form.has("enabled") ? "enabled" : "disabled", sort_weight: Number(text("sort_weight") || "0"),
+    compute_capability: text("compute_capability") || null,
   });
 }
 
