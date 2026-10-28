@@ -6,17 +6,20 @@ import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useState} from "react";
 
-import {fetchBuyerOrderRenewalQuote, renewBuyerOrder, type BuyerOrderDetail, type BuyerOrderRenewalQuote} from "@/lib/buyer-orders";
+import {fetchBuyerOrderRenewalQuote, isManagedBuyerOrder, renewBuyerOrder, type BuyerOrderDetail, type BuyerOrderRenewalQuote} from "@/lib/buyer-orders";
 import {formatDateTime} from "@/lib/format/date";
 import {legalHref} from "@/lib/legal";
 
-const units = {hourly: "小时", daily: "天", weekly: "周", monthly: "个月"};
+const units = {hourly: "小时", daily: "天", weekly: "周", monthly: "个月", nightly: "晚"};
 const money = (fen: number) => new Intl.NumberFormat("zh-CN", {style: "currency", currency: "CNY"}).format(fen / 100);
 
 export function OrderRenewal({detail}: {detail: BuyerOrderDetail}) {
   const [open, setOpen] = useState(false);
   const [duration, setDuration] = useState(String(detail.product.min_duration ?? 1));
   const amount = Number(duration);
+  const managed = isManagedBuyerOrder(detail);
+  // Renewal is priced by the order's own pricing-mode snapshot (docs/26 §26.9); older orders fall back to the product.
+  const pricingMode = detail.order.pricing_mode ?? detail.product.pricing_mode;
   const quote = useQuery({
     queryKey: ["buyer", "renewal-quote", detail.order.order_no, amount],
     queryFn: () => fetchBuyerOrderRenewalQuote(detail.order.order_no, amount),
@@ -44,19 +47,19 @@ export function OrderRenewal({detail}: {detail: BuyerOrderDetail}) {
           续租时长
           <input aria-label="续租时长" className="w-28 rounded-lg border border-border bg-field px-3 py-2 text-foreground" type="number" step="1"
             min={detail.product.min_duration ?? 1} max={quote.data?.max_duration} value={duration} onChange={(event) => setDuration(event.target.value)} />
-          <span>{units[detail.product.pricing_mode as keyof typeof units] ?? "个周期"}</span>
+          <span>{units[pricingMode as keyof typeof units] ?? "个周期"}</span>
         </label>
         {!Number.isSafeInteger(amount) || amount < 1 ? <p role="alert" className="text-sm text-danger">请输入有效的续租时长。</p> : null}
         {quote.isFetching ? <p className="text-sm text-muted" role="status">正在获取续租报价…</p> : null}
         {quote.isError ? <div role="alert" className="text-sm text-danger">{quote.error.message} <Button size="sm" variant="tertiary" onPress={() => void quote.refetch()}>刷新报价</Button></div> : null}
         {quote.data && !quote.isFetching && !quote.isError && Number.isSafeInteger(amount) && amount > 0 ?
-          <AcceptedRenewalQuote key={JSON.stringify(quote.data)} quote={quote.data} /> : null}
+          <AcceptedRenewalQuote key={JSON.stringify(quote.data)} managed={managed} quote={quote.data} /> : null}
       </div> : null}
     </section>
   );
 }
 
-function AcceptedRenewalQuote({quote}: {quote: BuyerOrderRenewalQuote}) {
+function AcceptedRenewalQuote({managed, quote}: {managed: boolean; quote: BuyerOrderRenewalQuote}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [agreed, setAgreed] = useState(false);
@@ -75,12 +78,12 @@ function AcceptedRenewalQuote({quote}: {quote: BuyerOrderRenewalQuote}) {
         <dt className="text-muted">原订单</dt><dd className="break-all">{quote.parent_order_no}</dd>
         <dt className="text-muted">续租周期</dt><dd>{quote.duration} {units[quote.pricing_mode]} · 数量 {quote.quantity}</dd>
         <dt className="text-muted">当前到期时间</dt><dd>{formatDateTime(quote.lease_end_at)}</dd>
-        <dt className="text-muted">续租后到期</dt><dd>{quote.renewed_until ? formatDateTime(quote.renewed_until) : "重新交付并确认签收后计算"}</dd>
+        <dt className="text-muted">续租后到期</dt><dd>{quote.renewed_until ? formatDateTime(quote.renewed_until) : managed ? "平台重新开通、自检通过后计算" : "重新交付并确认签收后计算"}</dd>
         <dt className="text-muted">本次单价</dt><dd>{money(quote.unit_price)} / {units[quote.pricing_mode]}</dd>
         <dt className="text-muted">应付金额</dt><dd className="font-semibold">{money(quote.total_amount)}</dd>
         <dt className="text-muted">含平台服务费</dt><dd>{money(quote.platform_fee)}</dd>
       </dl>
-      <p className="text-muted">{quote.mode === "extend" ? "支付确认后延长当前租期，原访问凭证继续使用。请在当前租期结束前完成支付。" : "原租期已结束，需重新预留资源。支付后由供给方重新交付，并生成新的访问凭证。"}</p>
+      <p className="text-muted">{renewalHint(quote.mode, managed)}</p>
       <label className="flex items-start gap-2">
         <input className="mt-0.5 size-4 shrink-0 accent-accent" type="checkbox" checked={agreed} disabled={create.isPending} onChange={(event) => setAgreed(event.target.checked)} />
         <span>我已阅读并同意 <Link className="underline underline-offset-4" href={legalHref("resource-usage-rules")} target="_blank" rel="noopener noreferrer">《算力资源使用规范》</Link>，确认本次续租费用与周期。</span>
@@ -91,4 +94,15 @@ function AcceptedRenewalQuote({quote}: {quote: BuyerOrderRenewalQuote}) {
       </div> : null}
     </div>
   );
+}
+
+function renewalHint(mode: BuyerOrderRenewalQuote["mode"], managed: boolean) {
+  if (mode === "extend") {
+    return managed
+      ? "支付确认后网关放行时间随租期自动延长，登录名与连接方式不变。请在当前租期结束前完成支付。"
+      : "支付确认后延长当前租期，原访问凭证继续使用。请在当前租期结束前完成支付。";
+  }
+  return managed
+    ? "原租期已结束。支付后平台自动重新开通：宽限期内在原节点恢复原环境与数据；宽限期后重新分配资源，原数据已清除。"
+    : "原租期已结束，需重新预留资源。支付后由供给方重新交付，并生成新的访问凭证。";
 }

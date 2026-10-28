@@ -37,6 +37,9 @@ const buyerOrderSchema = z.object({
   pricing_mode: z.string().optional(),
   self_operated: z.boolean().optional(),
   supplier_name: z.string().optional(),
+  // v1.2 (docs/25 §25.9, docs/26 §26.7): absent on backends without managed fulfillment.
+  fulfillment_mode: z.string().optional(),
+  night_start_date: z.string().nullable().optional(),
 });
 
 const orderPageEnvelopeSchema = z.object({
@@ -82,6 +85,9 @@ const buyerOrderDetailSchema = z.object({
     compliance_agreed: z.boolean(),
     created_at: z.string(),
     updated_at: z.string(),
+    fulfillment_mode: z.string().optional(),
+    pricing_mode: z.string().nullable().optional(),
+    night_start_date: z.string().nullable().optional(),
   }),
   product: z.object({
     min_duration: z.number().int().positive().optional(),
@@ -101,6 +107,7 @@ const buyerOrderDetailSchema = z.object({
     pricing_mode: z.string(),
     region: z.string(),
     self_operated: z.boolean(),
+    fulfillment_mode: z.string().optional(),
   }),
   supplier: z.object({
     name: z.string(),
@@ -120,6 +127,7 @@ const buyerOrderDetailSchema = z.object({
     confirmed_by_buyer: z.boolean(),
     buyer_confirmed_at: z.string().nullable(),
     created_at: z.string(),
+    selftest_passed_at: z.string().nullable().optional(),
   }).nullable(),
   actions: z.object({
     can_confirm: z.boolean(),
@@ -173,6 +181,24 @@ export const buyerOrderStatusCopy: Record<OrderStatus, string> = {
   refunded: "已退款",
   frozen: "已冻结",
 };
+
+/** Managed (platform-provisioned) orders: no buyer receipt step, access via the gateway. */
+export function isManagedBuyerOrder(order: {fulfillment_mode?: string} | BuyerOrderDetail) {
+  if ("order" in order) {
+    return order.order.fulfillment_mode === "managed" || order.product.fulfillment_mode === "managed";
+  }
+  return order.fulfillment_mode === "managed";
+}
+
+/** Only manual-mode orders in `provisioning` wait for the buyer to confirm receipt. */
+export function needsBuyerReceipt(order: {status: OrderStatus; fulfillment_mode?: string}) {
+  return order.status === "provisioning" && !isManagedBuyerOrder(order);
+}
+
+export function buyerOrderStatusLabel(order: {status: OrderStatus; fulfillment_mode?: string}) {
+  if (isManagedBuyerOrder(order) && (order.status === "paid" || order.status === "provisioning")) return "平台开通中";
+  return buyerOrderStatusCopy[order.status];
+}
 
 export async function fetchBuyerOrders(
   query: BuyerOrdersQuery = {},
@@ -296,7 +322,7 @@ async function requestBuyerOrderAction(orderNo: string, action: "confirm" | "can
 const renewalQuoteSchema = z.object({
   parent_order_no: z.string().refine(isBuyerOrderNo), mode: z.enum(["extend", "restart"]),
   quantity: z.number().int().positive(), duration: z.number().int().positive(),
-  pricing_mode: z.enum(["hourly", "daily", "weekly", "monthly"]),
+  pricing_mode: z.enum(["hourly", "daily", "weekly", "monthly", "nightly"]),
   min_duration: z.number().int().positive(), max_duration: z.number().int().positive(),
   unit_price: z.number().int().positive(), total_amount: z.number().int().positive(),
   platform_fee: z.number().int().nonnegative(), fee_rate: z.number().int().min(0).max(10000),
@@ -446,7 +472,7 @@ export function summarizeBuyerOrders(
 
   return {
     pendingPayment: orders.filter(({status}) => status === "pending_payment").length,
-    pendingReceipt: orders.filter(({status}) => status === "provisioning").length,
+    pendingReceipt: orders.filter(needsBuyerReceipt).length,
     inProgress: orders.filter(({status}) => inProgressStatuses.has(status)).length,
     monthSpendMinor: orders.reduce(
       (sum, order) =>

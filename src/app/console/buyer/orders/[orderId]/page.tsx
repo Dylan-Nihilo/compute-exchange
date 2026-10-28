@@ -8,11 +8,13 @@ import {useParams, useRouter} from "next/navigation";
 import {useState, type ReactNode} from "react";
 
 import {OrderAttestations} from "@/components/attestations/attestation-views";
+import {ManagedOrderSections} from "@/components/workspace/buyer/managed/managed-order-section";
 import {OrderRenewal} from "@/components/workspace/buyer/order-renewal";
 import {ErrorState} from "@/components/system/operation-state";
 import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {
   buyerOrderStatusCopy,
+  buyerOrderStatusLabel,
   buyerPaymentChannelCopy,
   confirmBuyerOrder,
   cancelBuyerOrder,
@@ -21,6 +23,7 @@ import {
   fetchBuyerOrderDetail,
   fetchBuyerPaymentChannels,
   isBuyerOrderNo,
+  isManagedBuyerOrder,
   revealBuyerOrderCredential,
   startBuyerOrderPayment,
   syncBuyerOrderPayment,
@@ -44,6 +47,7 @@ const pricingModeCopy: Record<string, string> = {
   daily: "按天",
   hourly: "按小时",
   monthly: "按月",
+  nightly: "包夜",
   perpetual: "买断",
   weekly: "按周",
 };
@@ -105,7 +109,9 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
   const {delivery, order, product, supplier} = detail;
   const supplierName = supplier.name || (supplier.self_operated ? "平台自营" : "—");
   const productName = product.gpu_model || productTypeCopy(product.product_type);
-  const statusCopy = buyerOrderStatusCopy[order.status];
+  const managed = isManagedBuyerOrder(detail);
+  const statusCopy = buyerOrderStatusLabel({status: order.status, fulfillment_mode: managed ? "managed" : undefined});
+  const showManagedSections = managed && !detail.renewal && !["pending_payment", "cancelled"].includes(order.status);
   const progress = orderProgress(detail);
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
@@ -154,7 +160,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
         </div>
 
         <div className="flex flex-wrap gap-2 sm:justify-end">
-          {detail.actions.can_confirm ? <Button onPress={() => setConfirming(true)}>确认签收</Button> : null}
+          {detail.actions.can_confirm && !managed ? <Button onPress={() => setConfirming(true)}>确认签收</Button> : null}
           <ActionButton label="申请发票" onPress={() => router.push(`/console/buyer/invoices?apply=${order.order_no}`)} />
           <ActionButton label="发起工单" onPress={() => router.push(`/console/buyer/tickets?order=${order.order_no}`)} />
           <ActionButton label="申请退款" disabled={!detail.actions.can_refund} onPress={() => setOrderAction("refund")} />
@@ -173,7 +179,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone(order.status)}`}>{statusCopy}</span>
-            <h2 className="truncate text-lg font-semibold text-[#173447]">{detail.renewal && order.status === "completed" ? "续租订单已支付" : statusHeadline(order.status)}</h2>
+            <h2 className="truncate text-lg font-semibold text-[#173447]">{detail.renewal && order.status === "completed" ? "续租订单已支付" : managed && isProvisioning(order.status) ? "平台开通中" : statusHeadline(order.status)}</h2>
           </div>
           <p className="mt-2 text-xs text-[#7b929e]">{statusDescription(detail)}</p>
         </div>
@@ -189,8 +195,8 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
 
       {detail.renewal ? <section className={`${cardClass} mt-4 px-5 py-4 text-sm`}>
         <p>原订单：<Link className="break-all underline underline-offset-4" href={`/console/buyer/orders/${detail.renewal.parent_order_no}`}>{detail.renewal.parent_order_no}</Link></p>
-        <p className="mt-2">本次续租 {order.duration} {({hourly: "小时", daily: "天", weekly: "周", monthly: "个月"} as Record<string, string>)[detail.renewal.pricing_mode]}，含平台服务费 {money.format(order.platform_fee / 100)}。</p>
-        <p className="mt-2">{detail.renewal.mode === "extend" ? `预计续租后到期：${dateOrDash(detail.renewal.renewed_until)}` : "支付后需在原订单重新交付并确认签收，开始新的租期。"}</p>
+        <p className="mt-2">本次续租 {order.duration} {durationUnit(detail.renewal.pricing_mode)}，含平台服务费 {money.format(order.platform_fee / 100)}。</p>
+        <p className="mt-2">{detail.renewal.mode === "extend" ? `预计续租后到期：${dateOrDash(detail.renewal.renewed_until)}` : managed ? "支付后由平台在原订单自动重新开通，自检通过后开始新的租期。" : "支付后需在原订单重新交付并确认签收，开始新的租期。"}</p>
         {detail.renewal.applied_at ? <Link className="mt-3 inline-block underline underline-offset-4" href={`/console/buyer/orders/${detail.renewal.parent_order_no}`}>查看原订单当前租期与交付</Link> : null}
       </section> : <OrderRenewal detail={detail} />}
 
@@ -221,13 +227,15 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
           <InfoCard icon="receipt.svg" title="订单信息">
             <InfoItem label="订单编号" value={order.order_no} />
             <InfoItem label="下单时间" value={formatDateTime(order.created_at)} />
-            <InfoItem label="商品" value={`${productName} · ${order.quantity}${quantityUnit(product.product_type)} · ${pricingModeCopy[product.pricing_mode] || "按期"}`} />
+            <InfoItem label="商品" value={`${productName} · ${order.quantity}${quantityUnit(product.product_type)} · ${pricingModeCopy[order.pricing_mode ?? product.pricing_mode] || "按期"}${managed ? " · 平台托管" : ""}`} />
+            {order.night_start_date ? <InfoItem label="包夜起始日" value={order.night_start_date} /> : null}
             <InfoItem label="订单金额" value={money.format(order.total_amount / 100)} />
             <InfoItem label="供给方" value={supplierName} />
             <InfoItem label="履约率" value={supplier.credit ? `${supplier.credit.fulfill_rate}%` : "暂无评分"} />
           </InfoCard>
 
-          {!detail.renewal ? <><InfoCard icon="server.svg" title="交付信息">
+          {showManagedSections ? <ManagedOrderSections orderNo={order.order_no} provisioning={isProvisioning(order.status)} /> : null}
+          {!detail.renewal && !managed ? <><InfoCard icon="server.svg" title="交付信息">
             <InfoItem label="访问状态" value={delivery ? accessStatusCopy(delivery.access_status) : "尚未生成"} />
             <InfoItem label="买家确认" value={delivery?.confirmed_by_buyer ? "已确认" : "待确认"} />
             <InfoItem label="确认时间" value={dateOrDash(delivery?.buyer_confirmed_at)} />
@@ -235,6 +243,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
           </InfoCard>
 
           <AccessCredentialCard detail={detail} /></> : null}
+          {showManagedSections ? <AccessCredentialCard detail={detail} /> : null}
           <OrderAttestations orderNo={order.order_no} />
         </div>
 
@@ -439,6 +448,9 @@ function orderProgress(detail: BuyerOrderDetail) {
       title: detail.delivery.access_status === "none" ? "开始交付" : "访问凭证已生成",
     });
   }
+  if (detail.delivery?.selftest_passed_at) {
+    items.push({at: detail.delivery.selftest_passed_at, description: "平台自检通过，租期开始计时", title: "资源已开通"});
+  }
   if (detail.delivery?.buyer_confirmed_at) {
     items.push({at: detail.delivery.buyer_confirmed_at, description: "资源与访问凭证已确认", title: "买家确认签收"});
   }
@@ -450,6 +462,15 @@ function orderProgress(detail: BuyerOrderDetail) {
 
 function credentialSteps(detail: BuyerOrderDetail) {
   const accessStatus = detail.delivery?.access_status;
+  const running = detail.order.status === "active" || detail.order.status === "completed";
+  if (isManagedBuyerOrder(detail)) {
+    return [
+      {done: detail.order.status !== "pending_payment", label: "支付确认"},
+      {done: Boolean(detail.delivery) || running, label: "平台开通"},
+      {done: Boolean(detail.delivery?.selftest_passed_at) || running, label: "自检通过"},
+      {done: running, label: "网关登录"},
+    ];
+  }
   return [
     {done: Boolean(detail.delivery), label: "供给方交付"},
     {done: accessStatus === "generated" || accessStatus === "delivered", label: "生成凭证"},
@@ -472,8 +493,13 @@ function statusHeadline(status: BuyerOrderDetail["order"]["status"]) {
   }[status];
 }
 
+function isProvisioning(status: BuyerOrderDetail["order"]["status"]) {
+  return status === "paid" || status === "provisioning";
+}
+
 function statusDescription(detail: BuyerOrderDetail) {
   const {order} = detail;
+  if (isManagedBuyerOrder(detail) && isProvisioning(order.status)) return "支付成功，平台正在自动开通资源；开通耗时不计入租期，自检通过后即可登录";
   if (detail.renewal && order.status === "completed") return detail.renewal.mode === "extend" ? "续租已生效，请在原订单查看当前租期与访问凭证" : "请在原订单查看重新交付与当前租期";
   if (order.status === "active" && order.lease_end_at) return `履约至 ${formatDateTime(order.lease_end_at)}`;
   if (order.status === "pending_payment" && order.payment_expires_at) return `请在 ${formatDateTime(order.payment_expires_at)} 前完成支付`;
@@ -501,7 +527,7 @@ function statusTone(status: BuyerOrderDetail["order"]["status"]) {
 function leasePeriod(detail: BuyerOrderDetail) {
   const {lease_end_at, lease_start_at} = detail.order;
   if (lease_start_at && lease_end_at) return `${formatDateTime(lease_start_at)} — ${formatDateTime(lease_end_at)}`;
-  return `${detail.current_lease?.duration ?? detail.order.duration} ${durationUnit(detail.current_lease?.pricing_mode ?? detail.renewal?.pricing_mode ?? detail.product.pricing_mode)}`;
+  return `${detail.current_lease?.duration ?? detail.order.duration} ${durationUnit(detail.current_lease?.pricing_mode ?? detail.renewal?.pricing_mode ?? detail.order.pricing_mode ?? detail.product.pricing_mode)}`;
 }
 
 function copyText(value: string) {
@@ -523,7 +549,7 @@ function quantityUnit(productType: string) {
 }
 
 function durationUnit(pricingMode: string) {
-  return {daily: "天", hourly: "小时", monthly: "个月", perpetual: "次", weekly: "周"}[pricingMode] ?? "期";
+  return ({daily: "天", hourly: "小时", monthly: "个月", nightly: "晚", perpetual: "次", weekly: "周"} as Record<string, string>)[pricingMode] ?? "期";
 }
 
 function accessStatusCopy(status: string) {

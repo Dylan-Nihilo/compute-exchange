@@ -14,6 +14,9 @@ import {
 import {ErrorState} from "@/components/system/operation-state";
 import {
   buyerOrderStatusCopy,
+  buyerOrderStatusLabel,
+  isManagedBuyerOrder,
+  needsBuyerReceipt,
   type BuyerOrder,
   type OrderStatus,
 } from "@/lib/buyer-orders";
@@ -228,14 +231,14 @@ function OrderRow({
         {money.format(order.total_amount / 100)}
       </td>
       <td className="px-4">
-        <OrderStatusChip status={order.status} />
+        <OrderStatusChip order={order} />
       </td>
       <td className="px-4 text-[13px] text-[#78909c] tabular-nums">
         {formatDate(order.created_at, {day: "2-digit", month: "2-digit"}, "en-CA").replace("-", "–")}
       </td>
       <td className="px-4">
         <div className="flex justify-end gap-2">
-          {order.status === "provisioning" ? (
+          {needsBuyerReceipt(order) ? (
             <Button
               className="h-9 min-w-[72px] rounded-xl bg-[#d9f72c] px-3 text-xs font-medium text-[#10220c] transition-colors hover:bg-[#cbe923]"
               isDisabled={isAnyConfirmationPending && !isConfirming}
@@ -267,7 +270,8 @@ function OrderRow({
   );
 }
 
-function OrderStatusChip({status}: {status: OrderStatus}) {
+function OrderStatusChip({order}: {order: BuyerOrder}) {
+  const {status} = order;
   const tone =
     status === "active"
       ? "bg-[#e2f5e7] text-[#2e7d48]"
@@ -283,7 +287,8 @@ function OrderStatusChip({status}: {status: OrderStatus}) {
 
   return (
     <span className={`inline-flex min-h-6 items-center rounded-full px-2.5 text-[11px] font-medium ${tone}`}>
-      {buyerOrderStatusCopy[status]}
+      {buyerOrderStatusLabel(order)}
+      {isManagedBuyerOrder(order) ? <span className="ml-1 opacity-70">· 托管</span> : null}
     </span>
   );
 }
