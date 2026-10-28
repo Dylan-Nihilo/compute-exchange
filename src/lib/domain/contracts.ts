@@ -61,6 +61,108 @@ export const fulfillmentStatuses = [
 export const fulfillmentStatusSchema = z.enum(fulfillmentStatuses);
 export type FulfillmentStatus = z.infer<typeof fulfillmentStatusSchema>;
 
+// v1.2 managed card rental (tokenFactory docs/25–27). Values mirror backend enums verbatim.
+export const fulfillmentModes = ["manual", "managed"] as const;
+export const fulfillmentModeSchema = z.enum(fulfillmentModes);
+export type FulfillmentMode = z.infer<typeof fulfillmentModeSchema>;
+
+export const billingModes = ["hourly", "daily", "weekly", "monthly", "nightly"] as const;
+export const billingModeSchema = z.enum(billingModes);
+export type BillingMode = z.infer<typeof billingModeSchema>;
+
+/** Card counts a managed product may offer per order (docs/26 §26.4). */
+export const cardSplitOptions = [1, 2, 4, 6, 8] as const;
+export type CardSplitOption = (typeof cardSplitOptions)[number];
+
+export function isCardSplitOption(value: number): value is CardSplitOption {
+  return (cardSplitOptions as readonly number[]).includes(value);
+}
+
+export const productAvailabilities = ["fulltime", "night_window"] as const;
+export type ProductAvailability = (typeof productAvailabilities)[number];
+
+export const leaseStates = [
+  "reserved",
+  "pending",
+  "provisioning",
+  "active",
+  "parked",
+  "suspended",
+  "grace",
+  "purging",
+  "purged",
+  "failed",
+  "cancelled",
+] as const;
+export const leaseStateSchema = z.enum(leaseStates);
+export type LeaseState = z.infer<typeof leaseStateSchema>;
+
+export const nodeVerifyStatuses = [
+  "unverified",
+  "verifying",
+  "verified",
+  "failed",
+  "key_mismatch",
+  "needs_reimage",
+  "suspended",
+] as const;
+export const nodeVerifyStatusSchema = z.enum(nodeVerifyStatuses);
+export type NodeVerifyStatus = z.infer<typeof nodeVerifyStatusSchema>;
+
+export const gpuSlotStates = [
+  "free",
+  "reserved",
+  "leased",
+  "draining",
+  "faulty",
+  "withheld",
+] as const;
+export const gpuSlotStateSchema = z.enum(gpuSlotStates);
+export type GpuSlotState = z.infer<typeof gpuSlotStateSchema>;
+
+export const probeCheckIds = [
+  "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "P12", "P13",
+] as const;
+
+export const outageCauses = [
+  "node_offline",
+  "gpu_fault",
+  "container_down",
+  "full_probe_failed",
+  "night_unpark_failed",
+  "provision_delay",
+  "gateway_down",
+  "wrong_freeze",
+] as const;
+export type OutageCause = (typeof outageCauses)[number];
+
+export const outageRemedies = ["extend", "refund"] as const;
+export type OutageRemedy = (typeof outageRemedies)[number];
+
+export const deploymentStates = [
+  "pending",
+  "checking",
+  "pulling",
+  "starting",
+  "running",
+  "restarting",
+  "stopping",
+  "stopped",
+  "failed",
+] as const;
+export const deploymentStateSchema = z.enum(deploymentStates);
+export type DeploymentState = z.infer<typeof deploymentStateSchema>;
+
+export const deploymentHealthLevels = ["unknown", "healthy", "degraded", "unhealthy"] as const;
+export const deploymentHealthSchema = z.enum(deploymentHealthLevels);
+export type DeploymentHealth = z.infer<typeof deploymentHealthSchema>;
+
+export const modelCatalogStatuses = ["draft", "active", "retired"] as const;
+export type ModelCatalogStatus = (typeof modelCatalogStatuses)[number];
+
+export const modelCommercialUses = ["allowed", "restricted", "unknown"] as const;
+export type ModelCommercialUse = (typeof modelCommercialUses)[number];
+
 export const paymentStatuses = [
   "pending",
   "paid",
@@ -258,7 +360,13 @@ export const computeProductSchema = z
       bandwidthMbps: z.number().positive(),
     }),
     deliveryMode: z.enum(["bareMetal", "container", "virtualMachine", "rack"]),
-    billingMode: z.enum(["hourly", "weekly", "monthly"]),
+    billingMode: billingModeSchema,
+    /** Absent on legacy products, which are always manual. */
+    fulfillmentMode: fulfillmentModeSchema.optional(),
+    cardSplitOptions: z
+      .array(z.number().int().refine((value) => isCardSplitOption(value), "Unsupported card split"))
+      .min(1)
+      .optional(),
     region: z.string().min(1),
     networkEgress: z.string().min(1),
     supportsPublicNetwork: z.boolean(),
@@ -307,8 +415,13 @@ export const computeOrderSchema = z
     disputeStatus: disputeStatusSchema,
     fulfillmentCredential: fulfillmentCredentialSchema.nullable(),
     complianceAcceptance: complianceAcceptanceSchema,
+    /** Absent on legacy orders, which are always manual. */
+    fulfillmentMode: fulfillmentModeSchema.optional(),
   })
   .superRefine((order, context) => {
+    // Managed orders are provisioned by the scheduler and accessed through the platform gateway:
+    // there is no supplier-submitted credential and no buyer acceptance (docs/24 D-10).
+    const managed = order.fulfillmentMode === "managed";
     if (Date.parse(order.endsAt) <= Date.parse(order.startsAt)) {
       context.addIssue({
         code: "custom",
@@ -332,6 +445,7 @@ export const computeOrderSchema = z
       ["awaitingAcceptance", "active", "completed"].includes(
         order.fulfillmentStatus,
       ) &&
+      !managed &&
       !order.fulfillmentCredential
     ) {
       context.addIssue({
@@ -343,6 +457,7 @@ export const computeOrderSchema = z
 
     if (
       ["active", "completed"].includes(order.fulfillmentStatus) &&
+      !managed &&
       !["buyerAccepted", "timeoutAccepted"].includes(order.acceptanceStatus)
     ) {
       context.addIssue({

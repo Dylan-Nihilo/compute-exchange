@@ -190,6 +190,20 @@ describe("route contract", () => {
     assert.deepEqual(settings?.roles, ["admin"]);
   });
 
+  it("registers the v1.2 managed rental pages for the right roles", () => {
+    assert.equal(matchRoute("/console/buyer/ssh-keys")?.href, "/console/buyer/ssh-keys");
+    assert.equal(
+      matchRoute("/console/buyer/orders/ORD20261028001/deployments")?.href,
+      "/console/buyer/orders/[orderId]/deployments",
+    );
+    assert.equal(matchRoute("/console/supplier/nodes/12")?.href, "/console/supplier/nodes/[nodeId]");
+    for (const href of ["/admin/leases", "/admin/model-catalog", "/admin/deployments"]) {
+      assert.equal(canAccessRoute(href, {role: "operator", verificationStatus: "verified"}), true);
+      assert.equal(canAccessRoute(href, {role: "supplier", verificationStatus: "verified"}), false);
+    }
+    assert.equal(canAccessRoute("/console/buyer/ssh-keys", {role: "supplier", verificationStatus: "verified"}), false);
+  });
+
   it("matches dynamic paths and enforces the active role", () => {
     assert.equal(matchRoute("/market/product-1")?.href, "/market/[productId]");
     assert.equal(homeForRole("supplier"), "/console/supplier");
@@ -433,6 +447,36 @@ describe("domain contract validation", () => {
     });
 
     assert.equal(orphanedRejection.success, false);
+  });
+
+  it("lets managed orders run without supplier credential or buyer acceptance", () => {
+    const base = {
+      id: "order-managed",
+      buyerId: "buyer-1",
+      productId: "product-1",
+      quantity: 2,
+      startsAt: "2026-11-01T10:00:00+08:00",
+      endsAt: "2026-11-02T10:00:00+08:00",
+      inventoryLockExpiresAt: "2026-11-01T09:15:00+08:00",
+      pricingSnapshot: {unitPrice: {amountMinor: 3500, currency: "CNY"}, platformFeeRateBps: 500},
+      total: {amountMinor: 7000, currency: "CNY"},
+      paymentReference: "payment-1",
+      fulfillmentStatus: "active",
+      paymentStatus: "paid",
+      acceptanceStatus: "pending",
+      riskStatus: "clear",
+      disputeStatus: "none",
+      fulfillmentCredential: null,
+      complianceAcceptance: {
+        agreementVersion: "2026-09-06.1",
+        acceptedBy: "buyer-1",
+        acceptedAt: "2026-11-01T09:00:00+08:00",
+      },
+    };
+
+    assert.equal(computeOrderSchema.safeParse({...base, fulfillmentMode: "managed"}).success, true);
+    assert.equal(computeOrderSchema.safeParse({...base, fulfillmentMode: "manual"}).success, false);
+    assert.equal(computeOrderSchema.safeParse(base).success, false);
   });
 
   it("requires public filing evidence for self-hosted models", () => {
