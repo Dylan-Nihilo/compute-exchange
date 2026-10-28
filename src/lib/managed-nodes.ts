@@ -179,3 +179,37 @@ export function setSlotWithheld(
 export function isSshFingerprint(value: string) {
   return /^SHA256:[A-Za-z0-9+/]{43}=?$/.test(value.trim());
 }
+
+export type OnboardingStage =
+  | "ssh"
+  | "verify"
+  | "verifying"
+  | "confirm_host_key"
+  | "reimage"
+  | "verified"
+  | "failed"
+  | "suspended";
+
+type StageInput = {
+  ssh_host?: string | null;
+  verify_status?: (typeof nodeVerifyStatuses)[number];
+  host_key_fingerprint?: string | null;
+  host_key_confirmed_at?: string | null;
+};
+
+/**
+ * Where an SSH node sits in the docs/25 §25.4.2 onboarding flow, derived only from backend fields.
+ * A recorded but unconfirmed fingerprint (or `key_mismatch`) always asks for confirmation first.
+ */
+export function onboardingStage(node: StageInput): OnboardingStage {
+  const status = node.verify_status ?? "unverified";
+  if (status === "suspended") return "suspended";
+  if (!node.ssh_host) return "ssh";
+  if (status === "key_mismatch") return "confirm_host_key";
+  if (node.host_key_fingerprint && !node.host_key_confirmed_at) return "confirm_host_key";
+  if (status === "needs_reimage") return "reimage";
+  if (status === "verifying") return "verifying";
+  if (status === "verified") return "verified";
+  if (status === "failed") return "failed";
+  return "verify";
+}

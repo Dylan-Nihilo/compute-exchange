@@ -52,3 +52,20 @@ it("grants node surfaces only to the actual supplier and operator/admin roles", 
     assert.equal(canAccessRoute("/admin/nodes", context), role === "operator" || role === "admin");
   }
 });
+
+it("registers SSH-managed nodes without a push key and parses v1.2 node fields", async () => {
+  const input = {product_id: 2, node_name: "bj-h100-01", total_cards: 8, mgmt_mode: "ssh" as const, disk_per_card_gb: 200, lease_port_start: 40000, lease_port_end: 40099};
+  const registration = await registerNode(input, async (_url, init) => {
+    assert.deepEqual(JSON.parse(String(init?.body)), input);
+    return Response.json({code: 0, data: {node: {id: 5}}});
+  });
+  assert.equal(registration.node.id, 5);
+  await assert.rejects(registerNode({...input, mgmt_mode: undefined}, async () => Response.json({code: 0, data: {node: {id: 5}}})));
+  await assert.rejects(registerNode({...input, lease_port_end: undefined}, async () => {throw new Error("should not fetch");}), (error: Error) => error.message !== "should not fetch");
+
+  const [managed] = await fetchSupplierNodes(async () => Response.json({code: 0, data: [{...node, mgmt_mode: "ssh", verify_status: "verifying", schedulable: 1, host_key_fingerprint: "SHA256:abc", host_key_confirmed_at: null, disk_quota_supported: 0}]}));
+  assert.equal(managed.mgmt_mode, "ssh");
+  assert.equal(managed.schedulable, true);
+  assert.equal(managed.disk_quota_supported, false);
+  assert.equal(managed.host_key_confirmed_at, null);
+});

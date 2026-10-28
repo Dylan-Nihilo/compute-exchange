@@ -5,6 +5,7 @@ import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
 import {useEffect, useState} from "react";
 import {Activity, BookOpen, Check, ChevronDown, CircleAlert, Copy, Cpu, KeyRound, Plus, RotateCw, Search, Server, Trash2} from "lucide";
 import Link from "next/link";
+import {useRouter} from "next/navigation";
 
 import {InteractiveIcon} from "@/components/system/interactive-icon";
 import {ErrorState} from "@/components/system/operation-state";
@@ -16,8 +17,11 @@ import {AdminPage, AdminPanel} from "@/components/workspace/admin/admin-ui";
 import {ListPagination} from "@/components/workspace/ui/list-pagination";
 import {useAuthStore} from "@/lib/auth/store";
 import {formatDateTime} from "@/lib/format/date";
-import {deleteNode, fetchAdminNodes, fetchSupplierNodes, nodeStatuses, registerNode, type ComputeNode, type NodeRegistrationInput} from "@/lib/scheduler";
-import {fetchMyProducts, productTypeCopy} from "@/lib/supplier-workspace";
+import {verifyStatusLabels} from "@/lib/managed-nodes";
+import {deleteNode, fetchAdminNodes, fetchSupplierNodes, isManagedNode, nodeStatuses, registerNode, type ComputeNode, type NodeRegistrationInput} from "@/lib/scheduler";
+import {fetchMyProducts, isManagedProduct, productTypeCopy} from "@/lib/supplier-workspace";
+
+import {ManagedNodeFields, managedNodeInput, type ManagedNodeFieldState} from "./managed-node/registration-fields";
 
 import {ScheduleAdvice} from "./schedule-advice";
 import styles from "./supplier-nodes.module.css";
@@ -42,12 +46,19 @@ function SupplierNodePanel({accountId}: {accountId: string | null}) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState("");
   const [target, setTarget] = useState<ComputeNode | null>(null);
+  const [managedFields, setManagedFields] = useState<ManagedNodeFieldState>({diskPerCardGb: "", portStart: "40000", portEnd: "40099"});
+  const router = useRouter();
   const nodes = useQuery({queryKey: ["scheduler", accountId, "supplier", "nodes"], queryFn: () => fetchSupplierNodes(), retry: false, refetchInterval: 30000, staleTime: 0, gcTime: 0});
   const products = useQuery({queryKey: ["supplier", accountId, "node-products"], queryFn: () => fetchMyProducts(), retry: false, staleTime: 0, gcTime: 0});
   const register = useMutation({
     retry: false, gcTime: 0,
     mutationFn: async (input: NodeRegistrationInput) => {
       const result = await registerNode(input);
+      // SSH-managed nodes have no push key; continue in the onboarding wizard (docs/25 §25.4.2).
+      if (input.mgmt_mode === "ssh" || !result.node_key) {
+        router.push(`/console/supplier/nodes/${result.node.id}`);
+        return;
+      }
       // Keep the one-time credential in this mounted view, never in mutation/query data.
       setCredential({id: result.node.id, key: result.node_key});
       setShowKey(false); setCopied(false); setCopyError(""); setName("");
@@ -75,7 +86,10 @@ function SupplierNodePanel({accountId}: {accountId: string | null}) {
   const closeRegistration = () => {
     setRegistrationOpen(false); setCredential(null); setShowKey(false); setCopyError(""); register.reset();
   };
-  const canRegister = Boolean(productId && name.trim() && Number.isInteger(Number(cards)) && Number(cards) > 0 && Number(cards) <= 2147483647 && products.isSuccess && !credential && !remove.isPending);
+  const selectedProduct = productsById.get(Number(productId));
+  const managedProduct = isManagedProduct(selectedProduct);
+  const managedInput = managedProduct ? managedNodeInput(managedFields) : null;
+  const canRegister = Boolean((!managedProduct || managedInput) && productId && name.trim() && Number.isInteger(Number(cards)) && Number(cards) > 0 && Number(cards) <= 2147483647 && products.isSuccess && !credential && !remove.isPending);
 
   return <section className={`${styles.theme} mx-auto flex w-full max-w-[1228px] flex-col gap-5 px-4 pt-6 pb-8 sm:px-6 lg:px-8`}>
     <div>
@@ -126,11 +140,11 @@ function SupplierNodePanel({accountId}: {accountId: string | null}) {
               <thead><tr><th scope="col">节点 / 所属商品</th><th scope="col">运行状态</th><th scope="col">可用 / 总卡数</th><th scope="col">GPU / 显存负载</th><th scope="col">最近心跳</th><th scope="col" className="text-right">操作</th></tr></thead>
               <tbody>{filteredNodes.map((node) => <tr key={node.id}>
                 <th scope="row"><p className={styles.nodeName}>{node.node_name}</p><p className={styles.productName} title={productLabel(node.product_id)}>{productLabel(node.product_id)}</p><p className={styles.nodeId}>节点 #{node.id} · 商品 #{node.product_id}</p></th>
-                <td><span className={styles.status} data-status={node.status} title={nodeStatuses[node.status]}><span />{node.status === "degraded" ? "资源紧张" : nodeStatuses[node.status]}</span></td>
+                <td><span className={styles.status} data-status={node.status} title={nodeStatuses[node.status]}><span />{node.status === "degraded" ? "资源紧张" : nodeStatuses[node.status]}</span>{isManagedNode(node) ? <p className="mt-1.5 text-xs text-muted">平台托管 · {node.verify_status ? verifyStatusLabels[node.verify_status] : "待验证"}{node.schedulable === false ? " · 已排空" : ""}</p> : null}</td>
                 <td><p className="tabular-nums"><strong className="text-base font-semibold">{node.status === "offline" ? "—" : node.available_cards}</strong><span className="text-muted"> / {node.total_cards} 卡</span></p><div aria-hidden="true" className={styles.capacity}><span style={{width: `${node.status === "offline" || !node.total_cards ? 0 : Math.min(100, node.available_cards / node.total_cards * 100)}%`}} /></div></td>
                 <td className="tabular-nums">{node.status === "offline" ? <span className="text-muted">暂无实时数据</span> : <><span>{node.gpu_util_pct == null ? "未上报" : `${node.gpu_util_pct}%`}</span><span className="text-muted"> / {node.vram_util_pct == null ? "未上报" : `${node.vram_util_pct}%`}</span></>}</td>
                 <td className="text-xs text-muted">{node.last_heartbeat_at ? formatDateTime(node.last_heartbeat_at) : "等待首次心跳"}</td>
-                <td className="text-right"><Button aria-label={`删除节点 ${node.node_name}`} className="min-h-10 min-w-10" isIconOnly isDisabled={remove.isPending || register.isPending} onPress={() => {remove.reset(); setTarget(node);}} size="sm" variant="ghost"><InteractiveIcon className="text-muted" icon={Trash2} size={16} /></Button></td>
+                <td className="text-right">{isManagedNode(node) ? <Link className="mr-1 text-xs font-medium underline-offset-4 hover:underline" href={`/console/supplier/nodes/${node.id}`}>接入与卡槽</Link> : null}<Button aria-label={`删除节点 ${node.node_name}`} className="min-h-10 min-w-10" isIconOnly isDisabled={remove.isPending || register.isPending} onPress={() => {remove.reset(); setTarget(node);}} size="sm" variant="ghost"><InteractiveIcon className="text-muted" icon={Trash2} size={16} /></Button></td>
               </tr>)}</tbody>
             </table>
           </div>}
@@ -168,12 +182,13 @@ function SupplierNodePanel({accountId}: {accountId: string | null}) {
               <div className={styles.field}><label htmlFor="node-key">节点密钥</label><Input id="node-key" autoComplete="off" readOnly type={showKey ? "text" : "password"} className="font-mono" value={credential.key} /></div>
               <div className="flex flex-wrap gap-2"><Button className={styles.secondary} variant="outline" size="sm" onPress={() => setShowKey(!showKey)}>{showKey ? "隐藏密钥" : "显示密钥"}</Button><Button className={styles.secondary} variant="outline" size="sm" onPress={async () => {try {await navigator.clipboard.writeText(credential.key); setCopied(true); setCopyError("");} catch {setCopyError("复制失败，请选择密钥手动复制。");}}}><InteractiveIcon icon={copied ? Check : Copy} size={15} />{copied ? "已复制" : "复制密钥"}</Button></div>
               {copyError ? <p className="text-sm text-danger" role="alert">{copyError}</p> : null}
-            </div> : <form id="register-supplier-node" className="space-y-5" onSubmit={(event) => {event.preventDefault(); if (canRegister && !register.isPending) register.mutate({product_id: Number(productId), node_name: name.trim(), total_cards: Number(cards)});}}>
+            </div> : <form id="register-supplier-node" className="space-y-5" onSubmit={(event) => {event.preventDefault(); if (canRegister && !register.isPending) register.mutate({product_id: Number(productId), node_name: name.trim(), total_cards: Number(cards), ...(managedInput ?? {})});}}>
               <div className={styles.field}><label htmlFor="node-product">所属商品</label><select id="node-product" required value={productId} disabled={!products.isSuccess || register.isPending} onChange={(event) => setProductId(event.target.value)}><option value="">{products.isPending ? "正在读取商品…" : "请选择要关联的商品"}</option>{products.data?.map((product) => <option key={product.id} value={product.id}>#{product.id} · {product.gpu_model || productTypeCopy[product.product_type]} · {product.region}</option>)}</select></div>
               {products.isError ? <div role="alert" className="text-sm"><p className="text-danger">商品读取失败：{products.error.message}</p><Button className="mt-2" size="sm" variant="outline" isPending={products.isFetching} onPress={() => void products.refetch()}>重新读取商品</Button></div> : products.isSuccess && !products.data.length ? <p className="text-sm text-muted">请先<Link className="mx-1 underline underline-offset-4" href="/console/supplier/products/new">发布算力商品</Link>，再为商品添加节点。</p> : null}
               <div className={styles.field}><label htmlFor="node-name">节点名称</label><Input id="node-name" aria-describedby="node-name-hint" required maxLength={64} value={name} disabled={register.isPending} onChange={(event) => setName(event.target.value)} placeholder="例如 beijing-h100-01" /><span id="node-name-hint">建议包含地域与设备型号，便于识别。</span></div>
               <div className={styles.field}><label htmlFor="node-cards">节点总卡数</label><Input id="node-cards" aria-describedby="node-cards-hint" required type="number" min={1} max={2147483647} step={1} value={cards} disabled={register.isPending} onChange={(event) => setCards(event.target.value)} /><span id="node-cards-hint">填写该节点实际安装的 GPU 数量。</span></div>
-              <p className={styles.notice}>添加后需配置心跳上报。节点接入状态会影响所属商品的可售状态。</p>
+              {managedProduct ? <ManagedNodeFields disabled={register.isPending} onChange={setManagedFields} value={managedFields} /> : null}
+              <p className={styles.notice}>{managedProduct ? "该商品由平台托管：创建后进入接入向导，授权平台 SSH 管理并通过探活。" : "添加后需配置心跳上报。节点接入状态会影响所属商品的可售状态。"}</p>
               {register.isError ? <p className="text-sm text-danger" role="alert">注册失败：{register.error.message}。请核对节点列表后再试。</p> : null}
             </form>}
           </Modal.Body>

@@ -1,6 +1,7 @@
 import {z} from "zod";
 
 import {createApiClient} from "./api/client.ts";
+import {nodeVerifyStatuses} from "./domain/contracts.ts";
 
 export const nodeStatuses = {online: "在线", degraded: "负载高或余量不足", offline: "离线"} as const;
 const nodeSchema = z.object({
@@ -9,6 +10,24 @@ const nodeSchema = z.object({
   node_name: z.string(), status: z.enum(["online", "degraded", "offline"]),
   total_cards: z.number().int().nonnegative(), available_cards: z.number().int().nonnegative(),
   gpu_util_pct: z.number().nullable(), vram_util_pct: z.number().nullable(), last_heartbeat_at: z.string().nullable(),
+  // v1.2 managed (SSH) nodes, docs/25 §25.9 026 columns. Absent on legacy backends and push nodes.
+  mgmt_mode: z.enum(["push", "ssh"]).optional(),
+  verify_status: z.enum(nodeVerifyStatuses).optional(),
+  schedulable: z.union([z.boolean(), z.number().int()]).transform((value) => Boolean(value)).optional(),
+  ssh_host: z.string().nullable().optional(),
+  ssh_port: z.number().int().nullable().optional(),
+  ssh_user: z.string().nullable().optional(),
+  // Observed on first connection; pinned once host_key_confirmed_at is set (docs/25 §25.4.2 step ⑦).
+  host_key_fingerprint: z.string().nullable().optional(),
+  host_key_confirmed_at: z.string().nullable().optional(),
+  verified_at: z.string().nullable().optional(),
+  last_probe_ok_at: z.string().nullable().optional(),
+  disk_per_card_gb: z.number().int().nullable().optional(),
+  disk_quota_supported: z.union([z.boolean(), z.number().int()]).nullable().transform((value) => value == null ? null : Boolean(value)).optional(),
+  driver_version: z.string().nullable().optional(),
+  cuda_version: z.string().nullable().optional(),
+  lease_port_start: z.number().int().nullable().optional(),
+  lease_port_end: z.number().int().nullable().optional(),
 });
 export type ComputeNode = z.infer<typeof nodeSchema>;
 const adviceSchema = z.object({
@@ -17,7 +36,15 @@ const adviceSchema = z.object({
     available_cards: z.number().int().nonnegative(), total_cards: z.number().int().nonnegative(), score: z.number(),
     verdict: z.enum(["recommended", "alternative", "unavailable"]), reasons: z.array(z.string())})).nullable().transform((value) => value ?? []),
 });
-export const nodeRegistrationInput = z.object({product_id: z.number().int().positive(), node_name: z.string().trim().min(1).max(64), total_cards: z.number().int().min(1).max(2147483647)});
+export const nodeRegistrationInput = z.object({
+  product_id: z.number().int().positive(), node_name: z.string().trim().min(1).max(64), total_cards: z.number().int().min(1).max(2147483647),
+  // v1.2: managed products register SSH-managed nodes (docs/25 §25.10); omitted for push nodes.
+  mgmt_mode: z.literal("ssh").optional(),
+  disk_per_card_gb: z.number().int().min(1).max(1_000_000).optional(),
+  lease_port_start: z.number().int().min(1024).max(65535).optional(),
+  lease_port_end: z.number().int().min(1024).max(65535).optional(),
+}).refine((input) => (input.lease_port_start == null) === (input.lease_port_end == null)
+  && (input.lease_port_start == null || input.lease_port_start <= input.lease_port_end!), {message: "租约端口段无效", path: ["lease_port_end"]});
 export type NodeRegistrationInput = z.infer<typeof nodeRegistrationInput>;
 
 async function request(path: string, fetchImplementation: typeof fetch, options: {method?: string; json?: unknown} = {}) {
@@ -32,8 +59,15 @@ export async function fetchSupplierNodes(fetchImplementation = fetch) {
 }
 
 export async function registerNode(input: NodeRegistrationInput, fetchImplementation = fetch) {
-  return z.object({node: z.object({id: z.number().int().positive()}), node_key: z.string().regex(/^nk-[0-9a-f]{64}$/)}).parse(
-    await request("/supplier/nodes", fetchImplementation, {method: "POST", json: nodeRegistrationInput.parse(input)}));
+  const parsed = nodeRegistrationInput.parse(input);
+  const nodeKey = z.string().regex(/^nk-[0-9a-f]{64}$/);
+  // SSH nodes have no push key (node_key_hash NULL, docs/25 §25.9); push nodes must still return one.
+  return z.object({node: z.object({id: z.number().int().positive()}), node_key: parsed.mgmt_mode === "ssh" ? nodeKey.nullable().optional() : nodeKey}).parse(
+    await request("/supplier/nodes", fetchImplementation, {method: "POST", json: parsed}));
+}
+
+export function isManagedNode(node: Pick<ComputeNode, "mgmt_mode">) {
+  return node.mgmt_mode === "ssh";
 }
 
 export async function deleteNode(id: number, fetchImplementation = fetch) {
