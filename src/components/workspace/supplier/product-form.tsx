@@ -22,6 +22,7 @@ import {
   buildManagedPayload,
   initialManagedState,
   managedDeliveryModes,
+  productSubmitErrorMessage,
   type ManagedErrors,
   type ManagedProductState,
 } from "@/lib/managed-product";
@@ -158,12 +159,18 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
   const showFulfillmentChoice = productType === "card_rental" && (!product || product.fulfillment_mode !== undefined);
   // Price inversion hints (docs/26 §26.3.2) stay on the publish page until the supplier leaves.
   const [submittedWarnings, setSubmittedWarnings] = useState<string[] | null>(null);
+  const [submitError, setSubmitError] = useState("");
+  // compute initialProductStatus: a new managed product is saved as `draft`; review starts on resubmit.
+  const savesManagedDraft = managed && !product;
 
   const createMutation = useMutation({
     mutationFn: (input: CreateProductInput) => product ? resubmitProduct(product.id, input) : createProduct(input),
+    onMutate: () => setSubmitError(""),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({queryKey: ["supplier", "products"]});
-      notify.success("商品已提交, 等待平台审核上架");
+      notify.success(savesManagedDraft
+        ? "托管商品已保存为草稿：请在节点管理接入节点并通过探活，再回到商品列表提交审核"
+        : "商品已提交, 等待平台审核上架");
       const warnings = (result.data?.warnings ?? []).filter(Boolean);
       if (warnings.length === 0) {
         router.push(returnPath);
@@ -172,8 +179,8 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
       setSubmittedWarnings(warnings);
       window.scrollTo({behavior: "smooth", top: 0});
     },
-    onError: (error) =>
-      notify.error(error instanceof Error ? error.message : "商品发布失败"),
+    // Managed gate messages can list per-node reasons, so they stay on the page next to the button.
+    onError: (error) => setSubmitError(productSubmitErrorMessage(error, product ? "商品重新提交失败" : "商品发布失败")),
   });
 
   const set = (key: keyof ProductForm, value: string | boolean) => {
@@ -533,13 +540,27 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
               <p className="mt-1.5 pl-6 text-xs text-[#b54d45]" role="alert">{errors.complianceAgreed}</p>
             ) : null}
           </div>
+          {savesManagedDraft ? (
+            <p className="text-xs leading-5 text-[#5e7786]">
+              托管商品先保存为草稿；接入至少一台节点并通过探活后，才能提交平台审核。
+            </p>
+          ) : null}
+          {submitError ? (
+            <p className="whitespace-pre-line text-sm text-[#b54d45]" role="alert">{submitError}</p>
+          ) : null}
           <div className="flex justify-end gap-3">
             <Button onPress={() => router.push(returnPath)} variant="tertiary">
               取消
             </Button>
             <Button isDisabled={submittedWarnings !== null} isPending={createMutation.isPending} onPress={submit} variant="primary">
               <InteractiveIcon icon={SendHorizontal} size={16} />
-              {createMutation.isPending ? "正在提交" : product ? "重新提交审核" : "提交审核"}
+              {createMutation.isPending
+                ? "正在提交"
+                : savesManagedDraft
+                  ? "保存草稿"
+                  : product?.status === "draft" && !product.rejected_reason
+                    ? "提交审核"
+                    : product ? "重新提交审核" : "提交审核"}
             </Button>
           </div>
         </div>

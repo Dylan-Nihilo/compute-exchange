@@ -9,6 +9,7 @@ import {
   DEFAULT_NIGHT_START_MIN,
   type RentalPricingMode,
 } from "./flexible-pricing.ts";
+import {isBackendRequestError} from "./api/envelope.ts";
 import type {CreateProductInput, SupplierProduct} from "./supplier-workspace.ts";
 
 // Supplier-side form state for v1.2 managed card rental products (docs/26 §26.3, §26.5, §26.6).
@@ -120,3 +121,23 @@ export function buildManagedPayload(
   };
 }
 
+
+/**
+ * Managed products are created as `draft` (compute initialProductStatus) and only enter review once
+ * a node has passed probing; a `draft` with a rejection reason is a product the operator sent back.
+ */
+export function isManagedDraftAwaitingSubmit(product: Pick<SupplierProduct, "fulfillment_mode" | "status" | "rejected_reason">) {
+  return product.fulfillment_mode === "managed" && product.status === "draft" && !product.rejected_reason;
+}
+
+/**
+ * Message for a failed create/resubmit. The managed gate (40001) already returns display-ready Chinese
+ * (fleet disabled, no verified ssh node, per-node reasons, fulfillment mode immutable); the resubmit
+ * status race comes back as the raw "product review conflict" (40900) and is translated here.
+ */
+export function productSubmitErrorMessage(error: unknown, fallback: string) {
+  if (isBackendRequestError(error) && error.code === 40900 && /product review conflict/i.test(error.message)) {
+    return "商品状态已变化：只有草稿或已下架的商品可以提交审核，请刷新商品列表后重试";
+  }
+  return error instanceof Error && error.message ? error.message : fallback;
+}

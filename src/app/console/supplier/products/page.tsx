@@ -9,6 +9,7 @@ import {EmptyState} from "@/components/workspace/ui/empty-state";
 import {GlassCard} from "@/components/workspace/ui/glass-card";
 import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
 import {enabledRentalPrices, rentalPricingModeLabels} from "@/lib/flexible-pricing";
+import {isManagedDraftAwaitingSubmit} from "@/lib/managed-product";
 import {notify} from "@/lib/notify";
 import {
   fetchMyProductGroups,
@@ -178,7 +179,14 @@ export default function SupplierProductsPage() {
                       </td>
                       <td className="px-4 py-3.5 text-[13px] text-[#24495d]">{product.region}</td>
                       <td className="px-4 py-3.5">
-                        {product.status === "draft" || product.status === "offline" ? (
+                        {isManagedDraftAwaitingSubmit(product) ? (
+                          <>
+                            <Button size="sm" variant="tertiary" onPress={() => router.push(`/console/supplier/products/${product.id}/edit`)}>
+                              提交审核
+                            </Button>
+                            <p className="mt-1 text-xs text-[#8aa0ab]">需先接入节点并通过探活</p>
+                          </>
+                        ) : product.status === "draft" || product.status === "offline" ? (
                           <Button size="sm" variant="tertiary" onPress={() => router.push(`/console/supplier/products/${product.id}/edit`)}>
                             {product.status === "offline" ? "修改并重新上架" : "修改并重提"}
                           </Button>

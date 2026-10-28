@@ -1,3 +1,4 @@
+import {BackendRequestError} from "./api/envelope.ts";
 import {buyerOrderStatuses, currentLeaseSchema} from "./buyer-orders.ts";
 import {fulfillmentModeSchema} from "./domain/contracts.ts";
 import {productPriceSchema} from "./flexible-pricing.ts";
@@ -354,12 +355,13 @@ async function request<T extends {code: number; message: string}>(
   try {
     response = await fetchImplementation(url, init);
   } catch {
-    throw new Error("卖家工作台服务暂不可用");
+    throw new BackendRequestError("卖家工作台服务暂不可用", {code: null, status: 0});
   }
   const parsed = schema.safeParse(await response.json().catch(() => null));
-  if (!parsed.success || !parsed.data) throw new Error("服务返回格式错误");
+  if (!parsed.success || !parsed.data) throw new BackendRequestError("服务返回格式错误", {code: null, status: response.status});
   if (!response.ok || parsed.data.code !== 0) {
-    throw new Error(parsed.data.message || fallbackMessage);
+    // Keeps the backend code (e.g. 40900 on a product submit) for callers that branch on it.
+    throw new BackendRequestError(parsed.data.message || fallbackMessage, {code: parsed.data.code, status: response.status});
   }
   return parsed.data;
 }

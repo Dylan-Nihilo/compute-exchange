@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import {BackendRequestError} from "./api/envelope.ts";
+import {isManagedDraftAwaitingSubmit, productSubmitErrorMessage} from "./managed-product.ts";
+
 import {
   createProduct,
   resubmitProduct,
@@ -271,4 +274,34 @@ test("supplier payment account reads status and only accepts https onboarding li
   await assert.rejects(startSupplierPaymentAccount(async () =>
     Response.json({code: 0, message: "success", data: {status: "pending", application_status: "WAIT_SIGN", merchant_no: null, audit_opinion: "", netin_url: "javascript:alert(1)"}})), /返回格式错误/);
   await assert.rejects(startSupplierPaymentAccount(async () => Response.json({code: 50000, message: "易宝支付未接入"})), /易宝支付未接入/);
+});
+
+test("managed products: []int split options, draft state and submit-gate messages", async () => {
+  let body: Record<string, unknown> = {};
+  const input = {
+    product_type: "card_rental" as const, pricing_mode: "hourly" as const, price_negotiable: false, stock: 0, region: "北京",
+    compliance_agreed: true, fulfillment_mode: "managed" as const, delivery_mode: "container", card_count: 8, card_split_options: [1, 2, 4],
+  };
+  await createProduct(input, async (_url, init) => {
+    body = JSON.parse(String(init?.body));
+    return Response.json({code: 0, message: "success", data: {id: 7, warnings: []}});
+  });
+  assert.deepEqual(body.card_split_options, [1, 2, 4]);
+
+  const gate = "托管商品提交审核前须至少接入一个 ssh 托管节点并通过探活";
+  await assert.rejects(resubmitProduct(7, input, async () => Response.json({code: 40001, message: gate})), (error) => {
+    assert.ok(error instanceof BackendRequestError);
+    assert.equal(error.code, 40001);
+    assert.equal(productSubmitErrorMessage(error, "x"), gate);
+    return true;
+  });
+  await assert.rejects(resubmitProduct(7, input, async () => Response.json({code: 40900, message: "product review conflict"})), (error) => {
+    assert.match(productSubmitErrorMessage(error, "x"), /只有草稿或已下架的商品可以提交审核/);
+    return true;
+  });
+
+  assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: "managed", status: "draft", rejected_reason: ""}), true);
+  assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: "managed", status: "draft", rejected_reason: "规格不符"}), false);
+  assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: "manual", status: "draft", rejected_reason: ""}), false);
+  assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: undefined, status: "draft", rejected_reason: ""}), false);
 });
