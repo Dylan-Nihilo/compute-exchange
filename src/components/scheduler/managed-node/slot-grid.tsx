@@ -53,10 +53,11 @@ export function SlotGrid({nodeId}: {nodeId: number}) {
               </div>
               <p className="mt-1 text-xs text-muted">
                 {slot.vram_mb ? `${Math.round(slot.vram_mb / 1024)} GB` : "显存未知"}
+                {slot.pci_bus_id ? ` · ${slot.pci_bus_id}` : ""}
                 {slot.topo_group ? ` · 拓扑组 ${slot.topo_group}` : ""}
               </p>
-              {slot.lease_no ? <p className="mt-0.5 font-mono text-xs text-muted">租约 {slot.lease_no}</p> : null}
-              {slot.state_changed_at ? <p className="mt-0.5 text-xs text-muted">变更于 {formatDateTime(slot.state_changed_at)}</p> : null}
+              {slot.lease_id ? <p className="mt-0.5 font-mono text-xs text-muted">租约 #{slot.lease_id}</p> : null}
+              <p className="mt-0.5 text-xs text-muted">变更于 {formatDateTime(slot.state_changed_at)}</p>
               {togglable ? (
                 <Button
                   className="mt-2"

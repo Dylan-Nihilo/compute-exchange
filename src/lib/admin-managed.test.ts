@@ -13,19 +13,27 @@ import {
 
 const ok = (data: unknown) => Response.json({code: 0, message: "success", data});
 
-test("suspensionAction only offers suspend for verified and resume for suspended nodes", () => {
+test("suspensionAction allows suspend for any non-suspended ssh node and resume for suspended", () => {
+  // fleet AdminSuspend accepts every non-suspended ssh node (40900 "节点已处于停用状态" otherwise).
   assert.equal(suspensionAction("verified"), "suspend");
+  assert.equal(suspensionAction("failed"), "suspend");
+  assert.equal(suspensionAction("unverified"), "suspend");
   assert.equal(suspensionAction("suspended"), "resume");
-  assert.equal(suspensionAction("pending"), null);
   assert.equal(suspensionAction(undefined), null);
 });
 
 test("changeNodeSuspension posts to the admin BFF and surfaces backend errors as-is", async () => {
-  await changeNodeSuspension(7, "suspend", async (url, init) => {
+  assert.deepEqual(await changeNodeSuspension(7, "suspend", async (url, init) => {
     assert.equal(url, "/api/admin/nodes/7/suspend");
     assert.equal(init?.method, "POST");
-    return ok(null);
-  });
+    assert.deepEqual(JSON.parse(String(init?.body)), {reason: "机房断电"});
+    return ok({verify_status: "suspended"});
+  }, " 机房断电 "), {verify_status: "suspended"});
+  assert.deepEqual(await changeNodeSuspension(7, "resume", async (_url, init) => {
+    assert.equal(init?.body, undefined);
+    return ok({verify_status: "unverified", task_id: 31});
+  }), {verify_status: "unverified", task_id: 31});
+  assert.throws(() => changeNodeSuspension(7, "suspend", async () => ok(null), "停".repeat(201)));
   await assert.rejects(
     changeNodeSuspension(7, "resume", async () => Response.json({code: 40900, message: "节点状态不允许恢复", data: null}, {status: 409})),
     (error) => isBackendRequestError(error) && error.message === "节点状态不允许恢复",

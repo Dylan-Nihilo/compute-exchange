@@ -28,13 +28,32 @@ function query(params: Record<string, string | number | undefined>) {
   return search.size ? `?${search}` : "";
 }
 
-export function changeNodeSuspension(nodeId: number, action: "suspend" | "resume", fetchImplementation?: typeof fetch) {
+/**
+ * POST /admin/nodes/:id/suspend `{reason?≤200}` → `{verify_status:"suspended"}`;
+ * POST /admin/nodes/:id/resume → `{verify_status:"unverified", task_id}` (a full probe is queued).
+ */
+export function changeNodeSuspension(
+  nodeId: number,
+  action: "suspend" | "resume",
+  fetchImplementation?: typeof fetch,
+  reason = "",
+) {
   z.number().int().positive().parse(nodeId);
-  return requestEnvelope(`${BASE}/nodes/${nodeId}/${action}`, z.unknown(), {
-    fallback: action === "suspend" ? "停用节点失败" : "恢复节点失败",
-    init: jsonInit("POST"),
-    fetchImplementation,
-  });
+  const trimmed = reason.trim();
+  if ([...trimmed].length > 200) throw new Error("停用原因不超过 200 字");
+  return requestEnvelope(
+    `${BASE}/nodes/${nodeId}/${action}`,
+    // Union keeps one schema type; resume carries the queued probe task.
+    z.union([
+      z.object({verify_status: z.literal("suspended")}),
+      z.object({verify_status: z.literal("unverified"), task_id: z.number().int().nonnegative()}),
+    ]),
+    {
+      fallback: action === "suspend" ? "停用节点失败" : "恢复节点失败",
+      init: action === "suspend" && trimmed ? jsonInit("POST", {reason: trimmed}) : jsonInit("POST"),
+      fetchImplementation,
+    },
+  );
 }
 
 export const adminLeaseStates = ["reserved", "pending", "provisioning", "active", "parked", "suspended", "grace", "purging", "purged", "failed", "cancelled"] as const;
@@ -137,11 +156,10 @@ export const nodeTaskKindCopy: Record<string, string> = {
   stop_model: "停止模型",
 };
 
-/** Suspend applies to verified nodes; resume only to suspended ones (docs/25 §25.8.1). */
+/** Any non-suspended SSH node can be suspended; resume returns it to `unverified` and queues a full probe. */
 export function suspensionAction(verifyStatus: string | undefined): "suspend" | "resume" | null {
-  if (verifyStatus === "suspended") return "resume";
-  if (verifyStatus === "verified") return "suspend";
-  return null;
+  if (!verifyStatus) return null;
+  return verifyStatus === "suspended" ? "resume" : "suspend";
 }
 
 // Global deployment view (docs/27 §27.8 运营: GET /admin/deployments?state=&health=).

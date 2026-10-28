@@ -17,12 +17,12 @@ import {AdminPage, AdminPanel} from "@/components/workspace/admin/admin-ui";
 import {ListPagination} from "@/components/workspace/ui/list-pagination";
 import {useAuthStore} from "@/lib/auth/store";
 import {formatDateTime} from "@/lib/format/date";
+import {defaultManagedNodeFields} from "@/lib/managed-node-registration";
 import {verifyStatusLabels} from "@/lib/managed-nodes";
 import {deleteNode, fetchAdminNodes, fetchSupplierNodes, isManagedNode, nodeStatuses, registerNode, type ComputeNode, type NodeRegistrationInput} from "@/lib/scheduler";
 import {fetchMyProducts, isManagedProduct, productTypeCopy} from "@/lib/supplier-workspace";
 
-import {ManagedNodeFields, managedNodeInput, type ManagedNodeFieldState} from "./managed-node/registration-fields";
-
+import {ManagedNodeFields, managedNodeInput, managedNodeInputError, type ManagedNodeFieldState} from "./managed-node/registration-fields";
 import {AdminNodeManagedCell, AdminNodeSuspendButton, hasManagedColumns} from "./admin-node-managed";
 import {ScheduleAdvice} from "./schedule-advice";
 import styles from "./supplier-nodes.module.css";
@@ -47,7 +47,7 @@ function SupplierNodePanel({accountId}: {accountId: string | null}) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState("");
   const [target, setTarget] = useState<ComputeNode | null>(null);
-  const [managedFields, setManagedFields] = useState<ManagedNodeFieldState>({diskPerCardGb: "", portStart: "40000", portEnd: "40099"});
+  const [managedFields, setManagedFields] = useState<ManagedNodeFieldState>(defaultManagedNodeFields);
   const router = useRouter();
   const nodes = useQuery({queryKey: ["scheduler", accountId, "supplier", "nodes"], queryFn: () => fetchSupplierNodes(), retry: false, refetchInterval: 30000, staleTime: 0, gcTime: 0});
   const products = useQuery({queryKey: ["supplier", accountId, "node-products"], queryFn: () => fetchMyProducts(), retry: false, staleTime: 0, gcTime: 0});
@@ -89,7 +89,9 @@ function SupplierNodePanel({accountId}: {accountId: string | null}) {
   };
   const selectedProduct = productsById.get(Number(productId));
   const managedProduct = isManagedProduct(selectedProduct);
-  const managedInput = managedProduct ? managedNodeInput(managedFields) : null;
+  const containerDelivery = selectedProduct?.delivery_mode === "container";
+  const managedInput = managedProduct ? managedNodeInput(managedFields, Number(cards), containerDelivery) : null;
+  const managedError = managedProduct ? managedNodeInputError(managedFields, Number(cards), containerDelivery) : null;
   const canRegister = Boolean((!managedProduct || managedInput) && productId && name.trim() && Number.isInteger(Number(cards)) && Number(cards) > 0 && Number(cards) <= 2147483647 && products.isSuccess && !credential && !remove.isPending);
 
   return <section className={`${styles.theme} mx-auto flex w-full max-w-[1228px] flex-col gap-5 px-4 pt-6 pb-8 sm:px-6 lg:px-8`}>
@@ -188,7 +190,7 @@ function SupplierNodePanel({accountId}: {accountId: string | null}) {
               {products.isError ? <div role="alert" className="text-sm"><p className="text-danger">商品读取失败：{products.error.message}</p><Button className="mt-2" size="sm" variant="outline" isPending={products.isFetching} onPress={() => void products.refetch()}>重新读取商品</Button></div> : products.isSuccess && !products.data.length ? <p className="text-sm text-muted">请先<Link className="mx-1 underline underline-offset-4" href="/console/supplier/products/new">发布算力商品</Link>，再为商品添加节点。</p> : null}
               <div className={styles.field}><label htmlFor="node-name">节点名称</label><Input id="node-name" aria-describedby="node-name-hint" required maxLength={64} value={name} disabled={register.isPending} onChange={(event) => setName(event.target.value)} placeholder="例如 beijing-h100-01" /><span id="node-name-hint">建议包含地域与设备型号，便于识别。</span></div>
               <div className={styles.field}><label htmlFor="node-cards">节点总卡数</label><Input id="node-cards" aria-describedby="node-cards-hint" required type="number" min={1} max={2147483647} step={1} value={cards} disabled={register.isPending} onChange={(event) => setCards(event.target.value)} /><span id="node-cards-hint">填写该节点实际安装的 GPU 数量。</span></div>
-              {managedProduct ? <ManagedNodeFields disabled={register.isPending} onChange={setManagedFields} value={managedFields} /> : null}
+              {managedProduct ? <ManagedNodeFields containerDelivery={containerDelivery} disabled={register.isPending} error={managedError} onChange={setManagedFields} value={managedFields} /> : null}
               <p className={styles.notice}>{managedProduct ? "该商品由平台托管：创建后进入接入向导，授权平台 SSH 管理并通过探活。" : "添加后需配置心跳上报。节点接入状态会影响所属商品的可售状态。"}</p>
               {register.isError ? <p className="text-sm text-danger" role="alert">注册失败：{register.error.message}。请核对节点列表后再试。</p> : null}
             </form>}

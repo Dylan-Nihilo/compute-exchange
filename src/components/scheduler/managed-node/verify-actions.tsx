@@ -8,28 +8,26 @@ import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {errorMessage} from "@/lib/api/envelope";
 import {confirmNodeReimage, setNodeDrain, startNodeVerify, type OnboardingStage} from "@/lib/managed-nodes";
 import {notify} from "@/lib/notify";
-import type {ComputeNode} from "@/lib/scheduler";
 
 /** Probe trigger, re-image confirmation and drain toggle for an SSH node (docs/25 §25.10). */
-export function VerifyActions({node, onChanged, stage}: {node: ComputeNode; onChanged: () => void; stage: OnboardingStage}) {
+export function VerifyActions({nodeId, schedulable, onChanged, stage}: {nodeId: number; schedulable: boolean; onChanged: () => void; stage: OnboardingStage}) {
   const [confirmDrain, setConfirmDrain] = useState(false);
   const verify = useMutation({
-    mutationFn: () => startNodeVerify(node.id),
+    mutationFn: () => startNodeVerify(nodeId),
     onSuccess: () => {notify.success("已提交探活，结果会在下方报告中更新"); onChanged();},
   });
   const reimage = useMutation({
-    mutationFn: () => confirmNodeReimage(node.id),
+    mutationFn: () => confirmNodeReimage(nodeId),
     onSuccess: () => {notify.success("已确认重装，平台将自动完整探活"); onChanged();},
   });
   const drain = useMutation({
-    mutationFn: (next: boolean) => setNodeDrain(node.id, next),
+    mutationFn: (next: boolean) => setNodeDrain(nodeId, next),
     onSuccess: (_data, next) => {
       setConfirmDrain(false);
       notify.success(next ? "节点已排空，不再接新租约" : "节点已恢复接单");
       onChanged();
     },
   });
-  const schedulable = node.schedulable !== false;
   const canVerify = stage === "verify" || stage === "failed" || stage === "verified";
   const mutationError = verify.error ?? reimage.error ?? (confirmDrain ? null : drain.error);
 

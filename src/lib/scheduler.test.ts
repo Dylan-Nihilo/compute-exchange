@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {it} from "node:test";
 
 import {canAccessRoute} from "./domain/routes.ts";
-import {deleteNode, fetchAdminNodes, fetchScheduleAdvice, fetchSupplierNodes, registerNode} from "./scheduler.ts";
+import {deleteNode, fetchAdminNodes, fetchScheduleAdvice, fetchSupplierNodes, isManagedNode, registerNode} from "./scheduler.ts";
 
 const node = {id: 1, supplier_id: 10, product_id: 2, node_name: "gpu-node", status: "offline", total_cards: 8, available_cards: 0, gpu_util_pct: null, vram_util_pct: null, last_heartbeat_at: null};
 
@@ -63,9 +63,28 @@ it("registers SSH-managed nodes without a push key and parses v1.2 node fields",
   await assert.rejects(registerNode({...input, mgmt_mode: undefined}, async () => Response.json({code: 0, data: {node: {id: 5}}})));
   await assert.rejects(registerNode({...input, lease_port_end: undefined}, async () => {throw new Error("should not fetch");}), (error: Error) => error.message !== "should not fetch");
 
-  const [managed] = await fetchSupplierNodes(async () => Response.json({code: 0, data: [{...node, mgmt_mode: "ssh", verify_status: "verifying", schedulable: 1, host_key_fingerprint: "SHA256:abc", host_key_confirmed_at: null, disk_quota_supported: 0}]}));
+  const [managed, push] = await fetchSupplierNodes(async () => Response.json({code: 0, data: [
+    {...node, mgmt_mode: "ssh", verify_status: "verifying", schedulable: true},
+    {...node, id: 6, mgmt_mode: "push", verify_status: "unverified", schedulable: true},
+  ]}));
   assert.equal(managed.mgmt_mode, "ssh");
   assert.equal(managed.schedulable, true);
-  assert.equal(managed.disk_quota_supported, false);
-  assert.equal(managed.host_key_confirmed_at, null);
+  assert.equal(managed.managed, undefined);
+  // Migration 026 defaults verify_status for push nodes too, so "managed" is gated on mgmt_mode only.
+  assert.equal(isManagedNode(managed), true);
+  assert.equal(isManagedNode(push), false);
+});
+
+it("parses the operator node list managed summary (fleet.ManagedExtra) and advice capacity fields", async () => {
+  const page = await fetchAdminNodes("", 1, async () => Response.json({code: 0, data: {list: [{...node, mgmt_mode: "ssh", verify_status: "failed", schedulable: false, managed: {
+    last_probe: {id: 4, kind: "verify", result: "fail", failed_checks: ["P4"], created_at: "2026-10-28T02:00:00Z"},
+    slots: {free: 6, faulty: 2}, ssh_host: "10.0.0.8", ssh_port: 22, host_key_fingerprint: null, host_key_confirmed: false,
+  }}], total: 1}}));
+  assert.deepEqual(page.list[0].managed?.last_probe?.failed_checks, ["P4"]);
+  assert.equal(page.list[0].managed?.slots.free, 6);
+});
+
+it("rejects a malformed expected host fingerprint before fetching", async () => {
+  const input = {product_id: 2, node_name: "n", total_cards: 1, mgmt_mode: "ssh" as const, lease_port_start: 40000, lease_port_end: 40001, expected_host_fingerprint: "SHA256:short"};
+  await assert.rejects(registerNode(input, async () => {throw new Error("should not fetch");}), (error: Error) => error.message !== "should not fetch");
 });

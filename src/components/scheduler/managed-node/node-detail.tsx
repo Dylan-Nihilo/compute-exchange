@@ -13,7 +13,7 @@ import {GlassCard} from "@/components/workspace/ui/glass-card";
 import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
 import {useAuthStore} from "@/lib/auth/store";
 import {formatDateTime} from "@/lib/format/date";
-import {onboardingStage, verifyStatusLabels, type OnboardingStage} from "@/lib/managed-nodes";
+import {fetchNodeOnboarding, onboardingStage, verifyStatusLabels, type NodeOnboarding, type OnboardingStage} from "@/lib/managed-nodes";
 import {fetchSupplierNodes, isManagedNode, type ComputeNode} from "@/lib/scheduler";
 
 import {HostKeyConfirm} from "./host-key-confirm";
@@ -31,26 +31,25 @@ const steps: {id: string; label: string; stages: OnboardingStage[]}[] = [
   {id: "done", label: "可上架", stages: ["verified"]},
 ];
 
-// docs/25 §25.4.2 onboarding wizard for one SSH-managed node. The node itself comes from the
-// existing list endpoint (there is no single-node GET in §25.10).
+// docs/25 §25.4.2 onboarding wizard for one SSH-managed node. There is no single-node GET: the
+// list gives name/mode/schedulable, and GET .../onboarding is the only source of ssh_host and
+// host-key state, so it drives the wizard stage.
 export function ManagedNodeDetail({nodeId}: {nodeId: number}) {
   const accountId = useAuthStore((state) => state.accountId);
   const client = useQueryClient();
   const nodesKey = ["scheduler", accountId, "supplier", "nodes"];
-  const findNode = (list: ComputeNode[] | undefined) => list?.find((item) => item.id === nodeId);
-  const nodes = useQuery({
-    queryKey: nodesKey,
-    queryFn: () => fetchSupplierNodes(),
+  const nodes = useQuery({queryKey: nodesKey, queryFn: () => fetchSupplierNodes(), retry: false, staleTime: 0});
+  const node = nodes.data?.find((item) => item.id === nodeId);
+  const managed = Boolean(node && isManagedNode(node));
+  const onboarding = useQuery({
+    queryKey: ["managed-node", nodeId, "onboarding"],
+    queryFn: () => fetchNodeOnboarding(nodeId),
+    enabled: managed,
     retry: false,
     staleTime: 0,
     // Poll while the backend is probing so the fingerprint and report appear without a manual refresh.
-    refetchInterval: (query) => {
-      const current = findNode(query.state.data);
-      return current && isManagedNode(current) && onboardingStage(current) === "verifying" ? 5000 : false;
-    },
+    refetchInterval: (query) => (query.state.data && onboardingStage(query.state.data) === "verifying" ? 5000 : false),
   });
-  const node = findNode(nodes.data);
-  const stage = node ? onboardingStage(node) : null;
   const refresh = () => {
     void client.invalidateQueries({queryKey: nodesKey, exact: true});
     void client.invalidateQueries({queryKey: ["managed-node", nodeId]});
@@ -65,22 +64,29 @@ export function ManagedNodeDetail({nodeId}: {nodeId: number}) {
       {nodes.isPending ? <Skeleton className="h-40 rounded-2xl" />
         : nodes.isError ? <ErrorState description={nodes.error.message} isPending={nodes.isFetching} onRetry={() => void nodes.refetch()} title="节点暂时无法加载" />
         : !node ? <EmptyState title="未找到该节点" description="节点可能已被删除，或不属于当前账号。" action={<Link className="underline underline-offset-4" href="/console/supplier/nodes">返回节点管理</Link>} />
-        : !isManagedNode(node) ? <EmptyState title="该节点为心跳上报模式" description="心跳上报节点由你自行交付，无需平台接入流程。" />
-        : <NodeWizard node={node} onChanged={refresh} stage={stage!} />}
+        : !managed ? <EmptyState title="该节点为心跳上报模式" description="心跳上报节点由你自行交付，无需平台接入流程。" />
+        : onboarding.isPending ? <Skeleton className="h-40 rounded-2xl" />
+        : onboarding.isError ? <ErrorState description={onboarding.error.message} isPending={onboarding.isFetching} onRetry={() => void onboarding.refetch()} title="接入信息暂时无法加载" />
+        : <NodeWizard node={node} onboarding={onboarding.data} onChanged={refresh} />}
     </section>
   );
 }
 
-function NodeWizard({node, onChanged, stage}: {node: ComputeNode; onChanged: () => void; stage: OnboardingStage}) {
+function NodeWizard({node, onboarding, onChanged}: {node: ComputeNode; onboarding: NodeOnboarding; onChanged: () => void}) {
+  const stage = onboardingStage(onboarding);
   const current = steps.findIndex((step) => step.stages.includes(stage));
   return (
     <>
       <GlassCard className="px-5 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm">
-            状态：<strong>{node.verify_status ? verifyStatusLabels[node.verify_status] : "待验证"}</strong>
+            状态：<strong>{verifyStatusLabels[onboarding.verify_status]}</strong>
             {node.schedulable === false ? <span className="ml-2 text-warning">已排空</span> : null}
-            {node.last_probe_ok_at ? <span className="ml-3 text-xs text-muted">最近探活通过 {formatDateTime(node.last_probe_ok_at)}</span> : null}
+            <span className="ml-3 text-xs text-muted">
+              {onboarding.host_key.confirmed
+                ? `主机指纹已钉死${onboarding.host_key.confirmed_at ? `（${formatDateTime(onboarding.host_key.confirmed_at)}）` : ""}`
+                : onboarding.host_key.fingerprint ? "主机指纹待确认" : "尚未记录主机指纹"}
+            </span>
           </p>
           <Button onPress={onChanged} size="sm" variant="outline">刷新</Button>
         </div>
@@ -102,23 +108,25 @@ function NodeWizard({node, onChanged, stage}: {node: ComputeNode; onChanged: () 
       </GlassCard>
 
       <Section title="1. 授权平台管理密钥">
-        <OnboardingInfo nodeId={node.id} />
+        <OnboardingInfo onboarding={onboarding} />
       </Section>
-      <Section title="2. SSH 连接信息">
-        <SshForm key={`${node.ssh_host}:${node.ssh_port}:${node.ssh_user}`} node={node} onSaved={onChanged} />
-      </Section>
+      {stage !== "suspended" ? (
+        <Section title="2. SSH 连接信息">
+          <SshForm key={`${onboarding.ssh_host}:${onboarding.ssh_port}:${onboarding.ssh_user}:${onboarding.host_key.fingerprint}`} onboarding={onboarding} onSaved={onChanged} />
+        </Section>
+      ) : null}
       {stage === "confirm_host_key" ? (
         <Section title="3. 确认主机指纹">
-          <HostKeyConfirm node={node} onConfirmed={onChanged} />
+          <HostKeyConfirm onboarding={onboarding} onConfirmed={onChanged} />
         </Section>
       ) : null}
-      {stage !== "ssh" && stage !== "suspended" ? (
+      {stage !== "ssh" ? (
         <Section title="探活">
-          <VerifyActions node={node} onChanged={onChanged} stage={stage} />
-          <div className="mt-4"><ProbeReports nodeId={node.id} polling={stage === "verifying"} /></div>
+          {stage !== "suspended" ? <VerifyActions nodeId={node.id} onChanged={onChanged} schedulable={node.schedulable !== false} stage={stage} /> : null}
+          <div className={stage !== "suspended" ? "mt-4" : undefined}><ProbeReports nodeId={node.id} polling={stage === "verifying"} /></div>
         </Section>
       ) : null}
-      {stage === "verified" || stage === "failed" || stage === "reimage" ? (
+      {stage === "verified" || stage === "failed" || stage === "reimage" || stage === "suspended" ? (
         <Section title="卡槽">
           <SlotGrid nodeId={node.id} />
         </Section>
