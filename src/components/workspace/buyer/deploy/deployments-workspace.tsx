@@ -4,6 +4,7 @@ import {useQuery} from "@tanstack/react-query";
 import {useState} from "react";
 
 import {SectionQueryState} from "@/components/managed/query-states";
+import {isNotOpenError} from "@/lib/api/envelope";
 import {ManagedSection} from "@/components/workspace/buyer/managed/managed-section";
 import type {ManagedAccess} from "@/lib/managed-orders";
 import {fetchDeployment, fetchDeployments, isLiveDeployment, type Deployment} from "@/lib/model-deploy";
@@ -34,6 +35,8 @@ export function DeploymentsWorkspace({orderNo, access}: {orderNo: string; access
   const deployments = newestFirst(list.data ?? []);
   const live = deployments.find((item) => isLiveDeployment(item.state)) ?? null;
   const selected = picked ?? live?.deploy_no ?? deployments[0]?.deploy_no ?? null;
+  // Deployments (T-098/T-099) are not live yet; deploy-plans is, so feasibility stays viewable.
+  const deploymentsNotOpen = list.isError && isNotOpenError(list.error);
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -44,7 +47,7 @@ export function DeploymentsWorkspace({orderNo, access}: {orderNo: string; access
           isPending={list.isPending}
           isRefetching={list.isFetching}
           loadingText="正在读取部署记录"
-          notOpenText="模型部署接口暂未开放。"
+          notOpenText="模型部署的提交、运行状态与健康检测尚未开放。可在右侧先查看本租约能否部署所选模型。"
           onRetry={() => void list.refetch()}
         >
           {selected ? (
@@ -57,9 +60,12 @@ export function DeploymentsWorkspace({orderNo, access}: {orderNo: string; access
         </SectionQueryState>
       </div>
       <div className="space-y-5">
-        {list.isSuccess && !live ? (
-          <ManagedSection title="一键部署" description="每个租约同一时间只运行一个部署，平台按租约卡数实时判定可行性。">
-            <DeployForm orderNo={orderNo} onCreated={() => setPicked(null)} />
+        {(list.isSuccess && !live) || deploymentsNotOpen ? (
+          <ManagedSection
+            title={deploymentsNotOpen ? "部署可行性" : "一键部署"}
+            description="每个租约同一时间只运行一个部署，平台按租约卡数实时判定可行性。"
+          >
+            <DeployForm orderNo={orderNo} submitAvailable={list.isSuccess} onCreated={() => setPicked(null)} />
           </ManagedSection>
         ) : null}
         {deployments.length > 0 ? (

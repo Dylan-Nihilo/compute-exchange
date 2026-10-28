@@ -12,37 +12,73 @@ import {
   fetchDeploymentHealth,
   fetchDeploymentLogs,
   isLiveDeployment,
+  isUndeterminedCheck,
   recommendedPlan,
   requiredAcks,
+  undeterminedInputs,
 } from "./model-deploy.ts";
 
 const ok = (data: unknown) => Response.json({code: 0, message: "success", data});
 const ORDER = "ORD20261028001";
 
-test("fetchDeployPlans parses plans and checks; recommendedPlan picks the flagged plan", async () => {
-  const plans = await fetchDeployPlans(ORDER, 3, async (url) => {
-    assert.equal(url, `/api/buyer/orders/${ORDER}/deploy-plans?model_id=3`);
-    return ok({feasible: true, checks: null, plans: [
-      {tp: 1, dp: 2, cards_used: 2, max_model_len: 8192},
-      {tp: 2, dp: 1, cards_used: 2, max_model_len: 32768, recommended: true},
-    ]});
+const plan = (tp: number, dp: number, extra: Record<string, unknown> = {}) => ({
+  tp, dp, cards_used: tp * dp, max_model_len: 32768, kv_budget_bytes_per_card: 1, kv_capacity_tokens: 32768,
+  context_tight: false, recommended: false, ...extra,
+});
+const basis = {model_id: 3, model_key: "qwen3-32b-bf16", gpu_model: "H800-80G", cards: 2, vram_bytes_per_card: 85899345920,
+  gpu_mem_util_pct: 90, compute_capability: "9.0", driver_version: "550.54.15"};
+
+test("fetchDeployPlans sends gpu_mem_util and parses the modeldeploy.Result shape", async () => {
+  const plans = await fetchDeployPlans(ORDER, 3, 0.9, async (url) => {
+    assert.equal(url, `/api/buyer/orders/${ORDER}/deploy-plans?model_id=3&gpu_mem_util=0.90`);
+    return ok({feasible: true, checks: null, memory: null, basis, plans: [plan(1, 2), plan(2, 1, {recommended: true})]});
   });
   assert.deepEqual(plans.checks, []);
+  assert.deepEqual(plans.memory, []);
   assert.equal(recommendedPlan(plans.plans)?.tp, 2);
   assert.equal(recommendedPlan([]), null);
+  await fetchDeployPlans(ORDER, 3, 0.876, async (url) => {
+    assert.match(String(url), /gpu_mem_util=0\.88$/);
+    return ok({feasible: false, plans: [], checks: [], memory: [], basis});
+  });
 });
 
-test("requiredAcks: F7/F8 need acks; restricted licence always needs licence ack; F5 is advisory", () => {
+test("fetchDeployPlans exposes basis.undetermined reasons and rejects unknown check levels", async () => {
+  const result = await fetchDeployPlans(ORDER, 3, 0.9, async () => ok({
+    feasible: false, plans: [], memory: [{tp: 4, feasible: false, kv_budget_bytes_per_card: 0, kv_capacity_tokens: 0, reason: "需要 4 张卡, 租约只有 2 张"}],
+    checks: [{id: "F3", ok: false, level: "error", message: "各卡当前显存占用无法判定: 轻量探活未采集按卡显存"}],
+    basis: {...basis, undetermined: {vram_usage: "轻量探活未采集按卡显存", fatal_xid: "未保留按卡 Xid 记录"}},
+  }));
+  assert.deepEqual(undeterminedInputs(result).map((row) => row.key), ["fatal_xid", "vram_usage"]);
+  assert.equal(undeterminedInputs(result)[1]?.reason, "轻量探活未采集按卡显存");
+  assert.equal(isUndeterminedCheck(result.checks[0]!), true);
+  assert.equal(result.memory[0]?.reason, "需要 4 张卡, 租约只有 2 张");
+  await assert.rejects(fetchDeployPlans(ORDER, 3, 0.9, async () => ok({
+    feasible: true, plans: [], memory: [], basis, checks: [{id: "F7", ok: false, level: "ack", message: ""}],
+  })));
+});
+
+test("fetchDeployPlans surfaces the fleet-disabled 50000 message unchanged", async () => {
+  const message = "托管租约能力尚未上线(S2 未接入), 暂无法计算部署方案";
+  await assert.rejects(
+    fetchDeployPlans(ORDER, 3, 0.9, async () => Response.json({code: 50000, message}, {status: 500})),
+    (error) => isBackendRequestError(error) && error.code === 50000 && error.message === message,
+  );
+});
+
+test("requiredAcks follows confirm checks with ack; checkTone follows level", () => {
   const checks = [
-    {id: "F5", ok: false, level: "warn", message: "无 NVLink"},
-    {id: "F7", ok: true, level: "ack", message: "许可证受限"},
-    {id: "F8", ok: true, level: "info", message: ""},
-  ];
+    {id: "F5", ok: false, level: "warning", message: "卡间无 NVLink"},
+    {id: "F7", ok: false, level: "confirm", message: "许可证受限", ack: "license_ack"},
+    {id: "F8", ok: true, level: "info", message: "已在 H800-80G 上真机验证"},
+  ] as const;
   assert.deepEqual(requiredAcks(checks), {license: true, untested: false});
-  assert.deepEqual(requiredAcks([], {commercial_use: "restricted"}), {license: true, untested: false});
-  assert.equal(checkTone(checks[0]!), "warn");
-  assert.equal(checkTone({id: "F2", ok: false, message: "显存不足"}), "block");
-  assert.equal(checkTone({id: "F1", ok: true, message: ""}), "ok");
+  assert.deepEqual(requiredAcks([{id: "F8", ok: false, level: "confirm", message: "", ack: "untested_ack"}]), {license: false, untested: true});
+  assert.deepEqual(requiredAcks([]), {license: false, untested: false});
+  assert.equal(checkTone(checks[0]), "warn");
+  assert.equal(checkTone(checks[1]), "confirm");
+  assert.equal(checkTone({id: "F2", ok: false, level: "error", message: "驱动过低"}), "block");
+  assert.equal(checkTone(checks[2]), "ok");
 });
 
 test("gpu_mem_util must stay within 0.80–0.95", () => {
@@ -58,7 +94,7 @@ test("createDeployment keeps 40001 data.checks for the form", async () => {
   try {
     await createDeployment(ORDER, input, async (_url, init) => {
       assert.equal(init?.method, "POST");
-      return Response.json({code: 40001, message: "需确认许可证", data: {checks: [{id: "F7", ok: false, level: "ack", message: "许可证受限"}]}}, {status: 400});
+      return Response.json({code: 40001, message: "需确认许可证", data: {checks: [{id: "F7", ok: false, level: "confirm", message: "许可证受限", ack: "license_ack"}]}}, {status: 400});
     });
   } catch (error) {
     caught = error;

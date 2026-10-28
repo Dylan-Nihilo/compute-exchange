@@ -8,13 +8,12 @@ export const planKey = (plan: DeployPlan) => `${plan.tp}x${plan.dp}`;
 export type DeployParams = {
   planKey: string | null;
   maxModelLen: string;
-  gpuMemUtil: number;
   canary: boolean;
 };
 
 const fieldClass = "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm";
 
-/** Parallelism plan, context length (≤ plan suggestion), memory utilisation and canary toggle. */
+/** Parallelism plan, context length (≤ plan suggestion) and canary toggle. */
 export function DeployParamsFields({plans, value, disabled, onChange}: {
   plans: readonly DeployPlan[];
   value: DeployParams;
@@ -39,36 +38,24 @@ export function DeployParamsFields({plans, value, disabled, onChange}: {
         }}
       />
       {plan ? (
-        <p className="text-xs text-muted">占用 {plan.cards_used} 张卡，建议最大上下文 {plan.max_model_len.toLocaleString("zh-CN")} tokens。</p>
+        <p className={`text-xs ${plan.context_tight ? "text-warning" : "text-muted"}`}>
+          占用 {plan.cards_used} 张卡，建议最大上下文 {plan.max_model_len.toLocaleString("zh-CN")} tokens
+          {plan.context_tight ? "，接近模型最低上下文要求，长上下文请求可能排队或被拒绝" : ""}。
+        </p>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm">
-          <span className="text-muted">最大上下文长度（tokens）</span>
-          <input
-            className={`${fieldClass} mt-1`}
-            disabled={disabled || !plan}
-            inputMode="numeric"
-            max={plan?.max_model_len}
-            min={1}
-            type="number"
-            value={value.maxModelLen}
-            onChange={(event) => onChange({...value, maxModelLen: event.target.value})}
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-muted">显存利用率 {value.gpuMemUtil.toFixed(2)}</span>
-          <input
-            className="mt-3 w-full accent-[#173447]"
-            disabled={disabled}
-            max={GPU_MEM_UTIL_MAX}
-            min={GPU_MEM_UTIL_MIN}
-            step={0.01}
-            type="range"
-            value={value.gpuMemUtil}
-            onChange={(event) => onChange({...value, gpuMemUtil: Number(event.target.value)})}
-          />
-        </label>
-      </div>
+      <label className="block text-sm">
+        <span className="text-muted">最大上下文长度（tokens）</span>
+        <input
+          className={`${fieldClass} mt-1`}
+          disabled={disabled || !plan}
+          inputMode="numeric"
+          max={plan?.max_model_len}
+          min={1}
+          type="number"
+          value={value.maxModelLen}
+          onChange={(event) => onChange({...value, maxModelLen: event.target.value})}
+        />
+      </label>
       <label className="flex items-start gap-2 text-sm">
         <input
           checked={value.canary}
@@ -93,4 +80,23 @@ export function maxLenError(plan: DeployPlan | null, raw: string) {
   if (!Number.isInteger(value) || value <= 0) return "请输入正整数的上下文长度";
   if (value > plan.max_model_len) return `上下文长度不能超过 ${plan.max_model_len.toLocaleString("zh-CN")}`;
   return null;
+}
+
+/** Memory-utilisation slider (0.80–0.95). Plans are re-evaluated by deploy-plans for the chosen value. */
+export function GpuMemUtilField({value, disabled, onChange}: {value: number; disabled: boolean; onChange: (next: number) => void}) {
+  return (
+    <label className="block text-sm">
+      <span className="text-muted">显存利用率 {value.toFixed(2)}（调整后重新判定可行方案）</span>
+      <input
+        className="mt-3 w-full accent-[#173447]"
+        disabled={disabled}
+        max={GPU_MEM_UTIL_MAX}
+        min={GPU_MEM_UTIL_MIN}
+        step={0.01}
+        type="range"
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </label>
+  );
 }

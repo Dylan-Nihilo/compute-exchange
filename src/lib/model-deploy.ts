@@ -13,43 +13,100 @@ const decimal = z.preprocess(
 /** TINYINT / boolean flags. */
 const flag = z.union([z.boolean(), z.number()]).nullable().optional().transform((value) => (value == null ? null : Boolean(value)));
 
+/** modeldeploy.PublicModel (GET /models): active catalogue entries only, newest first. */
 export const catalogModelSchema = z.object({
   id: z.number().int().positive(),
   model_key: z.string(),
   display_name: z.string(),
-  quant: z.string().optional(),
-  weights_bytes: z.number().nonnegative().optional(),
-  max_model_len: z.number().int().positive().optional(),
-  license: z.string().optional(),
-  commercial_use: z.enum(["allowed", "restricted", "unknown"]).optional(),
-  // "含已验证卡型" — field name not pinned down in docs/27; accepted when present.
-  verified_gpu_models: z.array(z.string()).optional(),
+  source: z.string(),
+  repo: z.string(),
+  revision: z.string(),
+  quant: z.string(),
+  weights_bytes: z.number().int().nonnegative(),
+  min_compute_capability: z.string(),
+  valid_tp: z.array(z.number().int().positive()).nullable().transform((value) => value ?? []),
+  max_model_len: z.number().int().nonnegative(),
+  min_context_tokens: z.number().int().nonnegative(),
+  license: z.string(),
+  commercial_use: z.enum(["allowed", "restricted", "unknown"]),
+  // GPU models (gpu_catalog model_name) with a result=pass on-machine verification; [] when none.
+  verified_gpu_models: z.array(z.string()).nullable().transform((value) => value ?? []),
 });
 export type CatalogModel = z.infer<typeof catalogModelSchema>;
 
+/** modeldeploy.Plan. */
 export const deployPlanSchema = z.object({
   tp: z.number().int().positive(),
   dp: z.number().int().positive(),
   cards_used: z.number().int().positive(),
   max_model_len: z.number().int().positive(),
-  recommended: z.boolean().optional().default(false),
+  kv_budget_bytes_per_card: z.number().int(),
+  kv_capacity_tokens: z.number().int(),
+  // Suggested context < 2 × min_context_tokens.
+  context_tight: z.boolean(),
+  recommended: z.boolean(),
 });
 export type DeployPlan = z.infer<typeof deployPlanSchema>;
 
+/** `info` passed; `error` blocks; `warning` is advisory; `confirm` is feasible but needs `ack` on submit. */
+export const checkLevels = ["info", "error", "warning", "confirm"] as const;
+export const deployAcks = ["license_ack", "untested_ack"] as const;
+
+/** modeldeploy.Check (M1, M2, F1–F8). */
 export const feasibilityCheckSchema = z.object({
   id: z.string(),
-  ok: z.boolean().nullable().optional(),
-  level: z.string().optional(),
-  message: z.string().optional().default(""),
+  ok: z.boolean(),
+  level: z.enum(checkLevels),
+  message: z.string(),
+  ack: z.enum(deployAcks).optional(),
 });
 export type FeasibilityCheck = z.infer<typeof feasibilityCheckSchema>;
 
+/** modeldeploy.MemoryEval: per-tp memory/context evaluation; `reason` only when infeasible. */
+export const memoryEvalSchema = z.object({
+  tp: z.number().int().positive(),
+  feasible: z.boolean(),
+  kv_budget_bytes_per_card: z.number().int(),
+  kv_capacity_tokens: z.number().int(),
+  reason: z.string().optional(),
+});
+export type MemoryEval = z.infer<typeof memoryEvalSchema>;
+
+/** Inputs the lease data source has not collected yet (lease_source.go Input* keys). */
+export const undeterminedInputLabels: Record<string, string> = {
+  vram_usage: "各卡当前显存占用（F3）",
+  model_cache: "模型缓存区剩余空间（F4）",
+  nvlink: "卡间 NVLink 互联（F5）",
+  fatal_xid: "近 1 小时致命 Xid（F6）",
+};
+
+/** modeldeploy.Basis, the evaluation input summary. Only the fields the page reads are pinned. */
+const basisSchema = z.object({
+  model_id: z.number().int(),
+  model_key: z.string(),
+  gpu_model: z.string(),
+  cards: z.number().int().nonnegative(),
+  gpu_mem_util_pct: z.number().int(),
+  // {input key: buyer-facing reason}; omitted when every input was collected.
+  undetermined: z.record(z.string(), z.string()).optional(),
+}).passthrough();
+
 export const deployPlansSchema = z.object({
   feasible: z.boolean(),
+  // [] when feasible=false.
   plans: z.array(deployPlanSchema).nullable().transform((value) => value ?? []),
   checks: z.array(feasibilityCheckSchema).nullable().transform((value) => value ?? []),
+  memory: z.array(memoryEvalSchema).nullable().transform((value) => value ?? []),
+  basis: basisSchema,
 });
 export type DeployPlans = z.infer<typeof deployPlansSchema>;
+
+/** `basis.undetermined` as display rows, in a stable order. */
+export function undeterminedInputs(plans: Pick<DeployPlans, "basis">) {
+  return Object.entries(plans.basis.undetermined ?? {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, reason]) => ({key, label: undeterminedInputLabels[key] ?? key, reason}));
+}
 
 export const deployStates = ["pending", "checking", "pulling", "starting", "running", "restarting", "stopping", "stopped", "failed"] as const;
 export const deployStateCopy: Record<string, string> = {
@@ -152,8 +209,20 @@ export function fetchCatalogModels(fetchImplementation?: typeof fetch) {
   return requestEnvelope("/api/market-proxy/models", listPayload(catalogModelSchema), {fallback: "模型目录读取失败", fetchImplementation});
 }
 
-export function fetchDeployPlans(orderNo: string, modelId: number, fetchImplementation?: typeof fetch) {
-  return requestEnvelope(`${base(orderNo)}/deploy-plans?model_id=${modelId}`, deployPlansSchema, {fallback: "可行性判定失败", fetchImplementation});
+/** Two-decimal form the backend accepts for `gpu_mem_util` (0.80–0.95). */
+export function formatGpuMemUtil(value: number) {
+  const bounded = Math.min(GPU_MEM_UTIL_MAX, Math.max(GPU_MEM_UTIL_MIN, value));
+  return (Math.round(bounded * 100) / 100).toFixed(2);
+}
+
+/**
+ * GET /orders/:id/deploy-plans?model_id=&gpu_mem_util=. Plans depend on gpu_mem_util, so the
+ * value the buyer will submit is always sent. 50000 while fleet is disabled, 40900 when the lease
+ * is not active, 40001 for a non-managed order: the backend message is shown unchanged.
+ */
+export function fetchDeployPlans(orderNo: string, modelId: number, gpuMemUtil = GPU_MEM_UTIL_DEFAULT, fetchImplementation?: typeof fetch) {
+  const params = new URLSearchParams({model_id: String(modelId), gpu_mem_util: formatGpuMemUtil(gpuMemUtil)});
+  return requestEnvelope(`${base(orderNo)}/deploy-plans?${params}`, deployPlansSchema, {fallback: "可行性判定失败", fetchImplementation});
 }
 
 /** 40001 carries `data.checks` with the failed items; callers read it via `deployErrorChecks`. */
@@ -200,31 +269,27 @@ export function deployErrorChecks(data: unknown): FeasibilityCheck[] {
   return parsed.success ? parsed.data.checks : [];
 }
 
-const ACK_LEVELS = new Set(["ack", "confirm", "warn", "warning"]);
-
-function needsAck(checks: readonly FeasibilityCheck[], id: "F7" | "F8") {
-  return checks.some((check) => check.id.toUpperCase() === id && (check.ok === false || ACK_LEVELS.has((check.level ?? "").toLowerCase())));
-}
-
 /**
- * F7 (restricted licence) and F8 (card model not verified) are feasible but must be
- * acknowledged separately (`license_ack` / `untested_ack`). The check encoding is not
- * pinned down, so a check counts when it fails or carries a warning/confirm level; a
- * `restricted` catalogue entry always requires the licence acknowledgement.
+ * Confirmations the backend will demand on submit (Result.MissingAcks): every `confirm` check
+ * that did not pass carries `ack` = license_ack (F7) or untested_ack (F8).
  */
-export function requiredAcks(checks: readonly FeasibilityCheck[], model?: Pick<CatalogModel, "commercial_use">) {
+export function requiredAcks(checks: readonly FeasibilityCheck[]) {
+  const pending = checks.filter((check) => !check.ok && check.level === "confirm");
   return {
-    license: needsAck(checks, "F7") || model?.commercial_use === "restricted",
-    untested: needsAck(checks, "F8"),
+    license: pending.some((check) => check.ack === "license_ack"),
+    untested: pending.some((check) => check.ack === "untested_ack"),
   };
 }
 
-export function checkTone(check: FeasibilityCheck): "ok" | "warn" | "block" {
-  const level = (check.level ?? "").toLowerCase();
-  if (level === "error" || level === "block" || level === "fatal") return "block";
-  if (check.ok === false && !["F5", "F7", "F8"].includes(check.id.toUpperCase())) return "block";
-  if (check.ok === false || ACK_LEVELS.has(level)) return "warn";
-  return "ok";
+export function checkTone(check: FeasibilityCheck): "ok" | "warn" | "confirm" | "block" {
+  if (check.ok || check.level === "info") return "ok";
+  if (check.level === "error") return "block";
+  return check.level === "confirm" ? "confirm" : "warn";
+}
+
+/** Backend checks say "无法判定" when an input could not be determined; such a check is not a hardware verdict. */
+export function isUndeterminedCheck(check: FeasibilityCheck) {
+  return !check.ok && check.message.includes("无法判定");
 }
 
 export function recommendedPlan(plans: readonly DeployPlan[]) {

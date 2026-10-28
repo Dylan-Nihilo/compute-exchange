@@ -20,7 +20,7 @@ import {deployKeys} from "./deploy-keys";
 import {DeployPlanStep} from "./deploy-plan-step";
 
 /** Model picker → live feasibility → parameters/acks → POST deployments (docs/27 §27.4, §27.8). */
-export function DeployForm({orderNo, onCreated}: {orderNo: string; onCreated: () => void}) {
+export function DeployForm({orderNo, submitAvailable, onCreated}: {orderNo: string; submitAvailable: boolean; onCreated: () => void}) {
   const models = useQuery({queryKey: deployKeys.models, queryFn: () => fetchCatalogModels(), retry: false});
   const [modelId, setModelId] = useState<number | null>(null);
   const model = models.data?.find((item) => item.id === modelId) ?? null;
@@ -53,7 +53,7 @@ export function DeployForm({orderNo, onCreated}: {orderNo: string; onCreated: ()
         </label>
         {model ? <ModelFacts model={model} /> : null}
       </SectionQueryState>
-      {model ? <DeploySubmit key={model.id} model={model} orderNo={orderNo} onCreated={onCreated} /> : null}
+      {model ? <DeploySubmit key={model.id} model={model} orderNo={orderNo} submitAvailable={submitAvailable} onCreated={onCreated} /> : null}
     </div>
   );
 }
@@ -67,12 +67,13 @@ function ModelFacts({model}: {model: CatalogModel}) {
     model.license ? `许可证 ${model.license}` : null,
     model.weights_bytes ? `权重 ${(model.weights_bytes / 1024 ** 3).toFixed(1)} GiB` : null,
     model.max_model_len ? `最大上下文 ${model.max_model_len.toLocaleString("zh-CN")}` : null,
-    model.verified_gpu_models?.length ? `已验证卡型 ${model.verified_gpu_models.join("、")}` : null,
+    model.min_compute_capability ? `算力架构 ≥ ${model.min_compute_capability}` : null,
+    model.verified_gpu_models.length ? `已验证卡型 ${model.verified_gpu_models.join("、")}` : "尚无真机验证卡型",
   ].filter(Boolean);
   return facts.length ? <p className="mt-2 text-xs text-muted">{facts.join(" · ")}</p> : null;
 }
 
-function DeploySubmit({model, orderNo, onCreated}: {model: CatalogModel; orderNo: string; onCreated: () => void}) {
+function DeploySubmit({model, orderNo, submitAvailable, onCreated}: {model: CatalogModel; orderNo: string; submitAvailable: boolean; onCreated: () => void}) {
   const queryClient = useQueryClient();
   const create = useMutation({
     mutationFn: (input: Parameters<typeof createDeployment>[1]) => createDeployment(orderNo, input),
@@ -91,6 +92,7 @@ function DeploySubmit({model, orderNo, onCreated}: {model: CatalogModel; orderNo
         isSubmitting={create.isPending}
         model={model}
         orderNo={orderNo}
+        submitAvailable={submitAvailable}
         onSubmit={(input) => create.mutate(input)}
       />
       {create.isError ? (
