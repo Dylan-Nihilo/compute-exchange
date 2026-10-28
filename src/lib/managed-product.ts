@@ -1,0 +1,122 @@
+import {
+  enabledRentalPrices,
+  formatNightWindow,
+  parseCardSplitOptions,
+  rentalPricingModeLabels,
+  serializeCardSplitOptions,
+  validateNightWindow,
+  DEFAULT_NIGHT_END_MIN,
+  DEFAULT_NIGHT_START_MIN,
+  type RentalPricingMode,
+} from "./flexible-pricing.ts";
+import type {CreateProductInput, SupplierProduct} from "./supplier-workspace.ts";
+
+// Supplier-side form state for v1.2 managed card rental products (docs/26 §26.3, §26.5, §26.6).
+
+export const fulltimeModes = ["hourly", "daily", "weekly", "monthly"] as const satisfies readonly RentalPricingMode[];
+
+export type PriceRowState = {enabled: boolean; price: string; minDuration: string};
+
+export type ManagedProductState = {
+  fulfillmentMode: "manual" | "managed";
+  availability: "fulltime" | "night_window";
+  nightStartMin: number;
+  nightEndMin: number;
+  splitOptions: number[];
+  prices: Record<RentalPricingMode, PriceRowState>;
+};
+
+export type ManagedErrors = Partial<Record<"delivery" | "night" | "prices" | "split", string>>;
+
+export const managedDeliveryModes = ["container", "bare_metal"] as const;
+
+export function initialManagedState(product?: SupplierProduct): ManagedProductState {
+  const rows = enabledRentalPrices(product?.prices ?? []);
+  const prices = Object.fromEntries(
+    (["hourly", "daily", "weekly", "monthly", "nightly"] as const).map((mode) => {
+      const row = rows.find((price) => price.pricingMode === mode);
+      const legacy = !rows.length && product?.pricing_mode === mode;
+      return [mode, {
+        enabled: Boolean(row) || legacy,
+        price: row ? String(row.unitPriceMinor / 100) : legacy && product ? String(product.unit_price / 100) : "",
+        minDuration: String(row?.minDuration ?? (legacy ? product?.min_duration : undefined) ?? 1),
+      }];
+    }),
+  ) as Record<RentalPricingMode, PriceRowState>;
+  return {
+    fulfillmentMode: product?.fulfillment_mode ?? "manual",
+    availability: product?.availability ?? "fulltime",
+    nightStartMin: product?.night_start_min ?? DEFAULT_NIGHT_START_MIN,
+    nightEndMin: product?.night_end_min ?? DEFAULT_NIGHT_END_MIN,
+    splitOptions: parseCardSplitOptions(product?.card_split_options),
+    prices,
+  };
+}
+
+const priceInputPattern = /^\d+(\.\d{1,2})?$/;
+
+/** Validates the managed section and returns the extra payload, or the field errors. */
+export function buildManagedPayload(
+  state: ManagedProductState,
+  {cardCount, deliveryMode}: {cardCount: number; deliveryMode: string},
+): {errors: ManagedErrors} | {payload: Partial<CreateProductInput> & {pricing_mode: string; unit_price: number}} {
+  const errors: ManagedErrors = {};
+  if (!(managedDeliveryModes as readonly string[]).includes(deliveryMode)) {
+    errors.delivery = "平台托管仅支持容器或裸金属交付";
+  }
+  const nightly = state.availability === "night_window";
+  if (nightly) {
+    const nightError = validateNightWindow(state.nightStartMin, state.nightEndMin);
+    if (nightError) errors.night = nightError;
+  }
+  const modes: readonly RentalPricingMode[] = nightly ? ["nightly"] : fulltimeModes;
+  const enabled = modes.filter((mode) => state.prices[mode].enabled);
+  if (!enabled.length) {
+    errors.prices = nightly ? "请填写包夜单价" : "请至少启用一种计费方式";
+  } else {
+    for (const mode of enabled) {
+      const row = state.prices[mode];
+      const minDuration = Number(row.minDuration);
+      if (!priceInputPattern.test(row.price) || Number(row.price) <= 0) {
+        errors.prices = `请填写大于 0 的${rentalPricingModeLabels[mode]}单价（最多两位小数）`;
+        break;
+      }
+      if (!Number.isInteger(minDuration) || minDuration < 1) {
+        errors.prices = `${rentalPricingModeLabels[mode]}的最短租期需为正整数`;
+        break;
+      }
+    }
+  }
+  const splitAllowed = deliveryMode === "container";
+  if (splitAllowed) {
+    if (!state.splitOptions.length) errors.split = "请至少选择一种可租卡数";
+    else if (cardCount > 0 && state.splitOptions.some((option) => option > cardCount)) {
+      errors.split = "可租卡数不能超过单台节点的卡数";
+    }
+  }
+  if (Object.keys(errors).length) return {errors};
+
+  const prices = modes.map((mode) => ({
+    pricing_mode: mode,
+    unit_price: state.prices[mode].enabled ? Math.round(Number(state.prices[mode].price) * 100) : 0,
+    min_duration: Number(state.prices[mode].minDuration) || 1,
+    enabled: state.prices[mode].enabled,
+  })).filter((row) => row.enabled || row.unit_price > 0);
+  // Top-level pricing_mode/unit_price mirror the shortest enabled period for legacy readers;
+  // the backend ignores them when `prices` is present (docs/26 §26.9).
+  const primary = prices.find((row) => row.enabled)!;
+  return {
+    payload: {
+      fulfillment_mode: "managed",
+      availability: state.availability,
+      ...(nightly ? {night_start_min: state.nightStartMin, night_end_min: state.nightEndMin} : {}),
+      ...(splitAllowed ? {card_split_options: serializeCardSplitOptions(state.splitOptions)} : {}),
+      prices,
+      pricing_mode: primary.pricing_mode,
+      unit_price: primary.unit_price,
+      min_duration: primary.min_duration,
+      ...(nightly ? {available_hours: `每晚 ${formatNightWindow(state.nightStartMin, state.nightEndMin)}`} : {}),
+    },
+  };
+}
+

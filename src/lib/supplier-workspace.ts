@@ -1,4 +1,6 @@
 import {buyerOrderStatuses, currentLeaseSchema} from "./buyer-orders.ts";
+import {fulfillmentModeSchema} from "./domain/contracts.ts";
+import {productPriceSchema} from "./flexible-pricing.ts";
 import {LEGAL_VERSION} from "./legal.ts";
 import {z} from "zod";
 
@@ -21,6 +23,7 @@ export const pricingModeCopy: Record<string, string> = {
   weekly: "按周",
   monthly: "按月",
   perpetual: "买断",
+  nightly: "包夜",
 };
 
 export const productStatusCopy: Record<string, string> = {
@@ -108,6 +111,14 @@ const productSchema = z.object({
   status: z.string(),
   self_operated: z.boolean(),
   rejected_reason: z.string().default(""),
+  // v1.2 managed rental (docs/26 §26.9); absent on legacy backends and manual products.
+  fulfillment_mode: fulfillmentModeSchema.optional(),
+  availability: z.enum(["fulltime", "night_window"]).optional(),
+  night_start_min: z.number().int().min(0).max(1439).nullable().optional(),
+  night_end_min: z.number().int().min(0).max(1439).nullable().optional(),
+  card_split_options: z.union([z.string(), z.array(z.number().int())]).nullable().optional(),
+  max_free_per_node: z.number().int().nonnegative().nullable().optional(),
+  prices: z.array(productPriceSchema).nullable().optional(),
 });
 
 const productGroupSchema = z.object({
@@ -236,7 +247,11 @@ const actionEnvelopeSchema = z.object({
 const createProductEnvelopeSchema = z.object({
   code: z.number().int(),
   message: z.string(),
-  data: z.object({id: z.number().int()}).optional(),
+  data: z.object({
+    id: z.number().int(),
+    // v1.2: non-blocking price inversion hints (docs/26 §26.3.2).
+    warnings: z.array(z.string()).nullable().optional(),
+  }).optional(),
 });
 
 const deliverEnvelopeSchema = z.object({
@@ -282,6 +297,13 @@ export type CreateProductInput = {
   min_duration?: number;
   region: string;
   compliance_agreed: boolean;
+  // v1.2 managed rental fields; only sent for managed card rental products.
+  fulfillment_mode?: "manual" | "managed";
+  availability?: "fulltime" | "night_window";
+  night_start_min?: number;
+  night_end_min?: number;
+  card_split_options?: string;
+  prices?: {pricing_mode: string; unit_price: number; min_duration: number; enabled: boolean}[];
 };
 
 export type SubmitQualificationInput = {
