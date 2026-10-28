@@ -168,6 +168,9 @@ const settlementSchema = z.object({
   status: z.string(),
   fail_reason: z.string().optional(),
   created_at: z.string(),
+  // v1.2: not listed for this endpoint in docs/25; read only if the backend adds them.
+  fulfillment_mode: fulfillmentModeSchema.optional(),
+  settle_ready_at: z.string().nullable().optional(),
 });
 
 // 供给方易宝收款账户(分账接收商编)开通状态。

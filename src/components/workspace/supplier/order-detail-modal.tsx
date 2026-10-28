@@ -7,6 +7,7 @@ import {Button, Modal} from "@heroui/react";
 import {buyerOrderStatusCopy} from "@/lib/buyer-orders";
 import {formatDateTime} from "@/lib/format/date";
 import {
+  isManagedOrder,
   pricingModeCopy,
   productTypeCopy,
   type SupplierOrder,
@@ -32,7 +33,9 @@ export function OrderDetailModal({
 }) {
   if (!order) return null;
   const productName = (order.gpu_model || "算力资源").replace(/^NVIDIA\s+/i, "");
-  const canDeliver = order.status === "paid" || order.status === "provisioning";
+  // Managed orders are provisioned by the platform; there is no manual deliver step (docs/25 §25.2).
+  const managed = isManagedOrder(order);
+  const canDeliver = !managed && (order.status === "paid" || order.status === "provisioning");
 
   return (
     <Modal.Root isOpen={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
@@ -45,12 +48,13 @@ export function OrderDetailModal({
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body className="gap-4">
-              {open && order ? <ScheduleAdvice key={order.order_no} orderNo={order.order_no} role="supplier" /> : null}
+              {open && order && !managed ? <ScheduleAdvice key={order.order_no} orderNo={order.order_no} role="supplier" /> : null}
               <div className="rounded-xl border border-[#dce9ee] bg-white/55 px-4 py-3">
                 <p className="text-sm font-medium text-[#173447]">{productName}</p>
                 <p className="mt-0.5 text-xs text-[#78909c]">
                   PRD-#{order.product_id} · {productTypeCopy[order.product_type ?? ""] ?? order.product_type}
                   {" · "}{pricingModeCopy[order.pricing_mode ?? ""] ?? order.pricing_mode}
+                  {managed ? " · 平台托管" : ""}
                 </p>
               </div>
               <dl className="grid gap-3 text-xs text-[#78909c] sm:grid-cols-2">
@@ -69,6 +73,7 @@ export function OrderDetailModal({
                 <Detail label="本次续租订单" value={order.current_lease.order_no} mono />
                 <Detail label="本次交付周期" value={`${order.current_lease.duration} 个周期 · ${pricingModeCopy[order.current_lease.pricing_mode] ?? order.current_lease.pricing_mode}`} />
               </dl> : null}
+              {managed ? <ManagedOrderNote order={order} /> : null}
               {canDeliver ? (
                 <p className="rounded-xl border border-[#c3e2f5]/60 bg-[#e8f6fe]/60 px-4 py-2.5 text-xs leading-5 text-[#1d63ae]">
                   该订单等待交付: 请在自有控制台开通资源后, 回填实例访问凭证。
@@ -90,6 +95,24 @@ export function OrderDetailModal({
         </Modal.Container>
       </Modal.Backdrop>
     </Modal.Root>
+  );
+}
+
+function ManagedOrderNote({order}: {order: SupplierOrder}) {
+  const provisioning = order.status === "paid" || order.status === "provisioning";
+  return (
+    <div className="rounded-xl border border-[#c3e2f5]/60 bg-[#e8f6fe]/60 px-4 py-2.5 text-xs leading-5 text-[#1d63ae]">
+      <p>
+        {provisioning
+          ? "平台托管订单：平台正在自动分配卡槽并开通，无需你回填凭证。"
+          : "平台托管订单：由平台开通、回收，买家经平台网关登录。"}
+      </p>
+      <p className="mt-1">
+        {order.settle_ready_at
+          ? `已于 ${formatDateTime(order.settle_ready_at)} 满足分账条件，将随下一批分账处理。`
+          : "租期结束且停机记录全部结清后一次性分账（续租订单随整条租期一并结算）。"}
+      </p>
+    </div>
   );
 }
 

@@ -157,7 +157,12 @@ export default function SupplierSettlementsPage() {
                       <th className="px-4 py-3.5 text-[13px] font-medium text-[#173447]" scope="row">
                         {item.settlement_id}
                       </th>
-                      <td className="px-4 py-3.5 text-[13px] text-[#24495d]">{item.order_no}</td>
+                      <td className="px-4 py-3.5 text-[13px] text-[#24495d]">
+                        {item.order_no}
+                        {item.fulfillment_mode === "managed" && item.status === "pending" && !item.settle_ready_at ? (
+                          <p className="mt-1 text-[11px] text-[#8aa0ab]">平台托管 · 租期结束后分账</p>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-3.5 text-[13px] font-semibold text-[#173447]">
                         {money.format(item.amount / 100)}
                       </td>

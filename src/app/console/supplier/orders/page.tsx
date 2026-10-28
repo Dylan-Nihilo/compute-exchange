@@ -17,6 +17,7 @@ import {notify} from "@/lib/notify";
 import {
   deliverOrder,
   fetchSupplierOrders,
+  isManagedOrder,
   type DeliverOrderInput,
   type SupplierOrder,
 } from "@/lib/supplier-workspace";
@@ -161,7 +162,7 @@ export default function SupplierOrdersPage() {
                         <p className="truncate text-[13px] font-medium text-[#24495d]">
                           {(order.gpu_model || "算力资源").replace(/^NVIDIA\s+/i, "")}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-[#8aa0ab]">PRD-#{order.product_id}</p>
+                        <p className="mt-0.5 text-[11px] text-[#8aa0ab]">PRD-#{order.product_id}{isManagedOrder(order) ? " · 平台托管" : ""}</p>
                       </td>
                       <td className="px-4 py-3.5 text-[13px] text-[#24495d]">{order.quantity}</td>
                       <td className="px-4 py-3.5 text-[13px] font-semibold text-[#173447]">
@@ -172,7 +173,9 @@ export default function SupplierOrdersPage() {
                       </td>
                       <td className="px-4 py-3.5">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone[order.status] ?? statusTone.pending_payment}`}>
-                          {buyerOrderStatusCopy[order.status as keyof typeof buyerOrderStatusCopy] ?? order.status}
+                          {isManagedOrder(order) && (order.status === "paid" || order.status === "provisioning")
+                            ? "平台开通中"
+                            : buyerOrderStatusCopy[order.status as keyof typeof buyerOrderStatusCopy] ?? order.status}
                         </span>
                       </td>
                       <td className="px-4 py-3.5 text-[12px] text-[#78909c]">
@@ -211,7 +214,7 @@ export default function SupplierOrdersPage() {
         onClose={() => setDetailTarget(null)}
         onDeliver={(order) => {
           setDetailTarget(null);
-          setDeliverTarget(order);
+          if (!isManagedOrder(order)) setDeliverTarget(order);
         }}
         open={detailTarget !== null}
         order={detailTarget}
