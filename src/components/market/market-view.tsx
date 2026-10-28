@@ -68,6 +68,7 @@ const pricingModeOptions: readonly FilterOption[] = [
   {label: "按天", value: "daily"},
   {label: "按周", value: "weekly"},
   {label: "按月", value: "monthly"},
+  {label: "包夜", value: "nightly"},
   {label: "买断", value: "perpetual"},
 ];
 const deliveryModeOptions: readonly FilterOption[] = [

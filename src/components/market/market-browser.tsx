@@ -6,6 +6,7 @@ import {useRouter} from "next/navigation";
 
 import {ProductHealth} from "./product-health";
 import type {MarketSupply} from "@/components/market/market-data";
+import {formatNightWindow, rentalPricingModeLabels} from "@/lib/flexible-pricing";
 
 const priceFormatter = new Intl.NumberFormat("zh-CN", {
   currency: "CNY",
@@ -76,6 +77,11 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
                     平台自营
                   </Chip>
                 ) : null}
+                {supply.fulfillmentMode === "managed" ? (
+                  <Chip className="bg-[#e3f1f5] text-[#1c526b]" size="sm" variant="soft">
+                    平台托管
+                  </Chip>
+                ) : null}
               </div>
               <h2 className="truncate text-[22px] leading-[30px] font-semibold text-[#102b3b]">
                 {supply.gpuModel || supply.name}
@@ -84,7 +90,9 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
                 {primarySpecs(supply, unitLabel)}
               </p>
               <p className="mt-0.5 truncate text-[13px] leading-5 font-medium text-[#173447]">
-                起订 {supply.minimumOrder ?? 1} {unitLabel} · {supply.pricingMode === "perpetual" ? "一次性采购" : `最短 ${supply.minimumDuration ?? 1} ${durationLabel(supply.pricingMode)}`}
+                {supply.cardSplitOptions?.length
+                  ? `可选 ${supply.cardSplitOptions.join("/")} ${unitLabel}`
+                  : `起订 ${supply.minimumOrder ?? 1} ${unitLabel}`} · {supply.pricingMode === "perpetual" ? "一次性采购" : `最短 ${supply.minimumDuration ?? 1} ${durationLabel(supply.pricingMode)}`}
               </p>
             </div>
 
@@ -92,7 +100,7 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
               <Metric label="地域" meta="可用节点" value={supply.region || "—"} />
               <Metric
                 label="可售"
-                meta={supply.availableHours || "时段待确认"}
+                meta={availabilityMeta(supply)}
                 metaClassName={supply.availableUnits <= 4 ? "text-[#c8553d]" : "text-[#43875b]"}
                 value={`${supply.availableUnits} ${unitLabel}`}
               />
@@ -136,7 +144,9 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
             查看详情
           </Button>
           <p className="mt-2 text-center text-xs leading-[18px] text-[#657f8f]">
-            查看可售时段与交付条件
+            {supply.prices && supply.prices.length > 1
+              ? `支持${supply.prices.map(({pricingMode}) => rentalPricingModeLabels[pricingMode]).join(" / ")}`
+              : "查看可售时段与交付条件"}
           </p>
         </div>
       </div>
@@ -190,9 +200,16 @@ function durationLabel(pricingMode?: string) {
     daily: "天",
     hourly: "小时",
     monthly: "月",
+    nightly: "晚",
     perpetual: "期",
     weekly: "周",
   }[pricingMode ?? ""] ?? "期";
+}
+
+function availabilityMeta(supply: MarketSupply) {
+  if (supply.maxFreePerNode !== undefined) return `单机最多可租 ${supply.maxFreePerNode} 卡`;
+  if (supply.nightWindow) return `夜间 ${formatNightWindow(supply.nightWindow.startMin, supply.nightWindow.endMin)}`;
+  return supply.availableHours || "时段待确认";
 }
 
 function marketPriceUnit(pricingMode: string | undefined, unitLabel: string) {

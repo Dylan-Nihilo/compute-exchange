@@ -8,7 +8,19 @@ import {useRouter} from "next/navigation";
 
 import {ProductHealth} from "./product-health";
 import {AnimatedNumber} from "@/components/system/animated-number";
+import {
+  formatNightWindow,
+  rentalPeriodUnits,
+  rentalPricingModeLabels,
+} from "@/lib/flexible-pricing";
 import type {MarketProductDetail} from "@/lib/market-api";
+
+const priceFormatter = new Intl.NumberFormat("zh-CN", {
+  currency: "CNY",
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2,
+  style: "currency",
+});
 
 const rateFormatter = new Intl.NumberFormat("zh-CN", {
   maximumFractionDigits: 1,
@@ -40,10 +52,25 @@ export function MarketProductDetailView({
       ? []
       : [{label: "电力容量", value: `${product.powerCapacityKw} kW`}]),
   ];
+  const managed = product.fulfillmentMode === "managed";
+  const unitLabel = product.unitLabel ?? "GPU";
+  const minimumUnits = product.cardSplitOptions?.[0] ?? product.minimumOrder;
   const deliveryDetails = [
     {label: "地域", value: product.region},
-    {label: "可售时段", value: product.availableHours || "—"},
-    {label: "交付方式", value: product.deliveryMode},
+    {
+      label: "可售时段",
+      value: product.nightWindow
+        ? `每晚 ${formatNightWindow(product.nightWindow.startMin, product.nightWindow.endMin)}`
+        : product.availableHours || "—",
+    },
+    ...(managed ? [{label: "交付方式", value: "平台托管：付款后自动开通，经平台 SSH 网关登录"}] : []),
+    ...(product.cardSplitOptions?.length
+      ? [{label: "可选卡数（单台节点内）", value: product.cardSplitOptions.map((count) => `${count} 卡`).join(" / ")}]
+      : []),
+    ...(product.maxFreePerNode !== undefined
+      ? [{label: "单机最多可租", value: `${product.maxFreePerNode} 卡`}]
+      : []),
+    {label: managed ? "运行环境" : "交付方式", value: product.deliveryMode},
     {label: "网络带宽", value: product.network},
     {label: "计费方式", value: product.billingMode},
     {
@@ -76,6 +103,7 @@ export function MarketProductDetailView({
           {product.selfOperated ? (
             <Chip color="accent" variant="soft">平台自营</Chip>
           ) : null}
+          {managed ? <Chip color="accent" variant="soft">平台托管</Chip> : null}
         </div>
         <h1 className="max-w-4xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
           {product.name}
@@ -108,11 +136,11 @@ export function MarketProductDetailView({
         </KPI>
         <KPI>
           <KPI.Header>
-            <KPI.Title>起订数量（{product.unitLabel ?? "GPU"}）</KPI.Title>
+            <KPI.Title>起订数量（{unitLabel}）</KPI.Title>
           </KPI.Header>
           <KPI.Content>
-            <KPI.Value locale="zh-CN" value={product.minimumOrder}>
-              {() => <AnimatedNumber value={product.minimumOrder} />}
+            <KPI.Value locale="zh-CN" value={minimumUnits}>
+              {() => <AnimatedNumber value={minimumUnits} />}
             </KPI.Value>
           </KPI.Content>
         </KPI>
@@ -140,6 +168,43 @@ export function MarketProductDetailView({
               </dl>
             </Card.Content>
           </Card>
+
+          {product.prices?.length ? (
+            <Card variant="secondary">
+              <Card.Header>
+                <Card.Title>计费方式</Card.Title>
+                <Card.Description>单价按每卡每计费周期计算，下单时选择计费方式。</Card.Description>
+              </Card.Header>
+              <Card.Content>
+                <table className="w-full text-left text-sm">
+                  <caption className="sr-only">计费方式与单价</caption>
+                  <thead className="text-muted">
+                    <tr>
+                      <th className="py-2 font-normal" scope="col">计费方式</th>
+                      <th className="py-2 font-normal" scope="col">单价</th>
+                      <th className="py-2 font-normal" scope="col">最短租期</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {product.prices.map((price) => (
+                      <tr className="border-t border-border" key={price.pricingMode}>
+                        <th className="py-2.5 font-medium text-foreground" scope="row">
+                          {rentalPricingModeLabels[price.pricingMode]}
+                        </th>
+                        <td className="py-2.5 tabular-nums text-foreground">
+                          {priceFormatter.format(price.unitPriceMinor / 100)}
+                          <span className="text-muted"> / 卡·{rentalPeriodUnits[price.pricingMode]}</span>
+                        </td>
+                        <td className="py-2.5 tabular-nums text-foreground">
+                          {price.minDuration} {rentalPeriodUnits[price.pricingMode]}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card.Content>
+            </Card>
+          ) : null}
 
           <Card variant="secondary">
             <Card.Header>
