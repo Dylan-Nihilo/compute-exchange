@@ -28,7 +28,7 @@ export function ManagedOrderSections({orderNo, provisioning}: {orderNo: string; 
       {access.data?.lease_state === "active" ? <DeployEntry orderNo={orderNo} /> : null}
       {leaseStarted ? (
         <>
-          <ManagedOutagesCard accessRemedy={access.data?.outage_remedy} leaseState={access.data?.lease_state} orderNo={orderNo} />
+          <ManagedOutagesCard />
           <ManagedSessionsCard orderNo={orderNo} />
         </>
       ) : null}

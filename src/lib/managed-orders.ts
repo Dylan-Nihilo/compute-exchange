@@ -1,14 +1,12 @@
 import {z} from "zod";
 
-import {jsonInit, listPayload, requestEnvelope} from "./api/envelope.ts";
+import {requestEnvelope} from "./api/envelope.ts";
+import {leaseStates, type OutageRemedy} from "./domain/contracts.ts";
 
-// Buyer-side managed rental endpoints (docs/25 §25.10 "买家"). All go through the
-// allowlisted BFF route `/api/buyer/orders/:orderNo/[...action]`.
+// Buyer-side managed rental endpoints (managed-rental-api.md "买家", fleet/access.go). All go
+// through the allowlisted BFF route `/api/buyer/orders/:orderNo/[...action]`.
 
-export const leaseStates = [
-  "reserved", "pending", "provisioning", "active", "parked", "suspended",
-  "grace", "purging", "purged", "failed", "cancelled",
-] as const;
+export {leaseStates};
 
 export const leaseStateCopy: Record<string, string> = {
   reserved: "已预留",
@@ -24,109 +22,74 @@ export const leaseStateCopy: Record<string, string> = {
   cancelled: "已取消",
 };
 
-/** `auth_methods` is documented without a type; accept an array or a comma separated string. */
-const authMethodsSchema = z
-  .union([z.array(z.string()), z.string(), z.null(), z.undefined()])
-  .transform((value) => (Array.isArray(value) ? value : (value ?? "").split(",")).map((item) => item.trim()).filter(Boolean));
-
+/** fleet.OrderAccess (GET /orders/:id/access). Never includes the node IP or container port. */
 export const managedAccessSchema = z.object({
   gateway_host: z.string().min(1),
-  gateway_port: z.coerce.number().int().positive(),
+  gateway_port: z.number().int().positive(),
+  // Login name = lease number (l-xxxxxxxx).
   login: z.string().min(1),
-  lease_state: z.string(),
-  access_until: z.string().nullable().optional(),
-  grace_until: z.string().nullable().optional(),
-  auth_methods: authMethodsSchema,
-  // Not in the documented response; shown only when the backend sends it (leases.resource_alert).
-  resource_alert: z.string().nullable().optional(),
-  outage_remedy: z.enum(["extend", "refund"]).nullable().optional(),
+  lease_state: z.enum(leaseStates),
+  access_until: z.string().nullable(),
+  grace_until: z.string().nullable(),
+  // Currently always ["publickey","password"].
+  auth_methods: z.array(z.string()).nullable().transform((value) => value ?? []),
 });
 export type ManagedAccess = z.infer<typeof managedAccessSchema>;
 
+/** fleet.AccessSession as returned to the buyer (buyer_id is operator-only and omitted). */
 export const accessSessionSchema = z.object({
-  id: z.union([z.number(), z.string()]).optional(),
-  gw_session_id: z.string().optional(),
+  id: z.number().int().positive(),
+  lease_no: z.string(),
   remote_ip: z.string(),
   auth_method: z.string(),
-  key_fingerprint: z.string().nullable().optional(),
+  key_fingerprint: z.string().nullable(),
+  key_name: z.string().nullable(),
   started_at: z.string(),
-  ended_at: z.string().nullable().optional(),
-  bytes_up: z.coerce.number().nonnegative().optional().default(0),
-  bytes_down: z.coerce.number().nonnegative().optional().default(0),
-  end_reason: z.string().nullable().optional(),
+  ended_at: z.string().nullable(),
+  bytes_up: z.number().int().nonnegative(),
+  bytes_down: z.number().int().nonnegative(),
+  end_reason: z.string().nullable(),
 });
 export type AccessSession = z.infer<typeof accessSessionSchema>;
 
-export const outageRemedies = ["extend", "refund"] as const;
-export type OutageRemedy = (typeof outageRemedies)[number];
-
-export const leaseOutageSchema = z.object({
-  id: z.union([z.number(), z.string()]),
-  cause: z.string(),
-  liable: z.string(),
-  started_at: z.string(),
-  ended_at: z.string().nullable().optional(),
-  minutes: z.number().int().nonnegative().nullable().optional(),
-  remedy: z.enum(outageRemedies).nullable().optional(),
-  remedy_applied_at: z.string().nullable().optional(),
-  remedy_amount: z.number().int().nonnegative().nullable().optional(),
+const sessionsPageSchema = z.object({
+  list: z.array(accessSessionSchema).nullable().transform((value) => value ?? []),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  page_size: z.number().int().positive(),
 });
-export type LeaseOutage = z.infer<typeof leaseOutageSchema>;
+export type AccessSessionsPage = z.infer<typeof sessionsPageSchema>;
 
-/**
- * The outages response shape is not pinned down in docs/25; accept a bare list or
- * `{list, outage_remedy}` where `outage_remedy` is the lease-level choice.
- */
-const outagesPayloadSchema = z
-  .union([
-    z.array(leaseOutageSchema),
-    z.object({list: z.array(leaseOutageSchema).nullable(), outage_remedy: z.enum(outageRemedies).nullable().optional()}),
-    z.null(),
-    z.undefined(),
-  ])
-  .transform((value) => {
-    if (Array.isArray(value)) return {outages: value, remedy: null};
-    return {outages: value?.list ?? [], remedy: value?.outage_remedy ?? null};
-  });
-
-export const outageCauseCopy: Record<string, string> = {
-  node_offline: "节点离线",
-  gpu_fault: "GPU 故障",
-  container_down: "容器异常退出",
-  full_probe_failed: "完整探活未通过",
-  night_unpark_failed: "包夜窗口未能开通",
-  provision_delay: "开通延迟",
-  gateway_down: "访问网关不可用",
-  wrong_freeze: "误冻结",
-};
-
-export const liableCopy: Record<string, string> = {supplier: "供给方", platform: "平台"};
+/** Lease-level outage remedy copy; used by the operator lease table (`leases.outage_remedy`). */
 export const remedyCopy: Record<OutageRemedy, string> = {extend: "顺延时长", refund: "退还费用"};
 
 function orderPath(orderNo: string, action: string) {
   return `/api/buyer/orders/${encodeURIComponent(orderNo)}/${action}`;
 }
 
+/**
+ * 40400 covers both "该订单为人工交付, 没有网关连接信息" and "订单尚无租约"; 40300 "无权查看该订单".
+ * The backend message is shown unchanged.
+ */
 export function fetchManagedAccess(orderNo: string, fetchImplementation?: typeof fetch) {
   return requestEnvelope(orderPath(orderNo, "access"), managedAccessSchema, {fallback: "连接信息读取失败", fetchImplementation});
 }
 
-export function fetchAccessSessions(orderNo: string, fetchImplementation?: typeof fetch) {
-  return requestEnvelope(orderPath(orderNo, "sessions"), listPayload(accessSessionSchema), {fallback: "会话记录读取失败", fetchImplementation});
-}
+export const SESSIONS_PAGE_SIZE = 20;
 
-export function fetchLeaseOutages(orderNo: string, fetchImplementation?: typeof fetch) {
-  return requestEnvelope(orderPath(orderNo, "outages"), outagesPayloadSchema, {fallback: "停机记录读取失败", fetchImplementation});
-}
-
-/**
- * PUT /orders/:id/outage-remedy. A 50000 for `refund` (Yeepay partial refund not confirmed)
- * or 40900 after the lease ended is thrown with the backend message unchanged.
- */
-export function setOutageRemedy(orderNo: string, remedy: OutageRemedy, fetchImplementation?: typeof fetch) {
-  return requestEnvelope(orderPath(orderNo, "outage-remedy"), z.unknown(), {
-    fallback: "补偿方式更新失败",
-    init: jsonInit("PUT", {remedy}),
+/** GET /orders/:id/sessions?page&page_size, newest first; page_size is capped at 100 by the backend. */
+export function fetchAccessSessions(
+  orderNo: string,
+  page = 1,
+  fetchImplementation?: typeof fetch,
+  pageSize = SESSIONS_PAGE_SIZE,
+) {
+  const params = new URLSearchParams({
+    page: String(Math.max(1, Math.trunc(page))),
+    page_size: String(Math.min(100, Math.max(1, Math.trunc(pageSize)))),
+  });
+  return requestEnvelope(`${orderPath(orderNo, "sessions")}?${params}`, sessionsPageSchema, {
+    fallback: "会话记录读取失败",
     fetchImplementation,
   });
 }
@@ -147,9 +110,4 @@ export function formatBytes(value: number) {
   const exponent = Math.min(units.length - 1, Math.floor(Math.log(value) / Math.log(1024)));
   const amount = value / 1024 ** exponent;
   return `${amount >= 100 || exponent === 0 ? Math.round(amount) : amount.toFixed(1)} ${units[exponent]}`;
-}
-
-/** Remedy choice is only meaningful while the lease is still running (40900 afterwards). */
-export function canChooseRemedy(leaseState: string | undefined) {
-  return leaseState === "active" || leaseState === "parked" || leaseState === "suspended";
 }

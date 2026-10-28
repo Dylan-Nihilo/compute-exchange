@@ -9,7 +9,7 @@ import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {AddSshKeyForm} from "@/components/workspace/buyer/ssh-keys/add-ssh-key-form";
 import {GlassCard} from "@/components/workspace/ui/glass-card";
 import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
-import {activeSshKeys, deleteSshKey, fetchSshKeys, MAX_SSH_KEYS, type SshKey} from "@/lib/buyer-ssh-keys";
+import {deleteSshKey, fetchSshKeys, MAX_SSH_KEYS, sshKeyTypeLabels, type SshKey} from "@/lib/buyer-ssh-keys";
 import {formatDateTime} from "@/lib/format/date";
 import {notify} from "@/lib/notify";
 
@@ -28,7 +28,7 @@ export default function BuyerSshKeysPage() {
     },
     onError: (error) => notify.error(error.message),
   });
-  const keys = activeSshKeys(query.data ?? []);
+  const keys = query.data ?? [];
   const full = keys.length >= MAX_SSH_KEYS;
 
   return (
@@ -55,7 +55,10 @@ export default function BuyerSshKeysPage() {
               {keys.map((key) => (
                 <li className="flex flex-wrap items-center justify-between gap-3 py-3" key={key.id}>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium">{key.name}</p>
+                    <p className="text-sm font-medium">
+                      {key.name}
+                      <span className="ml-2 text-xs font-normal text-muted">{sshKeyTypeLabels[key.key_type] ?? key.key_type}</span>
+                    </p>
                     <p className="mt-1 font-mono text-xs break-all text-muted">{key.fingerprint}</p>
                     <p className="mt-1 text-xs text-muted">添加于 {formatDateTime(key.created_at)}</p>
                   </div>

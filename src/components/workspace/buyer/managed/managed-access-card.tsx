@@ -49,11 +49,6 @@ function AccessBody({access}: {access: ManagedAccess}) {
   const allowsPassword = access.auth_methods.includes("password");
   return (
     <div className="space-y-4">
-      {access.resource_alert ? (
-        <p className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger" role="alert">
-          资源异常：{access.resource_alert}。期间不可用时长将自动记录为停机，见下方停机记录。
-        </p>
-      ) : null}
       <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
         <Item label="租约状态" value={leaseStateCopy[access.lease_state] ?? access.lease_state} />
         <Item label="登录名" value={access.login} />
