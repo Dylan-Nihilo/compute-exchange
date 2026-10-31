@@ -30,6 +30,8 @@ import {
   freezeAdminUser,
   offlineProduct,
   resolveRiskAlert,
+  unfreezeAdminOrder,
+  canUnfreezeAdminOrder,
   updateAdminOrderStatus,
 } from "@/lib/admin-workspace";
 import {useCurrentAccount} from "@/lib/auth/queries";
@@ -104,6 +106,16 @@ export function AdminOrders() {
   const totalPages = Math.max(1, Math.ceil((query.data?.total ?? 0) / 20));
   if (query.isSuccess && query.isFetchedAfterMount && !query.isFetching && page > totalPages) setPage(totalPages);
   const selected = query.data?.items.find((order) => order.id === selectedId);
+  const [wrongFreeze, setWrongFreeze] = useState(false);
+  const unfreeze = useMutation({
+    mutationFn: (order: AdminOrder) => unfreezeAdminOrder(order.order_no, wrongFreeze),
+    onSuccess: async (result) => {
+      setSelectedId(null); setWrongFreeze(false);
+      await client.invalidateQueries({queryKey: ["admin", "orders"]});
+      notify.success(`订单已解冻，当前状态：${buyerOrderStatusCopy[result.status as keyof typeof buyerOrderStatusCopy] ?? result.status}`);
+    },
+    onError: async (error) => { await client.invalidateQueries({queryKey: ["admin", "orders"]}); notify.error(messageFor(error)); },
+  });
   const mutation = useMutation({
     mutationFn: ({order, status}: NonNullable<typeof action>) => updateAdminOrderStatus(order.id, status),
     onSuccess: async (_, {status}) => { setAction(null); setSelectedId(null); await client.invalidateQueries({queryKey: ["admin", "orders"]}); notify.success(status === "frozen" ? "订单已冻结" : "订单已取消"); },
@@ -138,11 +150,17 @@ export function AdminOrders() {
               <div><dt className="text-muted">创建时间</dt><dd>{formatDateTime(selected.created_at)}</dd></div>
               <div><dt className="text-muted">租期结束</dt><dd>{selected.lease_end_at ? formatDateTime(selected.lease_end_at) : "—"}</dd></div>
             </dl>
-            {!selected.allowed_actions.length ? <p className="text-sm text-muted">当前状态没有可用处置操作。</p> : null}
+            {!selected.allowed_actions.length && !canUnfreezeAdminOrder(selected) ? <p className="text-sm text-muted">当前状态没有可用处置操作。</p> : null}
+            {canUnfreezeAdminOrder(selected) ? <div className="space-y-2 rounded-xl border border-border p-3 text-sm">
+              <p>托管订单冻结期间租约暂停、容器与数据保留。解冻后订单状态由租约实况决定。若存在未结案的风控告警，请先结案再解冻。</p>
+              <label className="flex items-start gap-2"><input className="mt-0.5" type="checkbox" checked={wrongFreeze} disabled={unfreeze.isPending} onChange={(event) => setWrongFreeze(event.target.checked)} />
+                <span>误冻结（冻结期间记为平台责任停机，按买家选择的方式补偿）</span></label>
+            </div> : null}
             <p className="text-sm text-muted">原路退款暂未开放。</p>
           </div> : null}</Modal.Body>
           <Modal.Footer className="flex-wrap">
             <Button variant="tertiary" isDisabled={mutation.isPending} onPress={() => setSelectedId(null)}>返回列表</Button>
+            {selected && canUnfreezeAdminOrder(selected) ? <Button variant="primary" isPending={unfreeze.isPending} isDisabled={mutation.isPending} onPress={() => unfreeze.mutate(selected)}>解冻订单</Button> : null}
             {selected?.allowed_actions.map((status) => <Button key={status} variant="danger-soft" isDisabled={mutation.isPending} onPress={() => setAction({order: selected, status})}>{status === "frozen" ? "冻结订单" : "关闭订单"}</Button>)}
           </Modal.Footer>
         </Modal.Dialog></Modal.Container>
