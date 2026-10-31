@@ -156,6 +156,8 @@ const supplierOrderSchema = z.object({
   pricing_mode: z.string().optional(),
   // v1.2 (docs/25 §25.7.6): absent on legacy backends, which keeps the manual-mode UX.
   fulfillment_mode: fulfillmentModeSchema.optional(),
+  // Currently never sent (compute/repository.go:112 `json:"-"`), so the order modal shows the
+  // generic "租期结束后分账" copy; read only if the backend starts exposing it.
   settle_ready_at: z.string().nullable().optional(),
 });
 
@@ -167,11 +169,13 @@ const settlementSchema = z.object({
   payee_id: z.number().int().nonnegative(),
   amount: z.number().int().nonnegative(),
   status: z.string(),
-  fail_reason: z.string().optional(),
+  fail_reason: z.string().nullable().optional(),
   created_at: z.string(),
-  // v1.2: not listed for this endpoint in docs/25; read only if the backend adds them.
-  fulfillment_mode: fulfillmentModeSchema.optional(),
-  settle_ready_at: z.string().nullable().optional(),
+  // payment/repository.go:27 Settlement (T-106, migration 037). `amount` is already net of
+  // refund_deduction; platform_compensation is the part of that deduction the platform bears.
+  // The order's fulfillment_mode / settle_ready_at are NOT exposed here (compute/repository.go:112 json:"-").
+  refund_deduction: z.number().int().nonnegative().optional().default(0),
+  platform_compensation: z.number().int().nonnegative().optional().default(0),
 });
 
 // 供给方易宝收款账户(分账接收商编)开通状态。
@@ -283,6 +287,20 @@ export type SupplierProduct = z.infer<typeof productSchema>;
 export type SupplierProductGroup = z.infer<typeof productGroupSchema>;
 export type SupplierOrder = z.infer<typeof supplierOrderSchema>;
 export type SupplierSettlement = z.infer<typeof settlementSchema>;
+
+/**
+ * Managed-order recalculation shown under the amount (payment/managed_split.go): the amount locked at
+ * collection is `amount + refund_deduction`; `platform_compensation` is the platform-liable part of the
+ * deduction that the platform makes good separately. Null when nothing was deducted.
+ */
+export function settlementAdjustment(item: Pick<SupplierSettlement, "amount" | "refund_deduction" | "platform_compensation">) {
+  if (!item.refund_deduction && !item.platform_compensation) return null;
+  return {
+    locked: item.amount + item.refund_deduction,
+    deduction: item.refund_deduction,
+    compensation: item.platform_compensation,
+  };
+}
 export type SupplierPaymentAccount = z.infer<typeof paymentAccountSchema>;
 export type SupplierSettlementSummary = z.infer<typeof settlementSummarySchema>;
 export type SupplierResourceSync = z.infer<typeof resourceSyncSchema>;

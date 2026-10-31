@@ -5,6 +5,7 @@ import {BackendRequestError} from "./api/envelope.ts";
 import {isManagedDraftAwaitingSubmit, productSubmitErrorMessage} from "./managed-product.ts";
 
 import {
+  settlementAdjustment,
   createProduct,
   resubmitProduct,
   deliverOrder,
@@ -178,6 +179,22 @@ test("settlements list and summary parse correctly", async () => {
   const summary = await fetchSupplierSettlementSummary(async () =>
     Response.json({code: 0, message: "success", data: {total_fen: 100, succeeded_fen: 40, pending_fen: 60}}));
   assert.deepEqual(summary, {total_fen: 100, succeeded_fen: 40, pending_fen: 60});
+});
+
+test("settlements carry T-106 refund_deduction / platform_compensation", async () => {
+  const page = await fetchSupplierSettlements({}, async () => Response.json({code: 0, message: "success", data: {
+    list: [
+      {id: 2, settlement_id: "ST-2", order_no: "ORD-2", payee_type: "supplier", payee_id: 9, amount: 70000, status: "pending",
+        fail_reason: "", refund_deduction: 14000, platform_compensation: 3000, created_at: "2026-10-30T09:00:00Z", updated_at: null},
+      {id: 3, settlement_id: "ST-3", order_no: "ORD-3", payee_type: "supplier", payee_id: 9, amount: 84000, status: "success",
+        fail_reason: null, created_at: "2026-10-30T09:00:00Z"},
+    ],
+    total: 2, page: 1, page_size: 20,
+  }}));
+  const [adjusted, plain] = page.settlements;
+  assert.deepEqual(settlementAdjustment(adjusted!), {locked: 84000, deduction: 14000, compensation: 3000});
+  assert.equal(plain?.refund_deduction, 0);
+  assert.equal(settlementAdjustment(plain!), null);
 });
 
 test("fetchResourceSyncs forwards filters and parses snapshots", async () => {

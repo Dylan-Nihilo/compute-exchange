@@ -17,8 +17,10 @@ import {
   fetchSupplierSettlements,
   fetchSupplierSettlementSummary,
   paymentAccountStatusCopy,
+  settlementAdjustment,
   settlementStatusCopy,
   startSupplierPaymentAccount,
+  type SupplierSettlement,
 } from "@/lib/supplier-workspace";
 
 const pageSize = 10;
@@ -67,6 +69,9 @@ export default function SupplierSettlementsPage() {
   return (
     <section className="mx-auto flex w-full max-w-[1228px] flex-col gap-5 px-4 pt-6 pb-8 sm:px-6 lg:px-8">
       <WorkspacePageHeader title="结算中心" />
+      <p className="-mt-2 text-[12px] leading-5 text-[#78909c]">
+        平台托管订单（含续租）在租期结束、停机结算完成后统一分账；期间若因停机或违约发生部分退款，会先从应结金额中扣减，金额下方注明扣减明细。
+      </p>
 
       <PaymentAccountCard />
 
@@ -159,12 +164,10 @@ export default function SupplierSettlementsPage() {
                       </th>
                       <td className="px-4 py-3.5 text-[13px] text-[#24495d]">
                         {item.order_no}
-                        {item.fulfillment_mode === "managed" && item.status === "pending" && !item.settle_ready_at ? (
-                          <p className="mt-1 text-[11px] text-[#8aa0ab]">平台托管 · 租期结束后分账</p>
-                        ) : null}
                       </td>
                       <td className="px-4 py-3.5 text-[13px] font-semibold text-[#173447]">
                         {money.format(item.amount / 100)}
+                        <SettlementAdjustmentNote item={item} />
                       </td>
                       <td className="px-4 py-3.5">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone[item.status] ?? statusTone.pending}`}>
@@ -184,7 +187,7 @@ export default function SupplierSettlementsPage() {
             </div>
           ) : (
             <EmptyState
-              description="买家支付成功后生成结算流水, 交付确认且款项清算后经易宝分账到你的收款账户。"
+              description="买家支付成功后生成结算流水, 交付确认且款项清算后经易宝分账到你的收款账户。平台托管订单在租期结束、停机结算完成后才分账。"
               icon={ReceiptText}
               title="暂无结算记录"
             />
@@ -202,6 +205,18 @@ export default function SupplierSettlementsPage() {
 }
 
 // 收款账户: 供给方所得经易宝分账直接进入其易宝商户账户, 平台不经手资金。
+/** T-106: managed-order deduction detail (payment/managed_split.go); hidden when nothing was deducted. */
+function SettlementAdjustmentNote({item}: {item: SupplierSettlement}) {
+  const adjustment = settlementAdjustment(item);
+  if (!adjustment) return null;
+  return (
+    <p className="mt-1 text-[11px] leading-4 font-normal text-[#8aa0ab]">
+      原应结 {money.format(adjustment.locked / 100)} · 停机/违约退款扣减 {money.format(adjustment.deduction / 100)}
+      {adjustment.compensation ? <span className="block">其中平台责任 {money.format(adjustment.compensation / 100)} 由平台另行补偿</span> : null}
+    </p>
+  );
+}
+
 function PaymentAccountCard() {
   const client = useQueryClient();
   const query = useQuery({queryKey: ["supplier", "payment-account"], queryFn: () => fetchSupplierPaymentAccount()});
