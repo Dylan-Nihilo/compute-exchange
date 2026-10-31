@@ -1,5 +1,6 @@
 import {z} from "zod";
 
+import {pagedPayload} from "./admin-managed.ts";
 import {jsonInit, listPayload, requestEnvelope} from "./api/envelope.ts";
 
 // One-click model deployment on a managed lease (docs/27 §27.8 buyer).
@@ -9,9 +10,6 @@ const decimal = z.preprocess(
   (value) => (typeof value === "string" && value.trim() !== "" ? Number(value) : value),
   z.number().finite().nullable().optional(),
 ).transform((value) => value ?? null);
-
-/** TINYINT / boolean flags. */
-const flag = z.union([z.boolean(), z.number()]).nullable().optional().transform((value) => (value == null ? null : Boolean(value)));
 
 /** modeldeploy.PublicModel (GET /models): active catalogue entries only, newest first. */
 export const catalogModelSchema = z.object({
@@ -122,39 +120,69 @@ export const deployStateCopy: Record<string, string> = {
 };
 export const healthCopy: Record<string, string> = {unknown: "未知", healthy: "健康", degraded: "降级", unhealthy: "异常"};
 
+const nullableText = z.string().nullable().optional().transform((value) => value ?? null);
+
+/**
+ * modeldeploy.DeploymentView (deploy_service.go:219). `access` is only set while the engine is
+ * reachable; `cache` carries weight-pull progress; `events` is detail-only (omitempty).
+ */
 export const deploymentSchema = z.object({
   deploy_no: z.string().min(1),
-  model_id: z.number().int().positive().optional(),
-  model_key: z.string().optional(),
-  display_name: z.string().optional(),
+  order_no: z.string(),
+  model: z.object({id: z.number().int().positive(), model_key: z.string(), display_name: z.string()}),
+  state: z.string(),
+  health: z.string().default("unknown"),
+  health_reason: nullableText,
+  health_reason_text: nullableText,
   tp: z.number().int().positive(),
   dp: z.number().int().positive(),
-  max_model_len: z.number().int().positive(),
+  max_model_len: z.number().int().nonnegative(),
   gpu_mem_util: decimal,
-  state: z.string(),
-  health: z.string().optional().default("unknown"),
-  health_reason: z.string().nullable().optional(),
-  // Human-readable reason text; docs/27 §27.5.2 pairs a code with a Chinese explanation.
-  health_message: z.string().nullable().optional(),
-  canary_enabled: flag,
-  restart_count: z.number().int().nonnegative().optional(),
-  last_restart_at: z.string().nullable().optional(),
-  fail_reason: z.string().nullable().optional(),
-  log_tail: z.string().nullable().optional(),
-  started_at: z.string().nullable().optional(),
-  stopped_at: z.string().nullable().optional(),
-  created_at: z.string().optional(),
-  // Detail-only fields; shapes are not pinned down in docs/27 §27.8.
-  access: z.unknown().optional(),
-  pull_progress: z.object({bytes_done: z.number().nonnegative(), bytes_total: z.number().positive().optional()}).nullable().optional(),
+  gpu_uuids: z.array(z.string()).nullable().optional().transform((value) => value ?? []),
+  canary_enabled: z.boolean(),
+  engine_cpus: z.number().int().nullable().optional().transform((value) => value ?? null),
+  engine_memory_gb: z.number().int().nullable().optional().transform((value) => value ?? null),
+  access: z
+    .object({base_url: z.string(), served_model: z.string(), port_forward_cmd: z.string().optional()})
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
+  cache: z
+    .object({state: z.string(), bytes_done: z.number().nonnegative(), weights_bytes: z.number().nonnegative()})
+    .nullable()
+    .optional()
+    .transform((value) => value ?? null),
+  restart_count: z.number().int().nonnegative(),
+  last_restart_at: nullableText,
+  next_restart_at: nullableText,
+  fail_reason: nullableText,
+  stop_reason: nullableText,
+  started_at: nullableText,
+  stopped_at: nullableText,
+  events: z
+    .array(z.object({kind: z.string(), reason: nullableText, detail: nullableText, created_at: z.string()}))
+    .optional()
+    .transform((value) => value ?? []),
+  created_at: z.string(),
+  updated_at: z.string(),
 });
 export type Deployment = z.infer<typeof deploymentSchema>;
 
+/** Operator list rows add buyer_id / node_id (handler_deploy.go:153, SuccessPage). */
+export const adminDeploymentSchema = deploymentSchema.extend({
+  buyer_id: z.number().int().positive().nullable().optional().transform((value) => value ?? null),
+  node_id: z.number().int().positive().nullable().optional().transform((value) => value ?? null),
+});
+export type AdminDeployment = z.infer<typeof adminDeploymentSchema>;
+
+/** deploy_repo.go:207 SampleRow; bucketed ranges average numbers and turn flags into 0–1 ratios. */
 export const healthSampleSchema = z.object({
-  sampled_at: z.string(),
+  t: z.string(),
   health: z.string().optional(),
-  container_up: flag,
-  canary_ok: flag,
+  container_up: decimal,
+  health_ok: decimal,
+  models_ok: decimal,
+  canary_ok: decimal,
   canary_ms: decimal,
   requests_running: decimal,
   requests_waiting: decimal,
@@ -165,27 +193,32 @@ export const healthSampleSchema = z.object({
   prompt_tokens_per_s: decimal,
   preemptions: decimal,
   gpu_temp_max_c: decimal,
-  throttled: flag,
+  throttled: decimal,
 });
 export type HealthSample = z.infer<typeof healthSampleSchema>;
 export const healthRanges = ["1h", "24h", "7d"] as const;
 export type HealthRange = (typeof healthRanges)[number];
 
-/** Logs response shape is not pinned down; accept `{lines}`, `{log}`/`{content}` or a plain string. */
-const logsSchema = z
-  .union([
-    z.string(),
-    z.array(z.string()),
-    z.object({lines: z.array(z.string())}),
-    z.object({log: z.string()}),
-    z.object({content: z.string()}),
-  ])
-  .transform((value) => {
-    if (typeof value === "string") return value;
-    if (Array.isArray(value)) return value.join("\n");
-    if ("lines" in value) return value.lines.join("\n");
-    return "log" in value ? value.log : value.content;
-  });
+/** deploy_views.go:143 HealthSeriesView. */
+export const healthSeriesSchema = z.object({
+  deploy_no: z.string(),
+  range: z.enum(healthRanges),
+  bucket_seconds: z.number().int().positive(),
+  health: z.string(),
+  health_reason: nullableText,
+  health_reason_text: nullableText,
+  baseline_canary_ms: z.number().nullable().optional().transform((value) => value ?? null),
+  points: z.array(healthSampleSchema).nullable().transform((value) => value ?? []),
+});
+export type HealthSeries = z.infer<typeof healthSeriesSchema>;
+
+/** deploy_views.go:190 LogsView: `live` = docker logs now; `stored` = tail kept when the deployment failed. */
+export const logsSchema = z.object({
+  deploy_no: z.string(),
+  source: z.enum(["live", "stored"]),
+  lines: z.array(z.string()).nullable().transform((value) => value ?? []),
+});
+export type DeploymentLogsView = z.infer<typeof logsSchema>;
 
 export const GPU_MEM_UTIL_MIN = 0.8;
 export const GPU_MEM_UTIL_MAX = 0.95;
@@ -227,7 +260,7 @@ export function fetchDeployPlans(orderNo: string, modelId: number, gpuMemUtil = 
 
 /** 40001 carries `data.checks` with the failed items; callers read it via `deployErrorChecks`. */
 export function createDeployment(orderNo: string, input: DeploymentInput, fetchImplementation?: typeof fetch) {
-  return requestEnvelope(`${base(orderNo)}/deployments`, z.unknown(), {
+  return requestEnvelope(`${base(orderNo)}/deployments`, deploymentSchema, {
     fallback: "部署提交失败",
     init: jsonInit("POST", deploymentInput.parse(input)),
     fetchImplementation,
@@ -245,7 +278,7 @@ export function fetchDeployment(orderNo: string, deployNo: string, fetchImplemen
 export function fetchDeploymentHealth(orderNo: string, deployNo: string, range: HealthRange, fetchImplementation?: typeof fetch) {
   return requestEnvelope(
     `${base(orderNo)}/deployments/${encodeURIComponent(deployNo)}/health?range=${range}`,
-    listPayload(healthSampleSchema),
+    healthSeriesSchema,
     {fallback: "健康采样读取失败", fetchImplementation},
   );
 }
@@ -256,7 +289,7 @@ export function fetchDeploymentLogs(orderNo: string, deployNo: string, fetchImpl
 }
 
 export function changeDeploymentState(orderNo: string, deployNo: string, action: "stop" | "restart", fetchImplementation?: typeof fetch) {
-  return requestEnvelope(`${base(orderNo)}/deployments/${encodeURIComponent(deployNo)}/${action}`, z.unknown(), {
+  return requestEnvelope(`${base(orderNo)}/deployments/${encodeURIComponent(deployNo)}/${action}`, deploymentSchema, {
     fallback: action === "stop" ? "停止失败" : "重启失败",
     init: jsonInit("POST"),
     fetchImplementation,
@@ -267,6 +300,46 @@ export function changeDeploymentState(orderNo: string, deployNo: string, action:
 export function deployErrorChecks(data: unknown): FeasibilityCheck[] {
   const parsed = z.object({checks: z.array(feasibilityCheckSchema)}).safeParse(data);
   return parsed.success ? parsed.data.checks : [];
+}
+
+/** 40001 "tp/dp 不在可行方案内" carries `data.plans` (deploy_service.go:131). */
+export function deployErrorPlans(data: unknown): DeployPlan[] {
+  const parsed = z.object({plans: z.array(deployPlanSchema)}).safeParse(data);
+  return parsed.success ? parsed.data.plans : [];
+}
+
+/** 40900 "已有未终止的部署" carries `data.deploy_no` / `data.state` (deploy_service.go:112). */
+export function deployConflict(data: unknown): {deploy_no: string; state: string} | null {
+  const parsed = z.object({deploy_no: z.string().min(1), state: z.string()}).safeParse(data);
+  return parsed.success ? parsed.data : null;
+}
+
+/** Restart on stopped/failed resumes the same deployment (deploy_control.go:81); 40900 while stopping. */
+export function restartLabel(state: string) {
+  if (state === "stopped" || state === "failed") return "恢复";
+  return state === "running" ? "重启" : null;
+}
+
+/** GET /admin/deployments?state=&health=&page=&page_size= */
+export function fetchAdminDeployments(
+  filter: {state?: string; health?: string; page?: number; pageSize?: number},
+  fetchImplementation?: typeof fetch,
+) {
+  const params = new URLSearchParams();
+  if (filter.state) params.set("state", filter.state);
+  if (filter.health) params.set("health", filter.health);
+  params.set("page", String(filter.page ?? 1));
+  params.set("page_size", String(filter.pageSize ?? 20));
+  return requestEnvelope(`/api/admin/deployments?${params}`, pagedPayload(adminDeploymentSchema), {
+    fallback: "部署列表读取失败",
+    fetchImplementation,
+  });
+}
+
+/** Weight-pull percentage from `cache`; null when the size is unknown. */
+export function pullPercent(cache: Deployment["cache"]) {
+  if (!cache || cache.weights_bytes <= 0) return null;
+  return Math.min(100, (cache.bytes_done / cache.weights_bytes) * 100);
 }
 
 /**

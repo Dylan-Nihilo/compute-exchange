@@ -215,5 +215,5 @@ export function suspensionAction(verifyStatus: string | undefined): "suspend" | 
   return verifyStatus === "suspended" ? "resume" : "suspend";
 }
 
-// The global deployment view (docs/27 §27.8, GET /admin/deployments) has no backend route yet
-// (T-098/099); the admin page renders a static "not yet available" state instead of calling it.
+// The global deployment view (GET /admin/deployments, modeldeploy/handler_deploy.go:153) lives in
+// model-deploy.ts as fetchAdminDeployments, next to the buyer DeploymentView schema it extends.

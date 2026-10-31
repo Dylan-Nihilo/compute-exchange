@@ -5,7 +5,7 @@ import {useState} from "react";
 
 import {OptionChips} from "@/components/managed/option-chips";
 import {SectionQueryState} from "@/components/managed/query-states";
-import {fetchDeploymentHealth, healthRanges, type HealthRange} from "@/lib/model-deploy";
+import {fetchDeploymentHealth, healthCopy, healthRanges, type HealthRange} from "@/lib/model-deploy";
 
 import {deployKeys} from "./deploy-keys";
 import {MetricChart} from "./metric-chart";
@@ -24,7 +24,8 @@ export function DeploymentHealth({orderNo, deployNo, live}: {orderNo: string; de
     refetchInterval: live ? 60_000 : false,
     retry: false,
   });
-  const samples = query.data ?? [];
+  const samples = query.data?.points ?? [];
+  const series = query.data;
   const longRange = range !== "1h";
 
   return (
@@ -46,6 +47,14 @@ export function DeploymentHealth({orderNo, deployNo, live}: {orderNo: string; de
         notOpenText="健康采样接口暂未开放。"
         onRetry={() => void query.refetch()}
       >
+        {series ? (
+          <p className="text-xs text-muted">
+            当前{healthCopy[series.health] ?? series.health}
+            {series.health_reason_text ? `：${series.health_reason_text}` : ""}
+            {series.bucket_seconds > 60 ? ` · 每点为 ${Math.round(series.bucket_seconds / 60)} 分钟均值` : " · 每点为 60 秒原始采样"}
+            {series.baseline_canary_ms != null ? ` · 探针基线 ${series.baseline_canary_ms} ms` : ""}
+          </p>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-2">
           <MetricChart longRange={longRange} samples={samples} title="首字延迟 TTFT" unit="ms" series={[
             {key: "ttft_p50_ms", label: "P50", color: "#2f7fb5"},

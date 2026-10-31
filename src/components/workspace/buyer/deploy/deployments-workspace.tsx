@@ -20,7 +20,7 @@ import {DeploymentStatus} from "./deployment-status";
 const TRANSITIONAL = new Set(["pending", "checking", "pulling", "starting", "restarting", "stopping"]);
 
 function newestFirst(list: readonly Deployment[]) {
-  return [...list].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
+  return [...list].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 /** Deploy form, current deployment (status/health/logs/access) and history for one active managed lease. */
@@ -35,7 +35,7 @@ export function DeploymentsWorkspace({orderNo, access}: {orderNo: string; access
   const deployments = newestFirst(list.data ?? []);
   const live = deployments.find((item) => isLiveDeployment(item.state)) ?? null;
   const selected = picked ?? live?.deploy_no ?? deployments[0]?.deploy_no ?? null;
-  // Deployments (T-098/T-099) are not live yet; deploy-plans is, so feasibility stays viewable.
+  // If the deployments routes are switched off (50000/404), deploy-plans may still answer, so feasibility stays viewable.
   const deploymentsNotOpen = list.isError && isNotOpenError(list.error);
 
   return (
@@ -65,7 +65,7 @@ export function DeploymentsWorkspace({orderNo, access}: {orderNo: string; access
             title={deploymentsNotOpen ? "部署可行性" : "一键部署"}
             description="每个租约同一时间只运行一个部署，平台按租约卡数实时判定可行性。"
           >
-            <DeployForm orderNo={orderNo} submitAvailable={list.isSuccess} onCreated={() => setPicked(null)} />
+            <DeployForm orderNo={orderNo} submitAvailable={list.isSuccess} onCreated={setPicked} />
           </ManagedSection>
         ) : null}
         {deployments.length > 0 ? (
@@ -105,7 +105,7 @@ function SelectedDeployment({orderNo, deployNo, access}: {orderNo: string; deplo
       </ManagedSection>
       {running ? (
         <ManagedSection title="访问方式">
-          <DeploymentAccess access={access} />
+          <DeploymentAccess access={access} engine={deployment?.access ?? null} />
         </ManagedSection>
       ) : null}
       {deployment ? (

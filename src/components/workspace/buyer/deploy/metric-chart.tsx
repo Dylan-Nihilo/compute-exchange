@@ -31,7 +31,7 @@ export function MetricChart({title, unit, samples, series, longRange, domain}: {
           <ResponsiveContainer height="100%" width="100%">
             <LineChart data={[...samples]} margin={{top: 4, right: 8, bottom: 0, left: -12}}>
               <CartesianGrid stroke="#e3ebef" strokeDasharray="3 3" />
-              <XAxis dataKey="sampled_at" fontSize={10} minTickGap={24} tickFormatter={format} />
+              <XAxis dataKey="t" fontSize={10} minTickGap={24} tickFormatter={format} />
               <YAxis domain={domain ?? ["auto", "auto"]} fontSize={10} width={44} />
               <Tooltip labelFormatter={(label) => format(String(label))} />
               {series.length > 1 ? <Legend iconSize={8} wrapperStyle={{fontSize: 11}} /> : null}

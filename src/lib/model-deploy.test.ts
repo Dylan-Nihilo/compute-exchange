@@ -9,8 +9,15 @@ import {
   deploymentInput,
   engineCommands,
   fetchDeployPlans,
+  deployConflict,
+  deployErrorPlans,
+  fetchAdminDeployments,
+  fetchDeployment,
   fetchDeploymentHealth,
   fetchDeploymentLogs,
+  fetchDeployments,
+  pullPercent,
+  restartLabel,
   isLiveDeployment,
   isUndeterminedCheck,
   recommendedPlan,
@@ -105,25 +112,85 @@ test("createDeployment keeps 40001 data.checks for the form", async () => {
   assert.deepEqual(deployErrorChecks(null), []);
 });
 
-test("health samples coerce DECIMAL strings and TINYINT flags", async () => {
-  const samples = await fetchDeploymentHealth(ORDER, "DEP-001", "24h", async (url) => {
+test("health series parses HealthSeriesView points keyed by t", async () => {
+  const series = await fetchDeploymentHealth(ORDER, "DEP-001", "24h", async (url) => {
     assert.equal(url, `/api/buyer/orders/${ORDER}/deployments/DEP-001/health?range=24h`);
-    return ok([{sampled_at: "2026-10-28T00:00:00Z", kv_usage_pct: "42.50", ttft_p50_ms: 120, throttled: 0, container_up: 1, gpu_temp_max_c: null}]);
+    return ok({
+      deploy_no: "DEP-001", range: "24h", bucket_seconds: 300, health: "degraded",
+      health_reason: "ttft_regression", health_reason_text: "首字延迟明显劣化", baseline_canary_ms: 180,
+      points: [{t: "2026-10-28T00:00:00Z", kv_usage_pct: 42.5, ttft_p50_ms: 120, throttled: 0, container_up: 0.5, gpu_temp_max_c: null, health: "healthy"}],
+    });
   });
-  assert.equal(samples[0]?.kv_usage_pct, 42.5);
-  assert.equal(samples[0]?.throttled, false);
-  assert.equal(samples[0]?.container_up, true);
-  assert.equal(samples[0]?.gpu_temp_max_c, null);
-  assert.equal(samples[0]?.prompt_tokens_per_s, null);
+  assert.equal(series.bucket_seconds, 300);
+  assert.equal(series.health_reason_text, "首字延迟明显劣化");
+  assert.equal(series.points[0]?.kv_usage_pct, 42.5);
+  assert.equal(series.points[0]?.container_up, 0.5);
+  assert.equal(series.points[0]?.gpu_temp_max_c, null);
+  assert.equal(series.points[0]?.prompt_tokens_per_s, null);
+  const empty = await fetchDeploymentHealth(ORDER, "DEP-001", "1h", async () =>
+    ok({deploy_no: "DEP-001", range: "1h", bucket_seconds: 60, health: "unknown", health_reason: null, baseline_canary_ms: null, points: null}));
+  assert.deepEqual(empty.points, []);
 });
 
-test("logs accept several shapes and 42900 surfaces as returned", async () => {
-  assert.equal(await fetchDeploymentLogs(ORDER, "DEP-001", async () => ok({lines: ["a", "b"]})), "a\nb");
-  assert.equal(await fetchDeploymentLogs(ORDER, "DEP-001", async () => ok("raw")), "raw");
+test("logs parse LogsView source and 42900 surfaces as returned", async () => {
+  const live = await fetchDeploymentLogs(ORDER, "DEP-001", async (url) => {
+    assert.equal(url, `/api/buyer/orders/${ORDER}/deployments/DEP-001/logs?tail=200`);
+    return ok({deploy_no: "DEP-001", source: "stored", lines: ["a", "b"]});
+  });
+  assert.equal(live.source, "stored");
+  assert.deepEqual(live.lines, ["a", "b"]);
+  await assert.rejects(fetchDeploymentLogs(ORDER, "DEP-001", async () => ok("raw")));
   await assert.rejects(
     fetchDeploymentLogs(ORDER, "DEP-001", async () => Response.json({code: 42900, message: "日志读取过于频繁"}, {status: 429})),
-    (error) => isBackendRequestError(error) && error.message === "日志读取过于频繁",
+    (error) => isBackendRequestError(error) && error.code === 42900 && error.message === "日志读取过于频繁",
   );
+});
+
+const deploymentFixture = {
+  deploy_no: "DEP-001", order_no: ORDER, model: {id: 3, model_key: "qwen3-32b", display_name: "Qwen3 32B"},
+  state: "pulling", health: "unknown", health_reason: null, health_reason_text: null,
+  tp: 2, dp: 1, max_model_len: 32768, gpu_mem_util: 0.9, gpu_uuids: ["GPU-a", "GPU-b"], canary_enabled: true,
+  engine_cpus: null, engine_memory_gb: null, access: null, cache: {state: "pulling", bytes_done: 25, weights_bytes: 100},
+  restart_count: 0, last_restart_at: null, next_restart_at: null, fail_reason: null, stop_reason: null,
+  started_at: null, stopped_at: null, created_at: "2026-10-28T00:00:00Z", updated_at: "2026-10-28T00:01:00Z",
+};
+
+test("deployments parse DeploymentView (nested model, cache progress, events default)", async () => {
+  const list = await fetchDeployments(ORDER, async () => ok({list: [deploymentFixture], total: 1}));
+  const item = list[0]!;
+  assert.equal(item.model.display_name, "Qwen3 32B");
+  assert.equal(pullPercent(item.cache), 25);
+  assert.deepEqual(item.events, []);
+  assert.equal(item.access, null);
+  assert.equal(pullPercent(null), null);
+  const detail = await fetchDeployment(ORDER, "DEP-001", async () => ok({
+    ...deploymentFixture, state: "running",
+    access: {base_url: "http://omnis-engine:8000/v1", served_model: "qwen3-32b", port_forward_cmd: "ssh -N -L 8000:omnis-engine:8000 omnis-l@gw"},
+    events: [{kind: "auto_restart", reason: "engine_exit", detail: null, created_at: "2026-10-28T01:00:00Z"}],
+  }));
+  assert.equal(detail.access?.served_model, "qwen3-32b");
+  assert.equal(detail.events[0]?.kind, "auto_restart");
+});
+
+test("submit conflict / plan errors and restart labels", async () => {
+  assert.deepEqual(deployConflict({deploy_no: "DEP-009", state: "running"}), {deploy_no: "DEP-009", state: "running"});
+  assert.equal(deployConflict({checks: []}), null);
+  assert.equal(deployErrorPlans({plans: [plan(2, 1, {recommended: true})]})[0]?.tp, 2);
+  assert.deepEqual(deployErrorPlans(null), []);
+  assert.equal(restartLabel("running"), "重启");
+  assert.equal(restartLabel("failed"), "恢复");
+  assert.equal(restartLabel("stopped"), "恢复");
+  assert.equal(restartLabel("stopping"), null);
+});
+
+test("admin deployments read the paged list with buyer and node", async () => {
+  const page = await fetchAdminDeployments({state: "failed", health: "", page: 2}, async (url) => {
+    assert.equal(url, "/api/admin/deployments?state=failed&page=2&page_size=20");
+    return ok({list: [{...deploymentFixture, buyer_id: 7, node_id: 11}], total: 21, page: 2, page_size: 20});
+  });
+  assert.equal(page.total, 21);
+  assert.equal(page.list[0]?.buyer_id, 7);
+  assert.equal(page.list[0]?.node_id, 11);
 });
 
 test("isLiveDeployment and engineCommands", () => {

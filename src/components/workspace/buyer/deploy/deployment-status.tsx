@@ -6,7 +6,7 @@ import {useState} from "react";
 
 import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {formatDateTime} from "@/lib/format/date";
-import {changeDeploymentState, deployStateCopy, healthCopy, type Deployment} from "@/lib/model-deploy";
+import {changeDeploymentState, deployStateCopy, healthCopy, pullPercent, restartLabel, type Deployment} from "@/lib/model-deploy";
 import {notify} from "@/lib/notify";
 
 import {deployKeys} from "./deploy-keys";
@@ -15,7 +15,7 @@ const healthTone: Record<string, string> = {
   healthy: "bg-success/10 text-success",
   degraded: "bg-warning/10 text-warning",
   unhealthy: "bg-danger/10 text-danger",
-  unknown: "bg-default/40 text-muted",
+  unknown: "border border-dashed border-border text-muted",
 };
 const STOPPABLE = new Set(["pending", "checking", "pulling", "starting", "running", "restarting"]);
 const healthMeaningful = (state: string) => state === "running" || state === "restarting";
@@ -28,7 +28,7 @@ export function DeploymentStatus({orderNo, deployment}: {orderNo: string; deploy
     mutationFn: (kind: "stop" | "restart") => changeDeploymentState(orderNo, deployment.deploy_no, kind),
     onSuccess: async (_data, kind) => {
       setConfirm(null);
-      notify.success(kind === "stop" ? "已提交停止" : "已提交重启");
+      notify.success(kind === "stop" ? "已提交停止" : resume ? "已提交恢复" : "已提交重启");
       await queryClient.invalidateQueries({queryKey: deployKeys.all(orderNo)});
     },
     onError: (error) => {
@@ -37,6 +37,8 @@ export function DeploymentStatus({orderNo, deployment}: {orderNo: string; deploy
     },
   });
   const {state} = deployment;
+  const restart = restartLabel(state);
+  const resume = restart === "恢复";
 
   return (
     <div className="space-y-4">
@@ -49,8 +51,8 @@ export function DeploymentStatus({orderNo, deployment}: {orderNo: string; deploy
         ) : null}
         <span className="text-xs text-muted">{deployment.deploy_no}</span>
         <div className="ml-auto flex gap-2">
-          {state === "running" ? (
-            <Button isDisabled={action.isPending} size="sm" variant="outline" onPress={() => setConfirm("restart")}>重启</Button>
+          {restart ? (
+            <Button isDisabled={action.isPending} size="sm" variant="outline" onPress={() => setConfirm("restart")}>{restart}</Button>
           ) : null}
           {STOPPABLE.has(state) ? (
             <Button isDisabled={action.isPending} size="sm" variant="outline" onPress={() => setConfirm("stop")}>停止</Button>
@@ -60,26 +62,30 @@ export function DeploymentStatus({orderNo, deployment}: {orderNo: string; deploy
       <HealthReason deployment={deployment} />
       <PullProgress deployment={deployment} />
       <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
-        <Fact label="模型" value={deployment.display_name ?? deployment.model_key ?? "—"} />
+        <Fact label="模型" value={deployment.model.display_name || deployment.model.model_key} />
         <Fact label="并行" value={`TP${deployment.tp} × DP${deployment.dp}`} />
         <Fact label="最大上下文" value={deployment.max_model_len.toLocaleString("zh-CN")} />
         <Fact label="显存利用率" value={deployment.gpu_mem_util != null ? deployment.gpu_mem_util.toFixed(2) : "—"} />
-        <Fact label="探针请求" value={deployment.canary_enabled == null ? "—" : deployment.canary_enabled ? "开启" : "关闭"} />
-        <Fact label="自动重启次数" value={deployment.restart_count != null ? String(deployment.restart_count) : "—"} />
+        <Fact label="探针请求" value={deployment.canary_enabled ? "开启" : "关闭"} />
+        <Fact label="占用 GPU" value={deployment.gpu_uuids.length ? `${deployment.gpu_uuids.length} 张` : "—"} />
+        <Fact label="自动重启次数" value={String(deployment.restart_count)} />
         <Fact label="最近重启" value={deployment.last_restart_at ? formatDateTime(deployment.last_restart_at) : "—"} />
+        {deployment.next_restart_at ? <Fact label="下次自动重启" value={formatDateTime(deployment.next_restart_at)} /> : null}
         <Fact label="启动时间" value={deployment.started_at ? formatDateTime(deployment.started_at) : "—"} />
         <Fact label="停止时间" value={deployment.stopped_at ? formatDateTime(deployment.stopped_at) : "—"} />
       </dl>
       <FailureDetail deployment={deployment} />
       <ConfirmDialog
-        confirmLabel={confirm === "stop" ? "停止部署" : "重启引擎"}
+        confirmLabel={confirm === "stop" ? "停止部署" : resume ? "恢复部署" : "重启引擎"}
         description={confirm === "stop"
           ? "停止后引擎容器退出，推理接口不再可用。"
-          : "重启期间推理接口暂不可用，进行中的请求会中断。"}
+          : resume
+            ? "按原参数在本租约的同一组 GPU 上重新拉起引擎。若租约已重新分配节点或 GPU，需重新提交部署。"
+            : "重启期间推理接口暂不可用，进行中的请求会中断。"}
         isDestructive={confirm === "stop"}
         isPending={action.isPending}
         open={confirm !== null}
-        title={confirm === "stop" ? "停止模型部署" : "重启模型引擎"}
+        title={confirm === "stop" ? "停止模型部署" : resume ? "恢复模型部署" : "重启模型引擎"}
         onCancel={() => setConfirm(null)}
         onConfirm={() => {
           if (confirm) action.mutate(confirm);
@@ -100,28 +106,28 @@ function Fact({label, value}: {label: string; value: string}) {
 
 function HealthReason({deployment}: {deployment: Deployment}) {
   if (!healthMeaningful(deployment.state) || deployment.health === "healthy") return null;
-  if (!deployment.health_reason && !deployment.health_message) return null;
+  if (!deployment.health_reason && !deployment.health_reason_text) return null;
   return (
     <p className="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-sm" role="status">
-      {deployment.health_message ?? ""}
+      {deployment.health_reason_text ?? ""}
       {deployment.health_reason ? <span className="ml-2 font-mono text-xs text-muted">{deployment.health_reason}</span> : null}
     </p>
   );
 }
 
 function PullProgress({deployment}: {deployment: Deployment}) {
-  const progress = deployment.pull_progress;
-  if (deployment.state !== "pulling" || !progress) return null;
+  const cache = deployment.cache;
+  if (deployment.state !== "pulling" || !cache) return null;
   const gib = (bytes: number) => (bytes / 1024 ** 3).toFixed(1);
-  const pct = progress.bytes_total ? Math.min(100, (progress.bytes_done / progress.bytes_total) * 100) : null;
+  const pct = pullPercent(cache);
   return (
     <div className="space-y-1 text-xs text-muted">
       <p>
-        已拉取 {gib(progress.bytes_done)} GiB{progress.bytes_total ? ` / ${gib(progress.bytes_total)} GiB` : ""}
+        已拉取 {gib(cache.bytes_done)} GiB{cache.weights_bytes ? ` / ${gib(cache.weights_bytes)} GiB` : ""}
         {pct != null ? `（${pct.toFixed(0)}%）` : ""}
       </p>
       {pct != null ? (
-        <div className="h-1.5 overflow-hidden rounded-full bg-default/40">
+        <div className="h-1.5 overflow-hidden rounded-full border border-border">
           <div className="h-full bg-[#173447]" style={{width: `${pct}%`}} />
         </div>
       ) : null}
@@ -129,16 +135,32 @@ function PullProgress({deployment}: {deployment: Deployment}) {
   );
 }
 
+/** Failure / stop reason plus the deployment event trail (detail view only). */
 function FailureDetail({deployment}: {deployment: Deployment}) {
-  if (deployment.state !== "failed" || (!deployment.fail_reason && !deployment.log_tail)) return null;
+  const failed = deployment.state === "failed" && deployment.fail_reason;
+  const stopped = deployment.state === "stopped" && deployment.stop_reason;
   return (
-    <div className="space-y-2 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3" role="alert">
-      {deployment.fail_reason ? <p className="text-sm text-danger">失败原因：{deployment.fail_reason}</p> : null}
-      {deployment.log_tail ? (
-        <pre className="max-h-64 overflow-auto rounded-lg bg-[#0f1d26] p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-white/85">
-          {deployment.log_tail}
-        </pre>
+    <>
+      {failed ? (
+        <p className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger" role="alert">
+          失败原因：{deployment.fail_reason}。失败时留存的末尾日志可在下方「引擎日志」读取。
+        </p>
       ) : null}
-    </div>
+      {stopped ? <p className="text-sm text-muted">停止原因：{deployment.stop_reason}</p> : null}
+      {deployment.events.length ? (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-xs text-muted">部署事件（{deployment.events.length}）</summary>
+          <ol className="mt-2 space-y-1 text-xs">
+            {deployment.events.map((event, index) => (
+              <li key={`${event.created_at}-${index}`}>
+                <span className="text-muted">{formatDateTime(event.created_at)}</span> · {event.kind}
+                {event.reason ? <span className="ml-1 font-mono text-muted">{event.reason}</span> : null}
+                {event.detail ? <span className="block break-words text-muted">{event.detail}</span> : null}
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+    </>
   );
 }

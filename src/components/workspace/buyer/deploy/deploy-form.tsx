@@ -8,7 +8,9 @@ import {SectionQueryState} from "@/components/managed/query-states";
 import {isBackendRequestError} from "@/lib/api/envelope";
 import {
   createDeployment,
+  deployConflict,
   deployErrorChecks,
+  deployErrorPlans,
   fetchCatalogModels,
   GPU_MEM_UTIL_DEFAULT,
   type CatalogModel,
@@ -20,7 +22,7 @@ import {deployKeys} from "./deploy-keys";
 import {DeployPlanStep} from "./deploy-plan-step";
 
 /** Model picker → live feasibility → parameters/acks → POST deployments (docs/27 §27.4, §27.8). */
-export function DeployForm({orderNo, submitAvailable, onCreated}: {orderNo: string; submitAvailable: boolean; onCreated: () => void}) {
+export function DeployForm({orderNo, submitAvailable, onCreated}: {orderNo: string; submitAvailable: boolean; onCreated: (deployNo: string) => void}) {
   const models = useQuery({queryKey: deployKeys.models, queryFn: () => fetchCatalogModels(), retry: false});
   const [modelId, setModelId] = useState<number | null>(null);
   const model = models.data?.find((item) => item.id === modelId) ?? null;
@@ -73,17 +75,20 @@ function ModelFacts({model}: {model: CatalogModel}) {
   return facts.length ? <p className="mt-2 text-xs text-muted">{facts.join(" · ")}</p> : null;
 }
 
-function DeploySubmit({model, orderNo, submitAvailable, onCreated}: {model: CatalogModel; orderNo: string; submitAvailable: boolean; onCreated: () => void}) {
+function DeploySubmit({model, orderNo, submitAvailable, onCreated}: {model: CatalogModel; orderNo: string; submitAvailable: boolean; onCreated: (deployNo: string) => void}) {
   const queryClient = useQueryClient();
   const create = useMutation({
     mutationFn: (input: Parameters<typeof createDeployment>[1]) => createDeployment(orderNo, input),
-    onSuccess: async () => {
+    onSuccess: async (created) => {
       notify.success("部署已提交，正在检查与拉取权重");
       await queryClient.invalidateQueries({queryKey: deployKeys.all(orderNo)});
-      onCreated();
+      onCreated(created.deploy_no);
     },
   });
-  const rejected = create.isError && isBackendRequestError(create.error) ? deployErrorChecks(create.error.data) : [];
+  const errorData = create.isError && isBackendRequestError(create.error) ? create.error.data : null;
+  const rejected = deployErrorChecks(errorData);
+  const validPlans = deployErrorPlans(errorData);
+  const conflict = deployConflict(errorData);
 
   return (
     <div className="space-y-4">
@@ -99,6 +104,14 @@ function DeploySubmit({model, orderNo, submitAvailable, onCreated}: {model: Cata
         <div className="space-y-2 rounded-xl border border-danger/30 bg-danger/5 px-4 py-3" role="alert">
           <p className="text-sm text-danger">{create.error.message}</p>
           <ChecksList checks={rejected} />
+          {validPlans.length ? (
+            <p className="text-xs text-muted">当前可行方案：{validPlans.map((plan) => `TP${plan.tp} × DP${plan.dp}`).join("、")}</p>
+          ) : null}
+          {conflict ? (
+            <Button size="sm" variant="outline" onPress={() => { create.reset(); void queryClient.invalidateQueries({queryKey: deployKeys.all(orderNo)}); onCreated(conflict.deploy_no); }}>
+              查看部署 {conflict.deploy_no}
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {create.isError ? (
