@@ -45,6 +45,18 @@ export function OrderRenewal({detail}: {detail: BuyerOrderDetail}) {
     </section>
   );
 
+  // Nightly renewal is not wired: renewal-quote/renew return 50000 (compute/renewal.go:149, pricing.go:37), so the
+  // backend reports can_renew=false. Explain instead of hiding the section.
+  if (pricingMode === "nightly") return (
+    <section className="mt-4 rounded-xl border border-border bg-surface p-5 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-semibold text-foreground">续租资源</h2>
+        <Button isDisabled variant="outline">办理续租</Button>
+      </div>
+      <p className="mt-2 text-muted">包夜订单暂不支持续租（追加晚数尚未开放）。需要更多夜晚请重新下单包夜。</p>
+      <Link className="mt-2 inline-block font-medium underline underline-offset-4" href={`/market/${detail.product.id}`}>前往商品页重新下单</Link>
+    </section>
+  );
   if (!detail.actions.can_renew) return null;
   return (
     <section className="mt-4 rounded-xl border border-border bg-surface p-5">

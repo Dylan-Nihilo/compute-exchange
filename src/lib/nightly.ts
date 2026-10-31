@@ -245,3 +245,28 @@ export function resolveNightStart(calendar: readonly NightCalendarDay[], cards: 
   if (preferred && selectable.some((day) => day.night_date === preferred)) return preferred;
   return selectable[0]?.night_date ?? null;
 }
+
+// ===== Buyer/supplier order snapshot =====
+
+export interface NightlyOrderFields {
+  duration: number;
+  lease_end_at: string | null;
+  pricing_mode?: string | null;
+  night_start_date?: string | null;
+  night_start_min?: number | null;
+  night_end_min?: number | null;
+}
+
+/**
+ * `nightly`: the order's pricing-mode snapshot is nightly (the detail's product.pricing_mode is that snapshot,
+ * compute/service.go:1501). `snapshot`: null when the night fields are missing (detail endpoint omits them and
+ * the list-row merge failed); callers show an explicit error instead of guessing a schedule.
+ */
+export function nightlyOrderSnapshot(order: NightlyOrderFields, fallbackPricingMode?: string | null) {
+  const nightly = (order.pricing_mode ?? fallbackPricingMode) === "nightly";
+  const start = nightDateString(order.night_start_date);
+  const snapshot: NightlyOrderSnapshot | null = nightly && start && order.night_start_min != null && order.night_end_min != null
+    ? {nightStartDate: start, nights: order.duration, window: {startMin: order.night_start_min, endMin: order.night_end_min}, leaseEndAt: order.lease_end_at}
+    : null;
+  return {nightly, snapshot};
+}

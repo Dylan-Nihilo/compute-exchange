@@ -31,7 +31,9 @@ import {
   type BuyerOrderDetail,
   type BuyerPaymentChannel,
 } from "@/lib/buyer-orders";
+import {formatNightWindow} from "@/lib/flexible-pricing";
 import {formatDateTime} from "@/lib/format/date";
+import {nightDateString, nightlyOrderSnapshot} from "@/lib/nightly";
 import {notify} from "@/lib/notify";
 
 const assetBase = "/images/buyer-workspace/order-detail";
@@ -112,6 +114,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
   const managed = isManagedBuyerOrder(detail);
   const statusCopy = buyerOrderStatusLabel({status: order.status, fulfillment_mode: managed ? "managed" : undefined});
   const showManagedSections = managed && !detail.renewal && !["pending_payment", "cancelled"].includes(order.status);
+  const nightly = nightlyOrderSnapshot(order, product.pricing_mode);
   const progress = orderProgress(detail);
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
@@ -228,13 +231,19 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
             <InfoItem label="订单编号" value={order.order_no} />
             <InfoItem label="下单时间" value={formatDateTime(order.created_at)} />
             <InfoItem label="商品" value={`${productName} · ${order.quantity}${quantityUnit(product.product_type)} · ${pricingModeCopy[order.pricing_mode ?? product.pricing_mode] || "按期"}${managed ? " · 平台托管" : ""}`} />
-            {order.night_start_date ? <InfoItem label="包夜起始日" value={order.night_start_date} /> : null}
+            {nightly.nightly ? <InfoItem label="包夜起始夜" value={nightDateString(order.night_start_date) ?? "—"} /> : null}
+            {nightly.snapshot ? <InfoItem label="每晚窗口" value={`${formatNightWindow(nightly.snapshot.window.startMin, nightly.snapshot.window.endMin)} · 共 ${order.duration} 晚`} /> : null}
             <InfoItem label="订单金额" value={money.format(order.total_amount / 100)} />
             <InfoItem label="供给方" value={supplierName} />
             <InfoItem label="履约率" value={supplier.credit ? `${supplier.credit.fulfill_rate}%` : "暂无评分"} />
           </InfoCard>
 
-          {showManagedSections ? <ManagedOrderSections orderNo={order.order_no} provisioning={isProvisioning(order.status)} productDeliveryMode={detail.product.delivery_mode} /> : null}
+          {showManagedSections ? <ManagedOrderSections
+            nightly={nightly.nightly ? {snapshot: nightly.snapshot} : undefined}
+            orderNo={order.order_no}
+            productDeliveryMode={detail.product.delivery_mode}
+            provisioning={isProvisioning(order.status)}
+          /> : null}
           {!detail.renewal && !managed ? <><InfoCard icon="server.svg" title="交付信息">
             <InfoItem label="访问状态" value={delivery ? accessStatusCopy(delivery.access_status) : "尚未生成"} />
             <InfoItem label="买家确认" value={delivery?.confirmed_by_buyer ? "已确认" : "待确认"} />

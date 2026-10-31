@@ -14,7 +14,7 @@ export const leaseStateCopy: Record<string, string> = {
   pending: "等待开通",
   provisioning: "平台开通中",
   active: "可登录",
-  parked: "窗口外暂停",
+  parked: "白天停机（夜间窗口自动开机）",
   suspended: "已冻结",
   grace: "宽限期（已停机）",
   purging: "清除中",
@@ -84,8 +84,10 @@ export const outageCauseCopy: Record<string, string> = {
   container_down: "环境异常停止",
   gateway_down: "访问网关异常",
   wrong_freeze: "误冻结",
-  provision_delay: "开通延迟",
-  night_unpark_failed: "窗口恢复失败",
+  // fleet/nightly.go:29-36: first-night activation (or a never-attempted night) later than due → platform liability.
+  provision_delay: "开通延迟（平台原因）",
+  // Host process still holds the night's cards 10 min after the due time → whole night counted as outage.
+  night_unpark_failed: "本晚未能开机（卡被宿主机占用）",
 };
 export const outageLiableCopy: Record<string, string> = {supplier: "供给方", platform: "平台"};
 
@@ -164,12 +166,22 @@ export function refundThresholdText(outages: Pick<OrderOutages, "refund_ratio" |
   return `本期累计停机 ≥ 租期的 ${percent}% 或单次停机 ≥ ${outages.refund_single_hours} 小时`;
 }
 
+/**
+ * Remedy labels. Nightly "extend" adds one whole night (same cards, same window; lease_end_at/access_until +24h),
+ * at most one per affected night; if those cards are already booked for that night it falls back to refund
+ * (fleet/outage_close.go:100-130, fleet/nightly.go:902-975).
+ */
+export function remedyLabel(remedy: OutageRemedy, nightly = false) {
+  if (remedy === "refund") return "按比例退费";
+  return nightly ? "补加一晚" : "顺延租期";
+}
+
 /** Buyer-facing status of one outage segment. */
-export function outageItemStatus(item: Pick<BuyerOutage, "ongoing" | "counted" | "remedy" | "remedy_applied_at">) {
+export function outageItemStatus(item: Pick<BuyerOutage, "ongoing" | "counted" | "remedy" | "remedy_applied_at">, nightly = false) {
   if (item.ongoing) return "进行中";
   if (item.counted === null) return "待结算";
   if (item.counted === false) return "不足起算时长，不补偿";
-  if (item.remedy === "extend") return "已顺延";
+  if (item.remedy === "extend") return nightly ? "已补加一晚" : "已顺延";
   if (item.remedy === "refund") return item.remedy_applied_at ? "已退费" : "待退费";
   return "已结算";
 }
@@ -239,7 +251,7 @@ export function inactiveHint(access: AccessTiming, bareMetal = false) {
     const until = access.grace_until ? `宽限期至 ${formatDateTime(access.grace_until)}，` : "";
     return `租期已结束，访问已停止；${until}期间续租可在原节点恢复原环境与数据，逾期清除数据。`;
   }
-  if (state === "parked") return "当前不在包夜窗口内，窗口开始后自动恢复。";
+  if (state === "parked") return "白天停机，夜间窗口自动开机；仅窗口内可登录，容器与数据保留。";
   if (state === "suspended") return "订单已冻结，暂停登录；容器与数据保留，请联系客服。";
   if (state === "purging") return "租期已结束，平台正在清除数据，清除后不可恢复。";
   if (state === "purged") return bareMetal ? "租期已结束，整机数据已清除。续租将重新分配整机。" : "租期已结束，数据已清除。续租将重新分配资源。";

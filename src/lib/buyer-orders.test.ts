@@ -46,6 +46,7 @@ import {
   fetchAllBuyerOrders,
   fetchBuyerOrderDetail,
   fetchBuyerOrderCredential,
+  mergeOrderSnapshot,
   fetchBuyerOrders,
   filterBuyerBillingOrders,
   isBuyerOrderNo,
@@ -203,11 +204,12 @@ test("fetchBuyerOrders seeds the current local account once when it has no order
 });
 
 test("fetchBuyerOrderDetail validates and reads the dedicated detail endpoint", async () => {
-  let requestedUrl = "";
+  const requestedUrls: string[] = [];
   const detail = await fetchBuyerOrderDetail(
     "ORD20260823120000a1b2c3",
     async (input) => {
-      requestedUrl = String(input);
+      requestedUrls.push(String(input));
+      if (String(input).startsWith("/api/buyer/orders?")) return Response.json({code: 50000, message: "列表不可用"}, {status: 500});
       return Response.json({
         code: 0,
         message: "success",
@@ -259,7 +261,10 @@ test("fetchBuyerOrderDetail validates and reads the dedicated detail endpoint", 
     },
   );
 
-  assert.equal(requestedUrl, "/api/buyer/orders/ORD20260823120000a1b2c3");
+  assert.equal(requestedUrls[0], "/api/buyer/orders/ORD20260823120000a1b2c3");
+  // The detail omits the fulfillment snapshot, so the list row is read; its failure keeps the detail usable.
+  assert.equal(requestedUrls[1], "/api/buyer/orders?page=1&page_size=20&order_no=ORD20260823120000a1b2c3");
+  assert.equal(detail.order.fulfillment_mode, undefined);
   assert.equal(detail.product.gpu_model, "NVIDIA H100");
   assert.deepEqual(detail.current_lease, {order_no: "RENTEST123", duration: 2, pricing_mode: "hourly"});
   assert.equal(isBuyerOrderNo("ORD" + "a".repeat(30)), false);
@@ -330,4 +335,21 @@ test("fetchBuyerPaymentChannels only offers known channels the platform enabled,
   assert.deepEqual(await fetchBuyerPaymentChannels(async () => Response.json({code: 0, data: {channels: ["bank", "wechat"]}})), ["wechat", "bank"]);
   assert.deepEqual(await fetchBuyerPaymentChannels(async () => Response.json({code: 0, data: {channels: []}})), []);
   await assert.rejects(fetchBuyerPaymentChannels(async () => Response.json({code: 40100, message: "请先登录"}, {status: 401})), /请先登录/);
+});
+
+test("mergeOrderSnapshot fills the managed/nightly snapshot from the exact list row", () => {
+  const detail = {
+    order: {order_no: "ORD-N", status: "active", quantity: 2, duration: 3, unit_price: 5000, total_amount: 30000, platform_fee: 1950,
+      payment_expires_at: null, lease_start_at: null, lease_end_at: "2026-11-04T08:00:00+08:00", compliance_agreed: true,
+      created_at: "2026-11-01T00:00:00Z", updated_at: "2026-11-01T00:00:00Z"},
+  } as unknown as Parameters<typeof mergeOrderSnapshot>[0];
+  const merged = mergeOrderSnapshot(detail, {
+    ...baseOrder, order_no: "ORD-N", fulfillment_mode: "managed", pricing_mode: "nightly",
+    night_start_date: "2026-11-01T00:00:00+08:00", night_start_min: 1320, night_end_min: 480,
+  });
+  assert.equal(merged.order.fulfillment_mode, "managed");
+  assert.equal(merged.order.pricing_mode, "nightly");
+  assert.equal(merged.order.night_start_min, 1320);
+  assert.equal(merged.order.night_end_min, 480);
+  assert.equal(mergeOrderSnapshot(detail, null), detail);
 });

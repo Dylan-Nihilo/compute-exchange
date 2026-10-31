@@ -39,7 +39,10 @@ const buyerOrderSchema = z.object({
   supplier_name: z.string().optional(),
   // v1.2 (docs/25 §25.9, docs/26 §26.7): absent on backends without managed fulfillment.
   fulfillment_mode: z.string().optional(),
+  // Nightly snapshot (compute/repository.go:100-102; night_start_date is a date serialised as RFC3339).
   night_start_date: z.string().nullable().optional(),
+  night_start_min: z.number().int().min(0).max(1439).nullable().optional(),
+  night_end_min: z.number().int().min(0).max(1439).nullable().optional(),
 });
 
 const orderPageEnvelopeSchema = z.object({
@@ -85,9 +88,13 @@ const buyerOrderDetailSchema = z.object({
     compliance_agreed: z.boolean(),
     created_at: z.string(),
     updated_at: z.string(),
+    // Not sent by GET /orders/:id (compute/service.go:218 BuyerOrderDetailOrder); fetchBuyerOrderDetail fills
+    // them from the order's own list row (GET /orders?order_no=, compute/repository.go:189 buyerOrderColumns).
     fulfillment_mode: z.string().optional(),
     pricing_mode: z.string().nullable().optional(),
     night_start_date: z.string().nullable().optional(),
+    night_start_min: z.number().int().min(0).max(1439).nullable().optional(),
+    night_end_min: z.number().int().min(0).max(1439).nullable().optional(),
   }),
   product: z.object({
     min_duration: z.number().int().positive().optional(),
@@ -378,7 +385,39 @@ export async function fetchBuyerOrderDetail(
   if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) {
     throw new Error(parsed.data.message || "订单详情读取失败");
   }
-  return parsed.data.data;
+  const detail = parsed.data.data;
+  if (detail.order.fulfillment_mode) return detail;
+  return mergeOrderSnapshot(detail, await fetchOrderSnapshot(orderNo, fetchImplementation));
+}
+
+/**
+ * The order's own list row, which carries the fulfillment/pricing/nightly snapshot the detail endpoint omits.
+ * `order_no` filters with LIKE (compute/repository.go:1014), so only an exact match is used. Failures return
+ * null: the detail still renders, with managed/nightly sections falling back to the manual experience.
+ */
+async function fetchOrderSnapshot(orderNo: string, fetchImplementation: typeof fetch) {
+  try {
+    const page = await fetchBuyerOrdersPage({orderNo, pageSize: 20}, fetchImplementation, false);
+    return page.orders.find((order) => order.order_no === orderNo) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function mergeOrderSnapshot(detail: BuyerOrderDetail, row: BuyerOrder | null): BuyerOrderDetail {
+  if (!row) return detail;
+  const order = detail.order;
+  return {
+    ...detail,
+    order: {
+      ...order,
+      fulfillment_mode: order.fulfillment_mode ?? row.fulfillment_mode,
+      pricing_mode: order.pricing_mode ?? row.pricing_mode ?? null,
+      night_start_date: order.night_start_date ?? row.night_start_date ?? null,
+      night_start_min: order.night_start_min ?? row.night_start_min ?? null,
+      night_end_min: order.night_end_min ?? row.night_end_min ?? null,
+    },
+  };
 }
 
 export function fetchBuyerOrderCredential(

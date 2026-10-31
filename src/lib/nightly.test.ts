@@ -16,6 +16,7 @@ import {
   nightDateOf,
   nightDateString,
   nightlyLeaseEnd,
+  nightlyOrderSnapshot,
   nightlySchedule,
   resolveNightStart,
   shanghaiDate,
@@ -154,5 +155,22 @@ describe("nightly order schedule", () => {
     assert.deepEqual(schedule.nights.map((night) => night.extra), [false, false, false, true]);
     assert.equal(schedule.phase, "between");
     assert.equal(schedule.nextWindowStart?.toISOString(), "2026-11-04T14:00:00.000Z");
+  });
+});
+
+describe("nightly order snapshot", () => {
+  const order = {duration: 3, lease_end_at: "2026-11-04T08:00:00+08:00", night_start_date: "2026-11-01T00:00:00+08:00", night_start_min: 1320, night_end_min: 480};
+
+  it("uses the order snapshot, falling back to the detail's product pricing mode", () => {
+    assert.deepEqual(nightlyOrderSnapshot({...order, pricing_mode: "nightly"}), {
+      nightly: true,
+      snapshot: {nightStartDate: "2026-11-01", nights: 3, window: W, leaseEndAt: "2026-11-04T08:00:00+08:00"},
+    });
+    assert.equal(nightlyOrderSnapshot(order, "nightly").nightly, true);
+    assert.deepEqual(nightlyOrderSnapshot({...order, pricing_mode: "daily"}), {nightly: false, snapshot: null});
+  });
+
+  it("returns no snapshot when the night fields are missing", () => {
+    assert.deepEqual(nightlyOrderSnapshot({duration: 3, lease_end_at: null}, "nightly"), {nightly: true, snapshot: null});
   });
 });

@@ -18,7 +18,7 @@ export function managedAccessKey(orderNo: string) {
  * Gateway connection info for a managed order (GET /orders/:id/access). The node IP,
  * supplier account and container port are never exposed (docs/25 §25.6.1).
  */
-export function ManagedAccessCard({orderNo, poll, productDeliveryMode}: {orderNo: string; poll: boolean; productDeliveryMode?: string | null}) {
+export function ManagedAccessCard({orderNo, poll, productDeliveryMode, nightly = false}: {orderNo: string; poll: boolean; productDeliveryMode?: string | null; nightly?: boolean}) {
   const query = useQuery({
     queryKey: managedAccessKey(orderNo),
     queryFn: () => fetchManagedAccess(orderNo),
@@ -30,7 +30,9 @@ export function ManagedAccessCard({orderNo, poll, productDeliveryMode}: {orderNo
   return (
     <ManagedSection
       title="连接信息"
-      description={bareMetal ? "经平台访问网关登录整机，到期即断开并清除，没有宽限期。" : "经平台访问网关登录，租期结束后网关自动拒绝新连接。"}
+      description={nightly
+        ? "包夜：仅在每晚窗口内可经平台访问网关登录，窗口外网关拒绝连接。"
+        : bareMetal ? "经平台访问网关登录整机，到期即断开并清除，没有宽限期。" : "经平台访问网关登录，租期结束后网关自动拒绝新连接。"}
     >
       <SectionQueryState
         error={query.error}
@@ -41,13 +43,13 @@ export function ManagedAccessCard({orderNo, poll, productDeliveryMode}: {orderNo
         notOpenText="托管连接信息接口暂未开放。"
         onRetry={() => void query.refetch()}
       >
-        {query.data ? <AccessBody access={query.data} bareMetal={bareMetal} /> : null}
+        {query.data ? <AccessBody access={query.data} bareMetal={bareMetal} nightly={nightly} /> : null}
       </SectionQueryState>
     </ManagedSection>
   );
 }
 
-function AccessBody({access, bareMetal}: {access: ManagedAccess; bareMetal: boolean}) {
+function AccessBody({access, bareMetal, nightly}: {access: ManagedAccess; bareMetal: boolean; nightly: boolean}) {
   const canLogin = access.lease_state === "active";
   const expiry = expiryReminder(access, bareMetal);
   const allowsKey = access.auth_methods.includes("publickey");
@@ -58,7 +60,7 @@ function AccessBody({access, bareMetal}: {access: ManagedAccess; bareMetal: bool
         <Item label="租约状态" value={leaseStateCopy[access.lease_state] ?? access.lease_state} />
         <Item label="登录名" value={access.login} />
         <Item label="网关地址" value={`${access.gateway_host}:${access.gateway_port}`} />
-        <Item label="可登录至" value={access.access_until ? formatDateTime(access.access_until) : "—"} />
+        <Item label={nightly ? "最后一晚结束" : "可登录至"} value={access.access_until ? formatDateTime(access.access_until) : "—"} />
         {access.grace_until && !bareMetal ? <Item label="数据保留至" value={formatDateTime(access.grace_until)} /> : null}
         <Item label="认证方式" value={authMethodsLabel(access.auth_methods)} />
       </dl>

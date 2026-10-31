@@ -17,7 +17,9 @@ import {
   formatMinutes,
   inactiveHint,
   isBareMetalLease,
+  outageCauseCopy,
   outageItemStatus,
+  remedyLabel,
   refundThresholdText,
   setOutageRemedy,
   sshCommand,
@@ -172,4 +174,16 @@ test("expiryReminder fires only within 24h of an active lease end", () => {
   assert.match(expiryReminder(access, true, now) ?? "", /清除整机数据/);
   assert.equal(expiryReminder({...access, access_until: "2026-10-30T10:00:00Z"}, false, now), null);
   assert.equal(expiryReminder({...access, lease_state: "grace"}, false, now), null);
+});
+
+test("nightly remedy, outage-cause and parked copy", () => {
+  assert.equal(remedyLabel("extend"), "顺延租期");
+  assert.equal(remedyLabel("extend", true), "补加一晚");
+  assert.equal(remedyLabel("refund", true), "按比例退费");
+  const settled = {ongoing: false, counted: true, remedy: "extend" as const, remedy_applied_at: "2026-11-02T08:00:00+08:00"};
+  assert.equal(outageItemStatus(settled), "已顺延");
+  assert.equal(outageItemStatus(settled, true), "已补加一晚");
+  assert.match(outageCauseCopy.night_unpark_failed!, /本晚未能开机/);
+  assert.match(outageCauseCopy.provision_delay!, /开通延迟/);
+  assert.match(inactiveHint({lease_state: "parked", access_until: null, grace_until: null}), /白天停机，夜间窗口自动开机/);
 });

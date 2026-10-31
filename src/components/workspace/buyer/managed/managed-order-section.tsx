@@ -4,8 +4,10 @@ import {useQuery} from "@tanstack/react-query";
 import Link from "next/link";
 
 import {fetchManagedAccess, isBareMetalLease} from "@/lib/managed-orders";
+import {extraNightsOf, type NightlyOrderSnapshot} from "@/lib/nightly";
 
 import {ManagedAccessCard, managedAccessKey} from "./managed-access-card";
+import {ManagedNightlyCard} from "./managed-nightly-card";
 import {ManagedOutagesCard} from "./managed-outages-card";
 import {ManagedSessionsCard} from "./managed-sessions-card";
 
@@ -13,7 +15,13 @@ import {ManagedSessionsCard} from "./managed-sessions-card";
  * Managed-order sections of the buyer order page. Rendered only when the backend marks the
  * order `fulfillment_mode=managed`; manual orders keep the original delivery UI.
  */
-export function ManagedOrderSections({orderNo, provisioning, productDeliveryMode}: {orderNo: string; provisioning: boolean; productDeliveryMode?: string | null}) {
+export function ManagedOrderSections({orderNo, provisioning, productDeliveryMode, nightly}: {
+  orderNo: string;
+  provisioning: boolean;
+  productDeliveryMode?: string | null;
+  /** Set for nightly orders; `snapshot` null = night fields missing (explicit error in the nightly card). */
+  nightly?: {snapshot: NightlyOrderSnapshot | null};
+}) {
   // Same key as ManagedAccessCard, so this shares one request and cache entry.
   const access = useQuery({
     queryKey: managedAccessKey(orderNo),
@@ -25,12 +33,16 @@ export function ManagedOrderSections({orderNo, provisioning, productDeliveryMode
 
   return (
     <>
-      <ManagedAccessCard orderNo={orderNo} poll={provisioning} productDeliveryMode={productDeliveryMode} />
+      {nightly ? <ManagedNightlyCard snapshot={nightly.snapshot} /> : null}
+      <ManagedAccessCard nightly={Boolean(nightly)} orderNo={orderNo} poll={provisioning} productDeliveryMode={productDeliveryMode} />
       {/* One-click deploy needs a container lease; bare metal gets 40001 (modeldeploy/lease_source.go:25 ErrBareMetalLease). */}
       {access.data?.lease_state === "active" && !bareMetal ? <DeployEntry orderNo={orderNo} /> : null}
       {leaseStarted ? (
         <>
-          <ManagedOutagesCard orderNo={orderNo} />
+          <ManagedOutagesCard
+            nightly={nightly ? {extraNights: nightly.snapshot ? extraNightsOf(nightly.snapshot) : null} : undefined}
+            orderNo={orderNo}
+          />
           <ManagedSessionsCard orderNo={orderNo} />
         </>
       ) : null}

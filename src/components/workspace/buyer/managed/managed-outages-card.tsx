@@ -16,6 +16,7 @@ import {
   outageItemStatus,
   outageLiableCopy,
   refundThresholdText,
+  remedyLabel,
   setOutageRemedy,
   type OrderOutages,
 } from "@/lib/managed-orders";
@@ -30,7 +31,7 @@ export function managedOutagesKey(orderNo: string) {
  * Outage records and compensation choice for a managed order (GET /orders/:id/outages,
  * PUT /orders/:id/outage-remedy, docs/25 §25.7.6). Button availability follows the backend flags.
  */
-export function ManagedOutagesCard({orderNo}: {orderNo: string}) {
+export function ManagedOutagesCard({orderNo, nightly}: {orderNo: string; nightly?: {extraNights: number | null}}) {
   const query = useQuery({
     queryKey: managedOutagesKey(orderNo),
     queryFn: () => fetchOrderOutages(orderNo),
@@ -39,7 +40,12 @@ export function ManagedOutagesCard({orderNo}: {orderNo: string}) {
   });
 
   return (
-    <ManagedSection title="停机记录与补偿" description="租期内因机器或平台原因不可用的时段由平台自动记录并补偿。">
+    <ManagedSection
+      title="停机记录与补偿"
+      description={nightly
+        ? "每晚窗口内因机器或平台原因不可用的时段由平台自动记录；顺延补偿为补加一晚（同一组卡、同一窗口），同一晚多次停机只补一晚。"
+        : "租期内因机器或平台原因不可用的时段由平台自动记录并补偿。"}
+    >
       <SectionQueryState
         error={query.error}
         isError={query.isError}
@@ -49,43 +55,47 @@ export function ManagedOutagesCard({orderNo}: {orderNo: string}) {
         notOpenText="停机记录接口暂未开放。如遇无法登录或资源异常，请通过工单联系平台。"
         onRetry={() => void query.refetch()}
       >
-        {query.data ? <OutagesBody data={query.data} orderNo={orderNo} /> : null}
+        {query.data ? <OutagesBody data={query.data} nightly={nightly} orderNo={orderNo} /> : null}
       </SectionQueryState>
     </ManagedSection>
   );
 }
 
-function OutagesBody({data, orderNo}: {data: OrderOutages; orderNo: string}) {
+function OutagesBody({data, orderNo, nightly}: {data: OrderOutages; orderNo: string; nightly?: {extraNights: number | null}}) {
   return (
     <div className="space-y-4">
       <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
-        <Fact label="当前补偿方式" value={data.remedy === "refund" ? "按比例退费" : "顺延租期"} />
-        <Fact label="已顺延" value={formatMinutes(data.extended_minutes)} />
+        <Fact label="当前补偿方式" value={remedyLabel(data.remedy, Boolean(nightly))} />
+        {/* Nightly: extended_minutes is the summed outage time (fleet/outage_api.go:135), not the nights added;
+            extra nights come from lease_end_at vs the booked end. */}
+        {nightly
+          ? <Fact label="已补加" value={nightly.extraNights === null ? "—" : `${nightly.extraNights} 晚`} />
+          : <Fact label="已顺延" value={formatMinutes(data.extended_minutes)} />}
         <Fact label="待退费" value={formatFen(data.pending_refund_amount)} />
         <Fact label="本期计入停机" value={`${formatMinutes(data.term_outage_minutes)} / 租期 ${formatMinutes(data.term_minutes)}`} />
         <Fact label="本期最长单次" value={formatMinutes(data.longest_outage_minutes)} />
       </dl>
-      <RemedyChooser data={data} orderNo={orderNo} />
-      <OutageTable data={data} />
+      <RemedyChooser data={data} nightly={Boolean(nightly)} orderNo={orderNo} />
+      <OutageTable data={data} nightly={Boolean(nightly)} />
     </div>
   );
 }
 
-function RemedyChooser({data, orderNo}: {data: OrderOutages; orderNo: string}) {
+function RemedyChooser({data, orderNo, nightly}: {data: OrderOutages; orderNo: string; nightly: boolean}) {
   const client = useQueryClient();
   const [notice, setNotice] = useState<{tone: "info" | "error"; text: string} | null>(null);
   const mutation = useMutation({
     mutationFn: (remedy: OutageRemedy) => setOutageRemedy(orderNo, remedy),
     onSuccess: (next) => {
       client.setQueryData(managedOutagesKey(orderNo), next);
-      setNotice({tone: "info", text: next.remedy === "refund" ? "已改为按比例退费，之后结束的停机将原路退款。" : "已改为顺延租期。"});
+      setNotice({tone: "info", text: next.remedy === "refund" ? "已改为按比例退费，之后结束的停机将原路退款。" : `已改为${remedyLabel("extend", nightly)}。`});
     },
     onError: (error, remedy) => {
       // 50000 on refund = channel not confirmed; the backend still records refund_requested_at.
       const recorded = isBackendRequestError(error) && error.code === 50000 && remedy === "refund";
       setNotice({
         tone: recorded ? "info" : "error",
-        text: recorded ? `${error.message}。已记录退费申请，当前按顺延补偿。` : error.message || "补偿方式修改失败",
+        text: recorded ? `${error.message}。已记录退费申请，当前按${remedyLabel("extend", nightly)}补偿。` : error.message || "补偿方式修改失败",
       });
       void client.invalidateQueries({queryKey: managedOutagesKey(orderNo)});
     },
@@ -110,7 +120,7 @@ function RemedyChooser({data, orderNo}: {data: OrderOutages; orderNo: string}) {
           variant={data.remedy === "extend" ? "primary" : "outline"}
           onPress={() => mutation.mutate("extend")}
         >
-          {refundPending ? "撤回退费申请，顺延租期" : "顺延租期"}
+          {refundPending ? `撤回退费申请，${remedyLabel("extend", nightly)}` : remedyLabel("extend", nightly)}
         </Button>
         <Button
           isDisabled={mutation.isPending || data.remedy === "refund" || !data.refund_eligible}
@@ -143,7 +153,7 @@ function RemedyChooser({data, orderNo}: {data: OrderOutages; orderNo: string}) {
   );
 }
 
-function OutageTable({data}: {data: OrderOutages}) {
+function OutageTable({data, nightly}: {data: OrderOutages; nightly: boolean}) {
   if (!data.items.length) return <p className="text-sm text-muted">本租约暂无停机记录。</p>;
   return (
     <div className="overflow-x-auto">
@@ -167,7 +177,7 @@ function OutageTable({data}: {data: OrderOutages}) {
               <td className="py-2 pr-3">{outageCauseCopy[item.cause] ?? item.cause}</td>
               <td className="py-2 pr-3">{outageLiableCopy[item.liable] ?? item.liable}</td>
               <td className="py-2">
-                {outageItemStatus(item)}
+                {outageItemStatus(item, nightly)}
                 {item.remedy === "refund" && item.remedy_amount !== null ? ` · ${formatFen(item.remedy_amount)}` : ""}
               </td>
             </tr>
