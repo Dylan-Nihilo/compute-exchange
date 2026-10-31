@@ -2,6 +2,7 @@ import {z} from "zod";
 
 import {jsonInit, requestEnvelope} from "./api/envelope.ts";
 import {leaseStates, outageRemedies, type OutageRemedy} from "./domain/contracts.ts";
+import {formatDateTime} from "./format/date.ts";
 
 // Buyer-side managed rental endpoints (managed-rental-api.md "买家", fleet/access.go). All go
 // through the allowlisted BFF route `/api/buyer/orders/:orderNo/[...action]`.
@@ -210,4 +211,40 @@ export function formatMinutes(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`;
+}
+
+type AccessTiming = Pick<ManagedAccess, "lease_state" | "access_until" | "grace_until">;
+
+/**
+ * Why a managed lease cannot be logged into right now (docs/api/page-api-map.md 托管订单, T-087/088/089).
+ * Bare-metal leases have no grace period: expiry goes straight to purge.
+ */
+export function inactiveHint(access: AccessTiming, bareMetal = false) {
+  const state = access.lease_state;
+  if (state === "pending" || state === "provisioning" || state === "reserved") return "平台正在开通资源，自检通过后即可登录，开通耗时不计入租期。";
+  if (state === "grace") {
+    if (bareMetal) return "租期已结束，访问已停止，整机数据将被清除。";
+    const until = access.grace_until ? `宽限期至 ${formatDateTime(access.grace_until)}，` : "";
+    return `租期已结束，访问已停止；${until}期间续租可在原节点恢复原环境与数据，逾期清除数据。`;
+  }
+  if (state === "parked") return "当前不在包夜窗口内，窗口开始后自动恢复。";
+  if (state === "suspended") return "订单已冻结，暂停登录；容器与数据保留，请联系客服。";
+  if (state === "purging") return "租期已结束，平台正在清除数据，清除后不可恢复。";
+  if (state === "purged") return bareMetal ? "租期已结束，整机数据已清除。续租将重新分配整机。" : "租期已结束，数据已清除。续租将重新分配资源。";
+  if (state === "failed") return "开通失败，订单将自动取消并原路退款，以订单状态为准。";
+  if (state === "cancelled") return "租约已取消。";
+  return "当前租约不可登录。";
+}
+
+const EXPIRY_WARN_MS = 24 * 3600 * 1000;
+
+/** Reminder shown while an active lease is within 24h of `access_until`; null otherwise. */
+export function expiryReminder(access: AccessTiming, bareMetal = false, now = Date.now()) {
+  if (access.lease_state !== "active" || !access.access_until) return null;
+  const left = Date.parse(access.access_until) - now;
+  if (!Number.isFinite(left) || left <= 0 || left > EXPIRY_WARN_MS) return null;
+  const when = formatDateTime(access.access_until);
+  return bareMetal
+    ? `租期将于 ${when} 结束，到期即断开并清除整机数据，请提前导出数据或续租。`
+    : `租期将于 ${when} 结束，到期后进入宽限期并停止访问；如需继续使用请提前续租。`;
 }

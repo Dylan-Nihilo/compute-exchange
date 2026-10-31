@@ -13,7 +13,7 @@ import {ManagedSessionsCard} from "./managed-sessions-card";
  * Managed-order sections of the buyer order page. Rendered only when the backend marks the
  * order `fulfillment_mode=managed`; manual orders keep the original delivery UI.
  */
-export function ManagedOrderSections({orderNo, provisioning}: {orderNo: string; provisioning: boolean}) {
+export function ManagedOrderSections({orderNo, provisioning, bareMetal}: {orderNo: string; provisioning: boolean; bareMetal: boolean}) {
   // Same key as ManagedAccessCard, so this shares one request and cache entry.
   const access = useQuery({
     queryKey: managedAccessKey(orderNo),
@@ -24,8 +24,9 @@ export function ManagedOrderSections({orderNo, provisioning}: {orderNo: string; 
 
   return (
     <>
-      <ManagedAccessCard orderNo={orderNo} poll={provisioning} />
-      {access.data?.lease_state === "active" ? <DeployEntry orderNo={orderNo} /> : null}
+      <ManagedAccessCard bareMetal={bareMetal} orderNo={orderNo} poll={provisioning} />
+      {/* One-click deploy needs a container lease (backend modeldeploy ErrBareMetalLease). */}
+      {access.data?.lease_state === "active" && !bareMetal ? <DeployEntry orderNo={orderNo} /> : null}
       {leaseStarted ? (
         <>
           <ManagedOutagesCard orderNo={orderNo} />

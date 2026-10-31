@@ -18,6 +18,7 @@ export function OrderRenewal({detail}: {detail: BuyerOrderDetail}) {
   const [duration, setDuration] = useState(String(detail.product.min_duration ?? 1));
   const amount = Number(duration);
   const managed = isManagedBuyerOrder(detail);
+  const bareMetal = managed && detail.product.delivery_mode === "bare_metal";
   // Renewal is priced by the order's own pricing-mode snapshot (docs/26 §26.9); older orders fall back to the product.
   const pricingMode = detail.order.pricing_mode ?? detail.product.pricing_mode;
   const quote = useQuery({
@@ -53,13 +54,13 @@ export function OrderRenewal({detail}: {detail: BuyerOrderDetail}) {
         {quote.isFetching ? <p className="text-sm text-muted" role="status">正在获取续租报价…</p> : null}
         {quote.isError ? <div role="alert" className="text-sm text-danger">{quote.error.message} <Button size="sm" variant="tertiary" onPress={() => void quote.refetch()}>刷新报价</Button></div> : null}
         {quote.data && !quote.isFetching && !quote.isError && Number.isSafeInteger(amount) && amount > 0 ?
-          <AcceptedRenewalQuote key={JSON.stringify(quote.data)} managed={managed} quote={quote.data} /> : null}
+          <AcceptedRenewalQuote bareMetal={bareMetal} key={JSON.stringify(quote.data)} managed={managed} quote={quote.data} /> : null}
       </div> : null}
     </section>
   );
 }
 
-function AcceptedRenewalQuote({managed, quote}: {managed: boolean; quote: BuyerOrderRenewalQuote}) {
+function AcceptedRenewalQuote({managed, bareMetal, quote}: {managed: boolean; bareMetal: boolean; quote: BuyerOrderRenewalQuote}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [agreed, setAgreed] = useState(false);
@@ -83,7 +84,7 @@ function AcceptedRenewalQuote({managed, quote}: {managed: boolean; quote: BuyerO
         <dt className="text-muted">应付金额</dt><dd className="font-semibold">{money(quote.total_amount)}</dd>
         <dt className="text-muted">含平台服务费</dt><dd>{money(quote.platform_fee)}</dd>
       </dl>
-      <p className="text-muted">{renewalHint(quote.mode, managed)}</p>
+      <p className="text-muted">{renewalHint(quote.mode, managed, bareMetal)}</p>
       <label className="flex items-start gap-2">
         <input className="mt-0.5 size-4 shrink-0 accent-accent" type="checkbox" checked={agreed} disabled={create.isPending} onChange={(event) => setAgreed(event.target.checked)} />
         <span>我已阅读并同意 <Link className="underline underline-offset-4" href={legalHref("resource-usage-rules")} target="_blank" rel="noopener noreferrer">《算力资源使用规范》</Link>，确认本次续租费用与周期。</span>
@@ -96,7 +97,13 @@ function AcceptedRenewalQuote({managed, quote}: {managed: boolean; quote: BuyerO
   );
 }
 
-function renewalHint(mode: BuyerOrderRenewalQuote["mode"], managed: boolean) {
+export function renewalHint(mode: BuyerOrderRenewalQuote["mode"], managed: boolean, bareMetal = false) {
+  // T-089: bare-metal leases have no grace period — extend only before expiry, restart only after purge.
+  if (bareMetal) {
+    return mode === "extend"
+      ? "支付确认后网关放行时间随租期自动延长，宿主机账户与数据不变。请务必在当前租期结束前完成支付，到期即清除整机数据。"
+      : "原租期已结束，整机数据已清除。支付后平台重新分配整机并开通，原数据无法恢复。";
+  }
   if (mode === "extend") {
     return managed
       ? "支付确认后网关放行时间随租期自动延长，登录名与连接方式不变。请在当前租期结束前完成支付。"

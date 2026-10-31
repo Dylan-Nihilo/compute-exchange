@@ -146,10 +146,17 @@ export function setNodeDrain(nodeId: number, drain: boolean, fetchImplementation
   });
 }
 
-export function confirmNodeReimage(nodeId: number, fetchImplementation: typeof fetch = fetch) {
+/**
+ * POST /supplier/nodes/:id/reimage-confirm `{expected_host_fingerprint}` (T-089, required: backend
+ * fleet/handler.go:208 rejects an empty body with 40001). The fingerprint must be the NEW host key read
+ * after reinstalling; 40001「旧主机指纹」= not reinstalled, 40900「冻结核查中」= wait for the operator.
+ */
+export function confirmNodeReimage(nodeId: number, expectedHostFingerprint: string, fetchImplementation: typeof fetch = fetch) {
+  const fingerprint = expectedHostFingerprint.trim();
+  if (!fingerprintPattern.test(fingerprint)) return Promise.reject(new Error(fingerprintMessage));
   return requestEnvelope(nodePath(nodeId, "reimage-confirm"), taskIdSchema, {
     fallback: "重装确认失败",
-    init: jsonInit("POST"),
+    init: jsonInit("POST", {expected_host_fingerprint: fingerprint}),
     fetchImplementation,
   });
 }

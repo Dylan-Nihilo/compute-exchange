@@ -8,12 +8,14 @@ import {
   needsBuyerReceipt,
 } from "./buyer-orders.ts";
 import {
+  expiryReminder,
   fetchAccessSessions,
   fetchManagedAccess,
   fetchOrderOutages,
   formatBytes,
   formatFen,
   formatMinutes,
+  inactiveHint,
   outageItemStatus,
   refundThresholdText,
   setOutageRemedy,
@@ -141,4 +143,22 @@ test("refundThresholdText and duration/money formatting", () => {
   assert.equal(formatMinutes(125), "2 小时 5 分钟");
   assert.equal(formatMinutes(120), "2 小时");
   assert.match(formatFen(7800), /78\.00/);
+});
+
+test("inactiveHint distinguishes grace, frozen, purge and bare-metal leases", () => {
+  const grace = {lease_state: "grace" as const, access_until: "2026-10-28T02:00:00Z", grace_until: "2026-10-31T02:00:00Z"};
+  assert.match(inactiveHint(grace), /宽限期至 .*逾期清除数据/);
+  assert.doesNotMatch(inactiveHint(grace, true), /宽限/);
+  assert.match(inactiveHint({...grace, lease_state: "suspended"}), /容器与数据保留，请联系客服/);
+  assert.match(inactiveHint({...grace, lease_state: "purging"}), /正在清除/);
+  assert.match(inactiveHint({...grace, lease_state: "purged"}, true), /整机数据已清除/);
+});
+
+test("expiryReminder fires only within 24h of an active lease end", () => {
+  const now = Date.parse("2026-10-28T00:00:00Z");
+  const access = {lease_state: "active" as const, access_until: "2026-10-28T10:00:00Z", grace_until: null};
+  assert.match(expiryReminder(access, false, now) ?? "", /进入宽限期/);
+  assert.match(expiryReminder(access, true, now) ?? "", /清除整机数据/);
+  assert.equal(expiryReminder({...access, access_until: "2026-10-30T10:00:00Z"}, false, now), null);
+  assert.equal(expiryReminder({...access, lease_state: "grace"}, false, now), null);
 });

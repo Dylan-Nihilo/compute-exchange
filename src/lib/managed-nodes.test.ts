@@ -88,7 +88,17 @@ test("verify, drain and reimage parse their documented payloads", async () => {
     assert.equal(url, "/api/supplier/nodes/3/drain");
     return ok({schedulable: false});
   }), {schedulable: false});
-  assert.deepEqual(await confirmNodeReimage(3, async () => ok({task_id: 12})), {task_id: 12});
+  const fp = `SHA256:${"A".repeat(43)}`;
+  assert.deepEqual(await confirmNodeReimage(3, ` ${fp} `, async (url, init) => {
+    assert.equal(url, "/api/supplier/nodes/3/reimage-confirm");
+    assert.deepEqual(JSON.parse(String(init?.body)), {expected_host_fingerprint: fp});
+    return ok({task_id: 12});
+  }), {task_id: 12});
+  await assert.rejects(confirmNodeReimage(3, "", async () => ok({task_id: 12})), /SHA256/);
+  const old = await confirmNodeReimage(3, fp, async () =>
+    Response.json({code: 40001, message: "仍是旧主机指纹, 请先重装系统"}, {status: 400})).catch((caught) => caught);
+  assert.ok(isBackendRequestError(old));
+  assert.equal(old.code, 40001);
 });
 
 test("probe reports parse fleet checks with name/required/skipped and clamp the limit", async () => {

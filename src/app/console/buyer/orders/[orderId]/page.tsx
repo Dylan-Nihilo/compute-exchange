@@ -234,7 +234,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
             <InfoItem label="履约率" value={supplier.credit ? `${supplier.credit.fulfill_rate}%` : "暂无评分"} />
           </InfoCard>
 
-          {showManagedSections ? <ManagedOrderSections orderNo={order.order_no} provisioning={isProvisioning(order.status)} /> : null}
+          {showManagedSections ? <ManagedOrderSections bareMetal={detail.product.delivery_mode === "bare_metal"} orderNo={order.order_no} provisioning={isProvisioning(order.status)} /> : null}
           {!detail.renewal && !managed ? <><InfoCard icon="server.svg" title="交付信息">
             <InfoItem label="访问状态" value={delivery ? accessStatusCopy(delivery.access_status) : "尚未生成"} />
             <InfoItem label="买家确认" value={delivery?.confirmed_by_buyer ? "已确认" : "待确认"} />
