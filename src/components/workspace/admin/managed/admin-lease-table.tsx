@@ -73,7 +73,6 @@ export function AdminLeaseTable({onShowSessions}: {onShowSessions: (leaseNo: str
                     </td>
                     <td className="text-xs">
                       {remedyCopy[lease.outage_remedy]}
-                      <span className="block text-muted">买家选择入口未开放</span>
                     </td>
                     <td><Button size="sm" variant="tertiary" onPress={() => onShowSessions(lease.lease_no)}>查看会话</Button></td>
                   </tr>

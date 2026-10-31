@@ -86,7 +86,7 @@ export const adminLeaseSchema = z.object({
   purged_at: z.string().nullable(),
   fail_reason: z.string().nullable(),
   resource_alert: z.string().nullable(),
-  // DB ENUM('extend','refund') NOT NULL DEFAULT 'extend'; the buyer choice endpoint (T-105) is not open yet.
+  // DB ENUM('extend','refund') NOT NULL DEFAULT 'extend'; buyers switch it via PUT /orders/:id/outage-remedy (T-105).
   outage_remedy: z.enum(["extend", "refund"]),
   created_at: z.string(),
   updated_at: z.string(),

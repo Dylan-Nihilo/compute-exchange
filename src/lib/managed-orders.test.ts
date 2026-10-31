@@ -10,7 +10,13 @@ import {
 import {
   fetchAccessSessions,
   fetchManagedAccess,
+  fetchOrderOutages,
   formatBytes,
+  formatFen,
+  formatMinutes,
+  outageItemStatus,
+  refundThresholdText,
+  setOutageRemedy,
   sshCommand,
 } from "./managed-orders.ts";
 
@@ -78,4 +84,61 @@ test("formatBytes", () => {
   assert.equal(formatBytes(0), "0 B");
   assert.equal(formatBytes(1536), "1.5 KB");
   assert.equal(formatBytes(5 * 1024 ** 3), "5.0 GB");
+});
+
+const outages = {
+  order_no: "ORD20261028001", lease_no: "l-7f3k9q2a", lease_state: "active", access_until: "2026-10-30T10:00:00+08:00",
+  remedy: "extend", refund_requested_at: null, can_change_remedy: true, refund_eligible: false, refund_available: false,
+  term_minutes: 1440, term_outage_minutes: 12, longest_outage_minutes: 8, refund_ratio: 0.1, refund_single_hours: 2,
+  extended_minutes: 8, pending_refund_amount: 0,
+  items: [
+    {id: 1, cause: "node_offline", liable: "supplier", started_at: "2026-10-28T02:00:00Z", ended_at: "2026-10-28T02:08:00Z",
+      ongoing: false, minutes: 8, counted: true, remedy: "extend", remedy_applied_at: "2026-10-28T02:08:00Z", remedy_amount: null},
+    {id: 2, cause: "gateway_down", liable: "platform", started_at: "2026-10-28T03:00:00Z", ended_at: null,
+      ongoing: true, minutes: 4, counted: null, remedy: null, remedy_applied_at: null, remedy_amount: null},
+  ],
+};
+
+test("fetchOrderOutages parses fleet.OrderOutages and tolerates null items", async () => {
+  const parsed = await fetchOrderOutages("ORD20261028001", async (url) => {
+    assert.equal(url, "/api/buyer/orders/ORD20261028001/outages");
+    return ok(outages);
+  });
+  assert.equal(parsed.items.length, 2);
+  assert.equal(outageItemStatus(parsed.items[0]!), "已顺延");
+  assert.equal(outageItemStatus(parsed.items[1]!), "进行中");
+  const empty = await fetchOrderOutages("ORD20261028001", async () => ok({...outages, items: null}));
+  assert.deepEqual(empty.items, []);
+  await assert.rejects(fetchOrderOutages("ORD20261028001", async () => ok({...outages, remedy: "cash"})));
+});
+
+test("outageItemStatus covers pending, below-threshold and refund states", () => {
+  const base = {ongoing: false, counted: true as boolean | null, remedy: "refund" as "refund" | "extend" | null, remedy_applied_at: null as string | null};
+  assert.equal(outageItemStatus({...base, counted: null}), "待结算");
+  assert.equal(outageItemStatus({...base, counted: false}), "不足起算时长，不补偿");
+  assert.equal(outageItemStatus(base), "待退费");
+  assert.equal(outageItemStatus({...base, remedy_applied_at: "2026-10-28T02:08:00Z"}), "已退费");
+});
+
+test("setOutageRemedy PUTs {remedy} and keeps the Yeepay 50000 message", async () => {
+  const next = await setOutageRemedy("ORD20261028001", "extend", async (url, init) => {
+    assert.equal(url, "/api/buyer/orders/ORD20261028001/outage-remedy");
+    assert.equal(init?.method, "PUT");
+    assert.deepEqual(JSON.parse(String(init?.body)), {remedy: "extend"});
+    return ok(outages);
+  });
+  assert.equal(next.remedy, "extend");
+  const message = "易宝部分退款能力未确认，暂只支持顺延补偿";
+  await assert.rejects(
+    setOutageRemedy("ORD20261028001", "refund", async () => Response.json({code: 50000, message})),
+    (error) => isBackendRequestError(error) && error.code === 50000 && error.message === message,
+  );
+});
+
+test("refundThresholdText and duration/money formatting", () => {
+  assert.equal(refundThresholdText({refund_ratio: 0.1, refund_single_hours: 2}), "本期累计停机 ≥ 租期的 10% 或单次停机 ≥ 2 小时");
+  assert.equal(formatMinutes(0), "0 分钟");
+  assert.equal(formatMinutes(125), "2 小时 5 分钟");
+  assert.equal(formatMinutes(120), "2 小时");
+  assert.match(formatFen(7800), /78\.00/);
 });

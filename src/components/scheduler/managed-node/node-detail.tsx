@@ -90,6 +90,11 @@ function NodeWizard({node, onboarding, onChanged}: {node: ComputeNode; onboardin
           </p>
           <Button onPress={onChanged} size="sm" variant="outline">刷新</Button>
         </div>
+        {node.dispatch_hold ? (
+          <p className="mt-3 text-sm text-warning" role="status">
+            平台暂停接单{node.dispatch_hold_reason ? `：${node.dispatch_hold_reason}` : ""}。在租租约不受影响，如需复核请联系运营。
+          </p>
+        ) : null}
         {stage === "suspended" ? (
           <p className="mt-3 text-sm text-danger" role="alert">该节点已被平台停用，不接受新的租约；如有疑问请联系运营。</p>
         ) : (

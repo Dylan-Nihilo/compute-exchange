@@ -27,6 +27,11 @@ const nodeSchema = z.object({
   mgmt_mode: z.enum(["push", "ssh"]).optional(),
   verify_status: z.enum(nodeVerifyStatuses).optional(),
   schedulable: z.union([z.boolean(), z.number().int()]).transform((value) => Boolean(value)).optional(),
+  // T-105 platform dispatch hold (credit / outage limit / operator stop). docs/api/page-api-map.md ⑨ lists it on
+  // GET /supplier/nodes, but scheduler nodeColumns (backend scheduler/repository.go:36) does not select it yet,
+  // so it is optional and the badge only renders when the backend actually sends it.
+  dispatch_hold: z.union([z.boolean(), z.number().int()]).transform((value) => Boolean(value)).optional(),
+  dispatch_hold_reason: z.string().nullable().optional(),
   // Operator list only (GET /admin/nodes, fleet.ManagedExtra); absent for push nodes or when fleet is disabled.
   managed: managedExtraSchema.optional(),
 });
