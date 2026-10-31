@@ -6,6 +6,7 @@ import {Button, Modal} from "@heroui/react";
 
 import {buyerOrderStatusCopy} from "@/lib/buyer-orders";
 import {formatDateTime} from "@/lib/format/date";
+import {nightlyOrderSummary} from "@/lib/nightly";
 import {
   isManagedOrder,
   pricingModeCopy,
@@ -35,6 +36,7 @@ export function OrderDetailModal({
   const productName = (order.gpu_model || "算力资源").replace(/^NVIDIA\s+/i, "");
   // Managed orders are provisioned by the platform; there is no manual deliver step (docs/25 §25.2).
   const managed = isManagedOrder(order);
+  const nightly = nightlyOrderSummary(order);
   const canDeliver = !managed && (order.status === "paid" || order.status === "provisioning");
 
   return (
@@ -56,12 +58,13 @@ export function OrderDetailModal({
                   {" · "}{pricingModeCopy[order.pricing_mode ?? ""] ?? order.pricing_mode}
                   {managed ? " · 平台托管" : ""}
                 </p>
+                {nightly ? <p className="mt-1 text-xs text-[#24495d]">{nightly}</p> : null}
               </div>
               <dl className="grid gap-3 text-xs text-[#78909c] sm:grid-cols-2">
                 <Detail label="订单号" value={order.order_no} mono />
                 <Detail label="状态" value={buyerOrderStatusCopy[order.status as keyof typeof buyerOrderStatusCopy] ?? order.status} />
                 <Detail label="数量" value={`${order.quantity}`} />
-                <Detail label={order.current_lease ? "原购买周期数" : "计费周期数"} value={`${order.duration}`} />
+                <Detail label={nightly ? "包夜晚数" : order.current_lease ? "原购买周期数" : "计费周期数"} value={nightly ? `${order.duration} 晚` : `${order.duration}`} />
                 <Detail label={order.current_lease ? "原订单金额" : "总价"} value={money.format(order.total_amount / 100)} strong />
                 <Detail label="平台费" value={money.format(order.platform_fee / 100)} />
                 <Detail label="下单时间" value={formatDateTime(order.created_at)} />
@@ -71,7 +74,7 @@ export function OrderDetailModal({
               </dl>
               {order.current_lease ? <dl className="grid gap-3 text-xs text-muted sm:grid-cols-2">
                 <Detail label="本次续租订单" value={order.current_lease.order_no} mono />
-                <Detail label="本次交付周期" value={`${order.current_lease.duration} 个周期 · ${pricingModeCopy[order.current_lease.pricing_mode] ?? order.current_lease.pricing_mode}`} />
+                <Detail label="本次交付周期" value={`${order.current_lease.duration} ${order.current_lease.pricing_mode === "nightly" ? "晚" : "个周期"} · ${pricingModeCopy[order.current_lease.pricing_mode] ?? order.current_lease.pricing_mode}`} />
               </dl> : null}
               {managed ? <ManagedOrderNote order={order} /> : null}
               {canDeliver ? (

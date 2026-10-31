@@ -67,7 +67,11 @@ export function buildManagedPayload(
   }
   const nightly = state.availability === "night_window";
   if (nightly) {
-    const nightError = validateNightWindow(state.nightStartMin, state.nightEndMin);
+    // compute/nightly.go NightOrderWindow: nightly order/quote/calendar require container delivery (40001
+    // otherwise), although product create does not check it (compute/pricing.go validateCardRentalPricing).
+    const nightError = deliveryMode !== "container"
+      ? "夜间窗口（包夜）仅支持分卡容器交付，请将交付方式改为容器"
+      : validateNightWindow(state.nightStartMin, state.nightEndMin);
     if (nightError) errors.night = nightError;
   }
   const modes: readonly RentalPricingMode[] = nightly ? ["nightly"] : fulltimeModes;

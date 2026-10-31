@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {BackendRequestError} from "./api/envelope.ts";
-import {isManagedDraftAwaitingSubmit, productSubmitErrorMessage} from "./managed-product.ts";
+import {buildManagedPayload, initialManagedState, isManagedDraftAwaitingSubmit, productSubmitErrorMessage} from "./managed-product.ts";
+import {nightlyOrderSummary} from "./nightly.ts";
 
 import {
   awaitsLeaseEndSplit,
@@ -329,4 +330,34 @@ test("managed products: []int split options, draft state and submit-gate message
   assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: "managed", status: "draft", rejected_reason: "规格不符"}), false);
   assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: "manual", status: "draft", rejected_reason: ""}), false);
   assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: undefined, status: "draft", rejected_reason: ""}), false);
+});
+
+test("fetchSupplierOrders keeps the nightly snapshot and rows show the nightly mode", async () => {
+  const page = await fetchSupplierOrders({page: 1, pageSize: 10}, async () => Response.json({code: 0, message: "success", data: {
+    list: [{
+      id: 2, order_no: "ORD-N", buyer_id: 3, product_id: 7, quantity: 2,
+      duration: 3, unit_price: 9000, total_amount: 54000, platform_fee: 2700,
+      status: "active", payment_expires_at: null, lease_start_at: "2026-11-01T21:50:00+08:00",
+      lease_end_at: "2026-11-05T08:00:00+08:00", compliance_agreed: true,
+      created_at: "2026-10-30T09:00:00Z", updated_at: "2026-10-30T09:00:00Z",
+      gpu_model: "NVIDIA H100", product_type: "card_rental", pricing_mode: "nightly", fulfillment_mode: "managed",
+      night_start_date: "2026-11-01T00:00:00+08:00", night_start_min: 1320, night_end_min: 480,
+    }],
+    total: 1, status_counts: {active: 1}, page: 1, page_size: 10,
+  }}));
+  const order = page.orders[0];
+  assert.equal(order.night_start_min, 1320);
+  assert.equal(nightlyOrderSummary(order), "包夜 · 2026-11-01 晚起 · 每晚 22:00–次日 08:00（北京时间） · 3 晚（另补偿 1 晚）");
+  assert.equal(nightlyOrderSummary({...order, night_start_date: null}), "包夜 · 3 晚");
+  assert.equal(nightlyOrderSummary({...order, pricing_mode: "daily"}), null);
+});
+
+test("buildManagedPayload rejects a night window without container delivery", () => {
+  const state = {...initialManagedState(), fulfillmentMode: "managed" as const, availability: "night_window" as const};
+  state.prices = {...state.prices, nightly: {enabled: true, price: "90", minDuration: "1"}};
+  const bare = buildManagedPayload(state, {cardCount: 8, deliveryMode: "bare_metal"});
+  assert.ok("errors" in bare);
+  assert.match(bare.errors.night ?? "", /仅支持分卡容器交付/);
+  const container = buildManagedPayload(state, {cardCount: 8, deliveryMode: "container"});
+  assert.ok(!("errors" in container) || !container.errors.night, JSON.stringify(container));
 });

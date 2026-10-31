@@ -13,6 +13,7 @@ import {ListPagination} from "@/components/workspace/ui/list-pagination";
 import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
 import {buyerOrderStatusCopy} from "@/lib/buyer-orders";
 import {formatDateTime} from "@/lib/format/date";
+import {nightlyOrderSummary} from "@/lib/nightly";
 import {notify} from "@/lib/notify";
 import {
   deliverOrder,
@@ -163,6 +164,7 @@ export default function SupplierOrdersPage() {
                           {(order.gpu_model || "算力资源").replace(/^NVIDIA\s+/i, "")}
                         </p>
                         <p className="mt-0.5 text-[11px] text-[#8aa0ab]">PRD-#{order.product_id}{isManagedOrder(order) ? " · 平台托管" : ""}</p>
+                        {nightlyOrderSummary(order) ? <p className="mt-0.5 text-[11px] text-[#24495d]">{nightlyOrderSummary(order)}</p> : null}
                       </td>
                       <td className="px-4 py-3.5 text-[13px] text-[#24495d]">{order.quantity}</td>
                       <td className="px-4 py-3.5 text-[13px] font-semibold text-[#173447]">

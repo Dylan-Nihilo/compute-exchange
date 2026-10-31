@@ -1,6 +1,7 @@
 import {z} from "zod";
 
 import {requestEnvelope} from "./api/envelope.ts";
+import {formatNightWindow} from "./flexible-pricing.ts";
 
 // v1.2 包夜 (tokenFactory docs/26 §26.6, backend compute/nightly.go + compute/pricing.go NightWindow).
 // night_date = 窗口开始那天的北京时间日期; 窗口分钟 0–1439, end <= start 表示跨零点。
@@ -269,4 +270,16 @@ export function nightlyOrderSnapshot(order: NightlyOrderFields, fallbackPricingM
     ? {nightStartDate: start, nights: order.duration, window: {startMin: order.night_start_min, endMin: order.night_end_min}, leaseEndAt: order.lease_end_at}
     : null;
   return {nightly, snapshot};
+}
+
+/**
+ * One-line nightly label for order rows (supplier list/modal). null for non-nightly orders; without the night
+ * snapshot only the night count is shown (no guessed dates).
+ */
+export function nightlyOrderSummary(order: NightlyOrderFields) {
+  const {nightly, snapshot} = nightlyOrderSnapshot(order);
+  if (!nightly) return null;
+  if (!snapshot) return `包夜 · ${order.duration} 晚`;
+  const extra = extraNightsOf(snapshot);
+  return `包夜 · ${snapshot.nightStartDate} 晚起 · 每晚 ${formatNightWindow(snapshot.window.startMin, snapshot.window.endMin)} · ${order.duration} 晚${extra ? `（另补偿 ${extra} 晚）` : ""}`;
 }

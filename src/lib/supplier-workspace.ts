@@ -156,6 +156,10 @@ const supplierOrderSchema = z.object({
   pricing_mode: z.string().optional(),
   // v1.2 (docs/25 §25.7.6): absent on legacy backends, which keeps the manual-mode UX.
   fulfillment_mode: fulfillmentModeSchema.optional(),
+  // v1.2 包夜 snapshot (SupplierOrder embeds Order, compute/repository.go); null for non-nightly orders.
+  night_start_date: z.string().nullable().optional(),
+  night_start_min: z.number().int().nullable().optional(),
+  night_end_min: z.number().int().nullable().optional(),
   // compute/repository.go:112 is still `json:"-"` on orders (only settlement rows expose it), so the
   // order modal shows the generic "租期结束后分账" copy; read only if the backend starts exposing it.
   settle_ready_at: z.string().nullable().optional(),

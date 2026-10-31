@@ -60,6 +60,9 @@ export function ManagedProductFields({
             <SmallChip active={state.availability === value} key={value} label={label} onClick={() => setAvailability(value)} />
           ))}
         </div>
+        {deliveryMode !== "container" ? (
+          <p className="mt-2 text-xs text-[#5e7786]">夜间窗口（包夜）仅支持分卡容器交付；买家每晚使用同一节点的同一组卡。</p>
+        ) : null}
         {nightly ? (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {([["nightStartMin", "每晚开始"], ["nightEndMin", "次日结束"]] as const).map(([key, label]) => (
