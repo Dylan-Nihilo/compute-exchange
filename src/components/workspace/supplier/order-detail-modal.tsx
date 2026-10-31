@@ -9,6 +9,7 @@ import {formatDateTime} from "@/lib/format/date";
 import {nightlyOrderSummary} from "@/lib/nightly";
 import {
   isManagedOrder,
+  managedSettleCopy,
   pricingModeCopy,
   productTypeCopy,
   type SupplierOrder,
@@ -111,9 +112,7 @@ function ManagedOrderNote({order}: {order: SupplierOrder}) {
           : "平台托管订单：由平台开通、回收，买家经平台网关登录。"}
       </p>
       <p className="mt-1">
-        {order.settle_ready_at
-          ? `已于 ${formatDateTime(order.settle_ready_at)} 满足分账条件，将随下一批分账处理。`
-          : "租期结束且停机记录全部结清后一次性分账（续租订单随整条租期一并结算）。"}
+        {managedSettleCopy(order, formatDateTime)}
       </p>
     </div>
   );

@@ -4,7 +4,6 @@ import {useQuery} from "@tanstack/react-query";
 import Link from "next/link";
 
 import {fetchManagedAccess, isBareMetalLease} from "@/lib/managed-orders";
-import {extraNightsOf, type NightlyOrderSnapshot} from "@/lib/nightly";
 
 import {ManagedAccessCard, managedAccessKey} from "./managed-access-card";
 import {ManagedNightlyCard} from "./managed-nightly-card";
@@ -19,8 +18,8 @@ export function ManagedOrderSections({orderNo, provisioning, productDeliveryMode
   orderNo: string;
   provisioning: boolean;
   productDeliveryMode?: string | null;
-  /** Set for nightly orders; `snapshot` null = night fields missing (explicit error in the nightly card). */
-  nightly?: {snapshot: NightlyOrderSnapshot | null};
+  /** pricing_mode=nightly: per-night card (GET /orders/:id/nights) and night wording. */
+  nightly?: boolean;
 }) {
   // Same key as ManagedAccessCard, so this shares one request and cache entry.
   const access = useQuery({
@@ -33,16 +32,13 @@ export function ManagedOrderSections({orderNo, provisioning, productDeliveryMode
 
   return (
     <>
-      {nightly ? <ManagedNightlyCard snapshot={nightly.snapshot} /> : null}
-      <ManagedAccessCard nightly={Boolean(nightly)} orderNo={orderNo} poll={provisioning} productDeliveryMode={productDeliveryMode} />
+      {nightly ? <ManagedNightlyCard orderNo={orderNo} /> : null}
+      <ManagedAccessCard nightly={nightly} orderNo={orderNo} poll={provisioning} productDeliveryMode={productDeliveryMode} />
       {/* One-click deploy needs a container lease; bare metal gets 40001 (modeldeploy/lease_source.go:25 ErrBareMetalLease). */}
       {access.data?.lease_state === "active" && !bareMetal ? <DeployEntry orderNo={orderNo} /> : null}
       {leaseStarted ? (
         <>
-          <ManagedOutagesCard
-            nightly={nightly ? {extraNights: nightly.snapshot ? extraNightsOf(nightly.snapshot) : null} : undefined}
-            orderNo={orderNo}
-          />
+<ManagedOutagesCard nightly={nightly} orderNo={orderNo} />
           <ManagedSessionsCard orderNo={orderNo} />
         </>
       ) : null}

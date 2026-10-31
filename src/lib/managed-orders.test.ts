@@ -11,12 +11,14 @@ import {
   expiryReminder,
   fetchAccessSessions,
   fetchManagedAccess,
+  fetchOrderNights,
   fetchOrderOutages,
   formatBytes,
   formatFen,
   formatMinutes,
   inactiveHint,
   isBareMetalLease,
+  nightStateLabel,
   outageCauseCopy,
   outageItemStatus,
   remedyLabel,
@@ -105,7 +107,7 @@ const outages = {
   order_no: "ORD20261028001", lease_no: "l-7f3k9q2a", lease_state: "active", access_until: "2026-10-30T10:00:00+08:00",
   remedy: "extend", refund_requested_at: null, can_change_remedy: true, refund_eligible: false, refund_available: false,
   term_minutes: 1440, term_outage_minutes: 12, longest_outage_minutes: 8, refund_ratio: 0.1, refund_single_hours: 2,
-  extended_minutes: 8, pending_refund_amount: 0,
+  extended_minutes: 8, extended_nights: null, pending_refund_amount: 0,
   items: [
     {id: 1, cause: "node_offline", liable: "supplier", started_at: "2026-10-28T02:00:00Z", ended_at: "2026-10-28T02:08:00Z",
       ongoing: false, minutes: 8, counted: true, remedy: "extend", remedy_applied_at: "2026-10-28T02:08:00Z", remedy_amount: null},
@@ -186,4 +188,36 @@ test("nightly remedy, outage-cause and parked copy", () => {
   assert.match(outageCauseCopy.night_unpark_failed!, /本晚未能开机/);
   assert.match(outageCauseCopy.provision_delay!, /开通延迟/);
   assert.match(inactiveHint({lease_state: "parked", access_until: null, grace_until: null}), /白天停机，夜间窗口自动开机/);
+});
+
+test("fetchOrderOutages reads extended_nights for nightly orders", async () => {
+  const parsed = await fetchOrderOutages("ORD20261028001", async () => ok({...outages, extended_nights: 1}));
+  assert.equal(parsed.extended_nights, 1);
+  await assert.rejects(fetchOrderOutages("ORD20261028001", async () => ok({...outages, extended_nights: -1})));
+});
+
+test("fetchOrderNights parses fleet.OrderNights and labels each night", async () => {
+  const nights = {
+    order_no: "ORD20261101103000123abc", lease_no: "l-4g7bq4xc", lease_state: "parked", night_start_min: 1320, night_end_min: 480,
+    purchased_nights: 3, extended_nights: 1, next_window_start: "2026-11-03T22:00:00+08:00",
+    nights: [
+      {night_date: "2026-11-01", window_start: "2026-11-01T22:00:00+08:00", window_end: "2026-11-02T08:00:00+08:00",
+        state: "ended", fail_cause: null, compensation: false, unparked_at: "2026-11-01T22:00:41+08:00", outage_id: null},
+      {night_date: "2026-11-02", window_start: "2026-11-02T22:00:00+08:00", window_end: "2026-11-03T08:00:00+08:00",
+        state: "failed", fail_cause: "night_unpark_failed", compensation: false, unparked_at: null, outage_id: 57},
+      {night_date: "2026-11-04", window_start: "2026-11-04T22:00:00+08:00", window_end: "2026-11-05T08:00:00+08:00",
+        state: "booked", fail_cause: null, compensation: true, unparked_at: null, outage_id: null},
+    ],
+  };
+  const parsed = await fetchOrderNights("ORD20261101103000123abc", async (url) => {
+    assert.equal(url, "/api/buyer/orders/ORD20261101103000123abc/nights");
+    return ok(nights);
+  });
+  assert.deepEqual(parsed.nights.map(nightStateLabel), ["已结束", "未开机：本晚未能开机（卡被宿主机占用）", "待开机 · 补偿晚"]);
+  assert.equal(nightStateLabel({state: "booked", fail_cause: "node_offline", compensation: false}), "开机重试中：节点离线");
+  assert.deepEqual((await fetchOrderNights("ORD1", async () => ok({...nights, nights: null}))).nights, []);
+  await assert.rejects(
+    fetchOrderNights("ORD1", async () => Response.json({code: 40001, message: "该订单不是包夜订单, 没有每晚记录"}, {status: 400})),
+    /该订单不是包夜订单/,
+  );
 });

@@ -16,6 +16,7 @@ import {
   fetchResourceSyncs,
   fetchSupplierOrders,
   isManagedOrder,
+  managedSettleCopy,
   isManagedProduct,
   isSupplierOrderStatusFilter,
   fetchSupplierSettlements,
@@ -132,7 +133,7 @@ test("fetchSupplierOrders forwards filters and parses page", async () => {
         status: "provisioning", payment_expires_at: null, lease_start_at: null,
         lease_end_at: null, compliance_agreed: true,
         created_at: "2026-08-26T09:00:00Z", updated_at: "2026-08-26T09:00:00Z",
-        gpu_model: "NVIDIA H100", product_type: "card_rental", pricing_mode: "hourly",
+        gpu_model: "NVIDIA H100", product_type: "card_rental", pricing_mode: "hourly", settle_ready_at: null,
       }],
       total: 11, status_counts: {provisioning: 3, active: 8}, page: 2, page_size: 10,
     }});
@@ -342,14 +343,17 @@ test("fetchSupplierOrders keeps the nightly snapshot and rows show the nightly m
       created_at: "2026-10-30T09:00:00Z", updated_at: "2026-10-30T09:00:00Z",
       gpu_model: "NVIDIA H100", product_type: "card_rental", pricing_mode: "nightly", fulfillment_mode: "managed",
       night_start_date: "2026-11-01T00:00:00+08:00", night_start_min: 1320, night_end_min: 480,
+      settle_ready_at: "2026-11-05T09:00:00+08:00",
     }],
     total: 1, status_counts: {active: 1}, page: 1, page_size: 10,
   }}));
   const order = page.orders[0];
   assert.equal(order.night_start_min, 1320);
-  assert.equal(nightlyOrderSummary(order), "包夜 · 2026-11-01 晚起 · 每晚 22:00–次日 08:00（北京时间） · 3 晚（另补偿 1 晚）");
+  assert.equal(nightlyOrderSummary(order), "包夜 · 2026-11-01 晚起 · 每晚 22:00–次日 08:00（北京时间） · 3 晚");
   assert.equal(nightlyOrderSummary({...order, night_start_date: null}), "包夜 · 3 晚");
   assert.equal(nightlyOrderSummary({...order, pricing_mode: "daily"}), null);
+  assert.equal(managedSettleCopy(order, (value) => value.slice(0, 10)), "已于 2026-11-05 满足分账条件，将随下一批分账处理。");
+  assert.match(managedSettleCopy({settle_ready_at: null}, String), /^平台托管 · 租期结束后分账/);
 });
 
 test("buildManagedPayload rejects a night window without container delivery", () => {

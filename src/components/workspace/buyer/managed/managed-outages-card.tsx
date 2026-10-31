@@ -21,6 +21,7 @@ import {
   type OrderOutages,
 } from "@/lib/managed-orders";
 
+import {orderNightsKey} from "./managed-nightly-card";
 import {ManagedSection} from "./managed-section";
 
 export function managedOutagesKey(orderNo: string) {
@@ -31,7 +32,7 @@ export function managedOutagesKey(orderNo: string) {
  * Outage records and compensation choice for a managed order (GET /orders/:id/outages,
  * PUT /orders/:id/outage-remedy, docs/25 §25.7.6). Button availability follows the backend flags.
  */
-export function ManagedOutagesCard({orderNo, nightly}: {orderNo: string; nightly?: {extraNights: number | null}}) {
+export function ManagedOutagesCard({orderNo, nightly = false}: {orderNo: string; nightly?: boolean}) {
   const query = useQuery({
     queryKey: managedOutagesKey(orderNo),
     queryFn: () => fetchOrderOutages(orderNo),
@@ -61,22 +62,21 @@ export function ManagedOutagesCard({orderNo, nightly}: {orderNo: string; nightly
   );
 }
 
-function OutagesBody({data, orderNo, nightly}: {data: OrderOutages; orderNo: string; nightly?: {extraNights: number | null}}) {
+function OutagesBody({data, orderNo, nightly}: {data: OrderOutages; orderNo: string; nightly: boolean}) {
   return (
     <div className="space-y-4">
       <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
-        <Fact label="当前补偿方式" value={remedyLabel(data.remedy, Boolean(nightly))} />
-        {/* Nightly: extended_minutes is the summed outage time (fleet/outage_api.go:135), not the nights added;
-            extra nights come from lease_end_at vs the booked end. */}
+        <Fact label="当前补偿方式" value={remedyLabel(data.remedy, nightly)} />
+        {/* Nightly: extended_minutes is the compensated outage time, not added time; extended_nights counts nights. */}
         {nightly
-          ? <Fact label="已补加" value={nightly.extraNights === null ? "—" : `${nightly.extraNights} 晚`} />
+          ? <Fact label="已补加" value={data.extended_nights === null ? "—" : `${data.extended_nights} 晚`} />
           : <Fact label="已顺延" value={formatMinutes(data.extended_minutes)} />}
         <Fact label="待退费" value={formatFen(data.pending_refund_amount)} />
         <Fact label="本期计入停机" value={`${formatMinutes(data.term_outage_minutes)} / 租期 ${formatMinutes(data.term_minutes)}`} />
         <Fact label="本期最长单次" value={formatMinutes(data.longest_outage_minutes)} />
       </dl>
-      <RemedyChooser data={data} nightly={Boolean(nightly)} orderNo={orderNo} />
-      <OutageTable data={data} nightly={Boolean(nightly)} />
+      <RemedyChooser data={data} nightly={nightly} orderNo={orderNo} />
+      <OutageTable data={data} nightly={nightly} />
     </div>
   );
 }
@@ -88,6 +88,8 @@ function RemedyChooser({data, orderNo, nightly}: {data: OrderOutages; orderNo: s
     mutationFn: (remedy: OutageRemedy) => setOutageRemedy(orderNo, remedy),
     onSuccess: (next) => {
       client.setQueryData(managedOutagesKey(orderNo), next);
+      // The remedy decides whether failed nights add a compensation night.
+      if (nightly) void client.invalidateQueries({queryKey: orderNightsKey(orderNo)});
       setNotice({tone: "info", text: next.remedy === "refund" ? "已改为按比例退费，之后结束的停机将原路退款。" : `已改为${remedyLabel("extend", nightly)}。`});
     },
     onError: (error, remedy) => {

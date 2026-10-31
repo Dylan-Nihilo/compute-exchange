@@ -160,9 +160,9 @@ const supplierOrderSchema = z.object({
   night_start_date: z.string().nullable().optional(),
   night_start_min: z.number().int().nullable().optional(),
   night_end_min: z.number().int().nullable().optional(),
-  // compute/repository.go:112 is still `json:"-"` on orders (only settlement rows expose it), so the
-  // order modal shows the generic "租期结束后分账" copy; read only if the backend starts exposing it.
-  settle_ready_at: z.string().nullable().optional(),
+  // Managed split-ready time (integ 03a67c9, SupplierOrder.SettleReadyAt): null until the lease ends and outage
+  // compensation settles; always null for manual orders.
+  settle_ready_at: z.string().nullable(),
 });
 
 const settlementSchema = z.object({
@@ -320,6 +320,13 @@ export type SupplierResourceSync = z.infer<typeof resourceSyncSchema>;
 // Managed (platform-fulfilled) listings and orders; only an explicit backend field turns this on.
 export function isManagedProduct(product: Pick<SupplierProduct, "fulfillment_mode"> | undefined) {
   return product?.fulfillment_mode === "managed";
+}
+
+/** Split wording of a managed supplier order (docs/api/compute-api.md supplier orders, settle_ready_at). */
+export function managedSettleCopy(order: Pick<SupplierOrder, "settle_ready_at">, formatTime: (value: string) => string) {
+  return order.settle_ready_at
+    ? `已于 ${formatTime(order.settle_ready_at)} 满足分账条件，将随下一批分账处理。`
+    : "平台托管 · 租期结束后分账：租期结束且停机记录全部结清后一次性分账（续租订单随整条租期一并结算）。";
 }
 
 export function isManagedOrder(order: Pick<SupplierOrder, "fulfillment_mode"> | undefined) {

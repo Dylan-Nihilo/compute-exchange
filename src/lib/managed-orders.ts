@@ -124,12 +124,44 @@ export const orderOutagesSchema = z.object({
   longest_outage_minutes: z.number().int().nonnegative(),
   refund_ratio: z.number().nonnegative(),
   refund_single_hours: z.number().int().nonnegative(),
+  // For nightly orders these are the compensated outage minutes, not added time; use extended_nights there.
   extended_minutes: z.number().int().nonnegative(),
+  // Nights added as outage compensation (integ f57d20a); null for non-nightly orders.
+  extended_nights: z.number().int().nonnegative().nullable(),
   // Fen.
   pending_refund_amount: z.number().int().nonnegative(),
   items: z.array(buyerOutageSchema).nullable().transform((value) => value ?? []),
 });
 export type OrderOutages = z.infer<typeof orderOutagesSchema>;
+
+export const buyerNightStates = ["booked", "active", "ended", "failed"] as const;
+export type BuyerNightState = (typeof buyerNightStates)[number];
+
+/** fleet.OrderNights (GET /orders/:id/nights, integ f57d20a; docs/api/managed-rental-api.md). */
+export const orderNightsSchema = z.object({
+  order_no: z.string(),
+  lease_no: z.string(),
+  lease_state: z.enum(leaseStates),
+  night_start_min: z.number().int().min(0).max(1439),
+  night_end_min: z.number().int().min(0).max(1439),
+  purchased_nights: z.number().int().nonnegative(),
+  extended_nights: z.number().int().nonnegative(),
+  // Start of the earliest booked/active night whose window has not ended (<= now while inside a window).
+  next_window_start: z.string().nullable(),
+  nights: z.array(z.object({
+    night_date: z.string(),
+    window_start: z.string(),
+    window_end: z.string(),
+    state: z.enum(buyerNightStates),
+    // failed: the counted outage cause; booked: the last failed unpark attempt while retrying.
+    fail_cause: z.string().nullable(),
+    compensation: z.boolean(),
+    unparked_at: z.string().nullable(),
+    outage_id: z.number().int().positive().nullable(),
+  })).nullable().transform((value) => value ?? []),
+});
+export type OrderNights = z.infer<typeof orderNightsSchema>;
+export type BuyerNight = OrderNights["nights"][number];
 
 function orderPath(orderNo: string, action: string) {
   return `/api/buyer/orders/${encodeURIComponent(orderNo)}/${action}`;
@@ -146,6 +178,22 @@ export function fetchManagedAccess(orderNo: string, fetchImplementation?: typeof
 /** Same ownership errors as /access (40400 manual order / no lease, 40300 not yours). */
 export function fetchOrderOutages(orderNo: string, fetchImplementation?: typeof fetch) {
   return requestEnvelope(orderPath(orderNo, "outages"), orderOutagesSchema, {fallback: "停机记录读取失败", fetchImplementation});
+}
+
+const nightStateCopy: Record<BuyerNightState, string> = {booked: "待开机", active: "已开机", ended: "已结束", failed: "未开机"};
+
+/** Chip text for one night: failed nights show the counted cause, a booked night with a cause is retrying. */
+export function nightStateLabel(night: Pick<BuyerNight, "state" | "fail_cause" | "compensation">) {
+  const cause = night.fail_cause ? outageCauseCopy[night.fail_cause] ?? night.fail_cause : null;
+  const base = night.state === "failed" && cause ? `未开机：${cause}`
+    : night.state === "booked" && cause ? `开机重试中：${cause}`
+    : nightStateCopy[night.state];
+  return night.compensation ? `${base} · 补偿晚` : base;
+}
+
+/** 40001 "该订单不是包夜订单, 没有每晚记录" for non-nightly orders; otherwise the same errors as /access. */
+export function fetchOrderNights(orderNo: string, fetchImplementation?: typeof fetch) {
+  return requestEnvelope(orderPath(orderNo, "nights"), orderNightsSchema, {fallback: "包夜每晚记录读取失败", fetchImplementation});
 }
 
 /**

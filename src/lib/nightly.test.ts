@@ -4,7 +4,6 @@ import {describe, it} from "node:test";
 import {BackendRequestError} from "./api/envelope.ts";
 import {
   addDays,
-  extraNightsOf,
   fetchNightCalendar,
   firstBlockedNight,
   firstBookableNight,
@@ -16,8 +15,9 @@ import {
   nightDateOf,
   nightDateString,
   nightlyLeaseEnd,
+  NIGHT_CALENDAR_MAX_DAYS,
   nightlyOrderSnapshot,
-  nightlySchedule,
+  nightlyProgress,
   resolveNightStart,
   shanghaiDate,
 } from "./nightly.ts";
@@ -87,6 +87,16 @@ describe("night calendar", () => {
     assert.equal(firstBlockedNight(calendar, "2026-11-04", 5, 4), null);
   });
 
+  it("covers today..today+30 in one calendar request but never starts after today+30", () => {
+    assert.equal(NIGHT_CALENDAR_MAX_DAYS, 31);
+    const edge = [{night_date: "2026-12-01", max_cards: 8}, {night_date: "2026-12-02", max_cards: 8}];
+    assert.equal(isNightStartSelectable(edge[0], 1, bounds), true);
+    assert.equal(isNightStartSelectable(edge[1], 1, bounds), false);
+    assert.equal(resolveNightStart(edge, 1, bounds, "2026-12-02"), "2026-12-01");
+    // A later night still counts as a follow-on night of a span.
+    assert.equal(firstBlockedNight([...edge, {night_date: "2026-12-03", max_cards: 0}], "2026-12-01", 3, 1), "2026-12-03");
+  });
+
   it("keeps a still-selectable choice and otherwise falls back to the first selectable night", () => {
     assert.equal(resolveNightStart(calendar, 2, bounds, "2026-11-04"), "2026-11-04");
     assert.equal(resolveNightStart(calendar, 8, bounds, "2026-11-04"), "2026-11-03");
@@ -100,7 +110,7 @@ describe("night calendar", () => {
       url = String(input);
       return Response.json({code: 0, message: "success", data: null});
     });
-    assert.equal(url, "/api/market-proxy/products/12/night-calendar?cards=0&days=30&from=2026-11-01");
+    assert.equal(url, "/api/market-proxy/products/12/night-calendar?cards=0&days=31&from=2026-11-01");
     assert.deepEqual(days, []);
   });
 
@@ -122,39 +132,34 @@ describe("nightly gating", () => {
   });
 });
 
-describe("nightly order schedule", () => {
-  const snapshot = {nightStartDate: "2026-11-01", nights: 3, window: W, leaseEndAt: "2026-11-04T08:00:00+08:00"};
+describe("nightly progress from GET /orders/:id/nights", () => {
+  const night = (date: string, next: string, state: string) => ({
+    window_start: `${date}T22:00:00+08:00`, window_end: `${next}T08:00:00+08:00`, state,
+  });
+  const nights = [
+    night("2026-11-01", "2026-11-02", "ended"),
+    night("2026-11-02", "2026-11-03", "failed"),
+    night("2026-11-03", "2026-11-04", "booked"),
+    night("2026-11-04", "2026-11-05", "booked"),
+  ];
 
-  it("derives extra nights from the extended lease end", () => {
-    assert.equal(extraNightsOf(snapshot), 0);
-    assert.equal(extraNightsOf({...snapshot, leaseEndAt: "2026-11-05T08:00:00+08:00"}), 1);
-    assert.equal(extraNightsOf({...snapshot, leaseEndAt: null}), 0);
+  it("uses the backend next window between nights and counts finished nights", () => {
+    const between = nightlyProgress({next_window_start: "2026-11-03T22:00:00+08:00", nights}, at("2026-11-03T12:00:00+08:00"));
+    assert.deepEqual(between, {phase: "between", completed: 2, total: 4, currentWindowEnd: null, nextWindowStart: "2026-11-03T22:00:00+08:00"});
   });
 
-  it("reports the phase, progress and next window start", () => {
-    const before = nightlySchedule(snapshot, at("2026-11-01T15:00:00+08:00"));
-    assert.equal(before.phase, "before_first");
-    assert.equal(before.nextWindowStart?.toISOString(), "2026-11-01T14:00:00.000Z");
-
-    const inside = nightlySchedule(snapshot, at("2026-11-02T03:00:00+08:00"));
-    assert.equal(inside.phase, "in_window");
-    assert.equal(inside.currentWindowEnd?.toISOString(), "2026-11-02T00:00:00.000Z");
-    assert.equal(inside.nextWindowStart, null);
-
-    const between = nightlySchedule(snapshot, at("2026-11-02T12:00:00+08:00"));
-    assert.equal(between.phase, "between");
-    assert.equal(between.completed, 1);
-    assert.equal(between.nextWindowStart?.toISOString(), "2026-11-02T14:00:00.000Z");
-
-    assert.equal(nightlySchedule(snapshot, at("2026-11-04T09:00:00+08:00")).phase, "ended");
+  it("distinguishes an open window from one still unparking", () => {
+    const active = nights.map((n, i) => (i === 2 ? {...n, state: "active"} : n));
+    const open = nightlyProgress({next_window_start: "2026-11-03T22:00:00+08:00", nights: active}, at("2026-11-04T01:00:00+08:00"));
+    assert.equal(open.phase, "in_window");
+    assert.equal(open.currentWindowEnd, "2026-11-04T08:00:00+08:00");
+    assert.equal(open.nextWindowStart, null);
+    assert.equal(nightlyProgress({next_window_start: "2026-11-03T22:00:00+08:00", nights}, at("2026-11-03T22:05:00+08:00")).phase, "opening");
   });
 
-  it("appends compensation nights after the booked ones", () => {
-    const schedule = nightlySchedule({...snapshot, leaseEndAt: "2026-11-05T08:00:00+08:00"}, at("2026-11-04T09:00:00+08:00"));
-    assert.equal(schedule.nights.length, 4);
-    assert.deepEqual(schedule.nights.map((night) => night.extra), [false, false, false, true]);
-    assert.equal(schedule.phase, "between");
-    assert.equal(schedule.nextWindowStart?.toISOString(), "2026-11-04T14:00:00.000Z");
+  it("reports before-first and ended", () => {
+    assert.equal(nightlyProgress({next_window_start: "2026-11-01T22:00:00+08:00", nights}, at("2026-11-01T12:00:00+08:00")).phase, "before_first");
+    assert.equal(nightlyProgress({next_window_start: null, nights: nights.map((n) => ({...n, state: "ended"}))}, at("2026-11-06T12:00:00+08:00")).phase, "ended");
   });
 });
 
@@ -164,13 +169,13 @@ describe("nightly order snapshot", () => {
   it("uses the order snapshot, falling back to the detail's product pricing mode", () => {
     assert.deepEqual(nightlyOrderSnapshot({...order, pricing_mode: "nightly"}), {
       nightly: true,
-      snapshot: {nightStartDate: "2026-11-01", nights: 3, window: W, leaseEndAt: "2026-11-04T08:00:00+08:00"},
+      snapshot: {nightStartDate: "2026-11-01", nights: 3, window: W},
     });
     assert.equal(nightlyOrderSnapshot(order, "nightly").nightly, true);
     assert.deepEqual(nightlyOrderSnapshot({...order, pricing_mode: "daily"}), {nightly: false, snapshot: null});
   });
 
   it("returns no snapshot when the night fields are missing", () => {
-    assert.deepEqual(nightlyOrderSnapshot({duration: 3, lease_end_at: null}, "nightly"), {nightly: true, snapshot: null});
+    assert.deepEqual(nightlyOrderSnapshot({duration: 3}, "nightly"), {nightly: true, snapshot: null});
   });
 });

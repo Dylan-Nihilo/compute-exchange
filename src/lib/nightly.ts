@@ -16,8 +16,12 @@ export const NIGHT_START_AHEAD_DAYS = 30;
 export const NIGHT_HORIZON_DAYS = 60;
 /** maxDurationByPricingMode.nightly; backend PricingNightly 上限 31 晚。 */
 export const NIGHT_MAX_NIGHTS = 31;
-/** compute/nightly.go NightCalendarMaxDays: 一次最多查 30 晚。 */
-export const NIGHT_CALENDAR_MAX_DAYS = 30;
+/**
+ * compute/nightly.go NightCalendarMaxDays = NightStartAheadDays + 1 (integ 03b2673): 31 nights from today cover
+ * every valid start night (today..today+30). Later nights only matter as follow-on nights of a span; the start
+ * is still capped at today+30 by NightBookingBounds.lastStart.
+ */
+export const NIGHT_CALENDAR_MAX_DAYS = NIGHT_START_AHEAD_DAYS + 1;
 
 export interface NightWindowMinutes {
   startMin: number;
@@ -162,63 +166,41 @@ export function firstBlockedNight(calendar: readonly NightCalendarDay[], start: 
   return null;
 }
 
-// ===== Order-side nightly schedule (derived; the backend exposes no lease_nights API) =====
+// ===== Order-side nightly snapshot and progress (GET /orders/:id/nights, fleet nightly.go OrderNights) =====
 
 export interface NightlyOrderSnapshot {
   nightStartDate: string;
   nights: number;
   window: NightWindowMinutes;
-  /** orders.lease_end_at; extended by 24h per extra night (fleet outage remedy=extend). */
-  leaseEndAt?: string | null;
 }
 
-export type NightlyPhase = "before_first" | "in_window" | "between" | "ended";
+export type NightlyPhase = "before_first" | "in_window" | "opening" | "between" | "ended";
 
-export interface NightlySchedule {
-  /** Booked nights plus extra (compensation) nights, in order. */
-  nights: {date: string; extra: boolean; startAt: Date; endAt: Date; status: "done" | "current" | "upcoming"}[];
-  extraNights: number;
-  phase: NightlyPhase;
-  /** Next window start when not inside a window and nights remain. */
-  nextWindowStart: Date | null;
-  /** End of the window currently open. */
-  currentWindowEnd: Date | null;
-  completed: number;
+export interface NightRowTimes {
+  window_start: string;
+  window_end: string;
+  state: string;
 }
 
 /**
- * Extra nights = (lease_end_at − original end) / 24h, rounded. fleet nightly.go adds exactly 24h per
- * extra night (multiple outages within one night still add one night).
+ * Current phase from the backend's per-night rows. `next_window_start` is the earliest booked/active night whose
+ * window has not ended (<= now while inside it). Inside a window the night is either `active` (container started,
+ * login allowed) or still `booked` (unpark pending/retrying) → "opening".
  */
-export function extraNightsOf(snapshot: NightlyOrderSnapshot) {
-  if (!snapshot.leaseEndAt) return 0;
-  const end = Date.parse(snapshot.leaseEndAt);
-  if (!Number.isFinite(end)) return 0;
-  const original = nightlyLeaseEnd(snapshot.nightStartDate, snapshot.nights, snapshot.window).getTime();
-  return Math.max(0, Math.round((end - original) / DAY_MS));
-}
-
-export function nightlySchedule(snapshot: NightlyOrderSnapshot, now: Date | number = Date.now()): NightlySchedule {
-  const extraNights = extraNightsOf(snapshot);
+export function nightlyProgress(data: {next_window_start: string | null; nights: readonly NightRowTimes[]}, now: Date | number = Date.now()) {
   const at = Number(now);
-  const nights = Array.from({length: snapshot.nights + extraNights}, (_, index) => {
-    const date = addDays(snapshot.nightStartDate, index);
-    const startAt = nightStartAt(date, snapshot.window);
-    const endAt = nightEndAt(date, snapshot.window);
-    const status = at >= endAt.getTime() ? "done" as const : at >= startAt.getTime() ? "current" as const : "upcoming" as const;
-    return {date, extra: index >= snapshot.nights, startAt, endAt, status};
-  });
-  const current = nights.find((night) => night.status === "current") ?? null;
-  const next = nights.find((night) => night.status === "upcoming") ?? null;
-  const completed = nights.filter((night) => night.status === "done").length;
-  const phase: NightlyPhase = current ? "in_window" : !next ? "ended" : completed === 0 ? "before_first" : "between";
+  const current = data.nights.find((night) =>
+    (night.state === "active" || night.state === "booked") && Date.parse(night.window_start) <= at && at < Date.parse(night.window_end)) ?? null;
+  const completed = data.nights.filter((night) => Date.parse(night.window_end) <= at).length;
+  const phase: NightlyPhase = current
+    ? current.state === "active" ? "in_window" : "opening"
+    : data.next_window_start === null ? "ended" : completed === 0 ? "before_first" : "between";
   return {
-    nights,
-    extraNights,
     phase,
-    nextWindowStart: current ? null : next?.startAt ?? null,
-    currentWindowEnd: current?.endAt ?? null,
     completed,
+    total: data.nights.length,
+    currentWindowEnd: current?.window_end ?? null,
+    nextWindowStart: current ? null : data.next_window_start,
   };
 }
 
@@ -251,7 +233,6 @@ export function resolveNightStart(calendar: readonly NightCalendarDay[], cards: 
 
 export interface NightlyOrderFields {
   duration: number;
-  lease_end_at: string | null;
   pricing_mode?: string | null;
   night_start_date?: string | null;
   night_start_min?: number | null;
@@ -259,27 +240,25 @@ export interface NightlyOrderFields {
 }
 
 /**
- * `nightly`: the order's pricing-mode snapshot is nightly (the detail's product.pricing_mode is that snapshot,
- * compute/service.go:1501). `snapshot`: null when the night fields are missing (detail endpoint omits them and
- * the list-row merge failed); callers show an explicit error instead of guessing a schedule.
+ * `nightly`: the order's pricing-mode snapshot is nightly. `snapshot`: null when the night fields are missing
+ * (data error on a nightly order); callers show an explicit error instead of guessing.
  */
 export function nightlyOrderSnapshot(order: NightlyOrderFields, fallbackPricingMode?: string | null) {
   const nightly = (order.pricing_mode ?? fallbackPricingMode) === "nightly";
   const start = nightDateString(order.night_start_date);
   const snapshot: NightlyOrderSnapshot | null = nightly && start && order.night_start_min != null && order.night_end_min != null
-    ? {nightStartDate: start, nights: order.duration, window: {startMin: order.night_start_min, endMin: order.night_end_min}, leaseEndAt: order.lease_end_at}
+    ? {nightStartDate: start, nights: order.duration, window: {startMin: order.night_start_min, endMin: order.night_end_min}}
     : null;
   return {nightly, snapshot};
 }
 
 /**
  * One-line nightly label for order rows (supplier list/modal). null for non-nightly orders; without the night
- * snapshot only the night count is shown (no guessed dates).
+ * snapshot only the night count is shown (no guessed dates). Compensation nights have no supplier-side API.
  */
 export function nightlyOrderSummary(order: NightlyOrderFields) {
   const {nightly, snapshot} = nightlyOrderSnapshot(order);
   if (!nightly) return null;
   if (!snapshot) return `包夜 · ${order.duration} 晚`;
-  const extra = extraNightsOf(snapshot);
-  return `包夜 · ${snapshot.nightStartDate} 晚起 · 每晚 ${formatNightWindow(snapshot.window.startMin, snapshot.window.endMin)} · ${order.duration} 晚${extra ? `（另补偿 ${extra} 晚）` : ""}`;
+  return `包夜 · ${snapshot.nightStartDate} 晚起 · 每晚 ${formatNightWindow(snapshot.window.startMin, snapshot.window.endMin)} · ${order.duration} 晚`;
 }

@@ -114,7 +114,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
   const managed = isManagedBuyerOrder(detail);
   const statusCopy = buyerOrderStatusLabel({status: order.status, fulfillment_mode: managed ? "managed" : undefined});
   const showManagedSections = managed && !detail.renewal && !["pending_payment", "cancelled"].includes(order.status);
-  const nightly = nightlyOrderSnapshot(order, product.pricing_mode);
+  const nightly = nightlyOrderSnapshot(order);
   const progress = orderProgress(detail);
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
@@ -239,7 +239,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
           </InfoCard>
 
           {showManagedSections ? <ManagedOrderSections
-            nightly={nightly.nightly ? {snapshot: nightly.snapshot} : undefined}
+            nightly={nightly.nightly}
             orderNo={order.order_no}
             productDeliveryMode={detail.product.delivery_mode}
             provisioning={isProvisioning(order.status)}
