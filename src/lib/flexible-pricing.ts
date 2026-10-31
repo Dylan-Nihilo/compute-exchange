@@ -122,14 +122,15 @@ export function enabledRentalPrices(rows: readonly ProductPriceRow[] | null | un
 
 // ===== Market availability and quote (compute-api.md GET /products/:id/availability, T-093) =====
 
-export const leaseStartRules = ["on_activation", "on_buyer_confirm"] as const;
+// night_window (compute/availability.go LeaseStartNightWindow): 包夜首晚窗口开始起算, 当晚订单以实际开通时刻起算, 终点固定。
+export const leaseStartRules = ["on_activation", "on_buyer_confirm", "night_window"] as const;
 export type LeaseStartRule = (typeof leaseStartRules)[number];
 
 const availabilitySchema = z.object({
   available: z.boolean(),
   // Display-ready Chinese reason when `available=false`, "" otherwise.
   reason: z.string(),
-  // Same QuoteOrder result POST /orders will charge; null only for nightly (S4 not wired).
+  // Same QuoteOrder result POST /orders will charge (nightly included since S4, compute/availability.go:156).
   quote: z
     .object({
       pricing_mode: z.string(),
@@ -152,6 +153,8 @@ export interface AvailabilityQuery {
   pricingMode?: string;
   cards: number;
   duration: number;
+  /** Nightly only (YYYY-MM-DD); omitted → backend uses the first bookable night. */
+  nightStartDate?: string;
 }
 
 export function fetchProductAvailability(
@@ -164,6 +167,7 @@ export function fetchProductAvailability(
   if (query.pricingMode) params.set("pricing_mode", query.pricingMode);
   params.set("cards", String(query.cards));
   params.set("duration", String(query.duration));
+  if (query.nightStartDate) params.set("night_start_date", query.nightStartDate);
   return requestEnvelope(`/api/market-proxy/products/${productId}/availability?${params}`, availabilitySchema, {
     fallback: "余量与报价读取失败",
     unavailable: "报价服务暂不可用",
@@ -173,6 +177,7 @@ export function fetchProductAvailability(
 
 /** How the lease term starts, per `lease_preview.start_rule`. */
 export function leaseStartRuleText(rule: LeaseStartRule) {
+  if (rule === "night_window") return "租期从首晚窗口开始时起算（当晚下单以实际开通时刻起算），到最后一晚窗口结束为止；窗口外自动停机";
   return rule === "on_activation"
     ? "租期从平台开通并自检通过时起算，开通耗时不计入租期"
     : "租期从你确认签收供给方交付的凭证时起算";
@@ -182,7 +187,7 @@ export interface CheckoutAmounts {
   /**
    * quote: the backend availability quote (what POST /orders will charge);
    * estimate: local calculation, shown only while the quote is loading or the quote endpoint failed;
-   * none: the backend answered without a quote (nightly not open) or nothing can be computed.
+   * none: the backend answered without a quote or nothing can be computed.
    */
   source: "quote" | "estimate" | "none";
   totalMinor?: number;

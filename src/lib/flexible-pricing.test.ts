@@ -101,6 +101,22 @@ describe("availability quote", () => {
     assert.match(result.reason, /包夜预订尚未开放/);
   });
 
+  it("passes night_start_date and parses the nightly quote with a night_window preview", async () => {
+    let url = "";
+    const result = await fetchProductAvailability("12", {pricingMode: "nightly", cards: 2, duration: 3, nightStartDate: "2026-11-03"}, async (input) => {
+      url = String(input);
+      return Response.json({code: 0, message: "success", data: {
+        available: true, reason: "",
+        quote: {pricing_mode: "nightly", unit_price: 5000, quantity: 2, duration: 3, total_amount: 30000, platform_fee: 1950, fee_rate: 650},
+        lease_preview: {start_rule: "night_window", start_at: "2026-11-03T22:00:00+08:00", end_at: "2026-11-06T08:00:00+08:00"},
+      }});
+    });
+    assert.equal(url, "/api/market-proxy/products/12/availability?pricing_mode=nightly&cards=2&duration=3&night_start_date=2026-11-03");
+    assert.equal(result.quote?.total_amount, 30000);
+    assert.equal(result.lease_preview?.start_rule, "night_window");
+    assert.match(leaseStartRuleText("night_window"), /首晚窗口开始/);
+  });
+
   it("rejects an unknown start_rule instead of guessing", async () => {
     await assert.rejects(
       fetchProductAvailability("12", {cards: 1, duration: 1}, async () =>

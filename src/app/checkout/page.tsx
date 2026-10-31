@@ -10,6 +10,7 @@ import {useRouter, useSearchParams} from "next/navigation";
 import {Suspense, useMemo, useState} from "react";
 
 import {OptionChips} from "@/components/managed/option-chips";
+import {NightCalendarPicker} from "@/components/market/night-calendar-picker";
 import {SectionQueryState, useDebouncedValue} from "@/components/managed/query-states";
 import {ErrorState, LoadingState} from "@/components/system/operation-state";
 import {useCurrentAccount} from "@/lib/auth/queries";
@@ -26,6 +27,16 @@ import {
   type RentalPricingMode,
 } from "@/lib/flexible-pricing";
 import {useAuthStore} from "@/lib/auth/store";
+import {
+  NIGHT_MAX_NIGHTS,
+  fetchNightCalendar,
+  firstBlockedNight,
+  isNightStartSelectable,
+  isNightlyOrderable,
+  maxNightsFrom,
+  nightBookingBounds,
+  resolveNightStart,
+} from "@/lib/nightly";
 import {
   calcOrderPreview,
   getMarketProduct,
@@ -61,26 +72,48 @@ function CheckoutPage() {
   const [agreed, setAgreed] = useState(false);
   const [pricingModeChoice, setPricingModeChoice] = useState<RentalPricingMode | null>(null);
   const [orderConflict, setOrderConflict] = useState("");
+  const [nightStartChoice, setNightStartChoice] = useState<string | null>(null);
+  // Page-open instant for the nightly booking bounds (first bookable night, today+30/+60); not re-read per render.
+  const [openedAt] = useState(() => Date.now());
   const queryClient = useQueryClient();
 
   // v1.2: multi-price / card-split / managed fields are only present when the backend sends them.
-  const prices = product?.prices ?? [];
+  // Nightly is only offered for managed container products with a night window (compute/nightly.go NightOrderWindow).
+  const nightlyAllowed = product ? isNightlyOrderable(product) : false;
+  const allPrices = product?.prices ?? [];
+  const prices = allPrices.filter((price) => price.pricingMode !== "nightly" || nightlyAllowed);
+  const nightlyUnsupported = allPrices.length > 0 && prices.length === 0;
   const selectedPrice = prices.find((price) => price.pricingMode === pricingModeChoice) ?? prices[0] ?? null;
   const splitOptions = product?.cardSplitOptions ?? [];
   const managed = product?.fulfillmentMode === "managed";
   const nightly = selectedPrice?.pricingMode === "nightly";
+  const nightWindow = nightly ? product?.nightWindow ?? null : null;
+  const nightBounds = useMemo(() => nightWindow ? nightBookingBounds(openedAt, nightWindow) : null, [nightWindow, openedAt]);
+  // cards=0: raw per-night max; the card-count filter is applied locally so changing cards costs no extra request
+  // (the calendar shares the availability rate limit, 30/min per user).
+  const nightCalendarQuery = useQuery({
+    enabled: Boolean(product && nightBounds),
+    queryKey: ["market", "night-calendar", productId, nightBounds?.first],
+    queryFn: () => fetchNightCalendar(productId, {cards: 0, from: nightBounds!.first}),
+    retry: false,
+    staleTime: 30_000,
+  });
+  const nightCalendar = nightCalendarQuery.data;
   const unitPriceMinor = selectedPrice ? selectedPrice.unitPriceMinor : product?.unitPriceMinor;
   // compute productToJSON: largest free-card count on one node (managed only); one order never spans nodes.
   const perNodeMax = managed && typeof product?.maxFreePerNode === "number" ? product.maxFreePerNode : null;
 
   const minOrder = splitOptions[0] ?? product?.minimumOrder ?? 1;
   const minDuration = selectedPrice?.minDuration ?? product?.minimumDuration ?? 1;
-  const maxDuration = selectedPrice ? maxDurationByPricingMode[selectedPrice.pricingMode] : undefined;
   const maxQuantity = perNodeMax ?? product?.availableUnits ?? 1;
   const isPerpetual = !selectedPrice && product?.pricingMode === "perpetual";
   const effectiveQuantity = splitOptions.length
     ? (splitOptions.find((option) => option === quantity) ?? minOrder)
     : (quantity ?? minOrder);
+  const nightStart = nightCalendar && nightBounds ? resolveNightStart(nightCalendar, effectiveQuantity, nightBounds, nightStartChoice) : null;
+  const maxDuration = nightly
+    ? (nightStart && nightBounds ? Math.max(1, maxNightsFrom(nightStart, nightBounds)) : NIGHT_MAX_NIGHTS)
+    : selectedPrice ? maxDurationByPricingMode[selectedPrice.pricingMode] : undefined;
   const effectiveDuration = isPerpetual
     ? 1
     : Math.min(Math.max(duration ?? minDuration, minDuration), maxDuration ?? Number.MAX_SAFE_INTEGER);
@@ -88,11 +121,17 @@ function CheckoutPage() {
   // GET /products/:id/availability returns the same QuoteOrder result POST /orders charges, so every
   // priced product is quoted by the backend; the local calculation is only a labelled fallback.
   const selectedPricingMode = selectedPrice?.pricingMode;
+  // Nightly quotes wait for a start night: without it the backend would quote its own default night.
   const currentInput = useMemo(
-    () => product && unitPriceMinor
-      ? {...(selectedPricingMode ? {pricingMode: selectedPricingMode} : {}), cards: effectiveQuantity, duration: effectiveDuration}
+    () => product && unitPriceMinor && (!nightly || nightStart)
+      ? {
+        ...(selectedPricingMode ? {pricingMode: selectedPricingMode} : {}),
+        cards: effectiveQuantity,
+        duration: effectiveDuration,
+        ...(nightly && nightStart ? {nightStartDate: nightStart} : {}),
+      }
       : null,
-    [product, unitPriceMinor, selectedPricingMode, effectiveQuantity, effectiveDuration],
+    [product, unitPriceMinor, selectedPricingMode, effectiveQuantity, effectiveDuration, nightly, nightStart],
   );
   const availabilityInput = useDebouncedValue(currentInput, 450);
   // The shown quote must belong to the current selection, not to the one before the debounce settled.
@@ -116,6 +155,8 @@ function CheckoutPage() {
   const {totalMinor, feeMinor, feeRate} = amounts;
   const unavailable = availability?.available === false;
   const quoting = !inputSettled || availabilityQuery.isFetching || (!availabilityQuery.isError && !availability);
+  const nightPending = nightly && !nightStart;
+  const blockedNight = nightly && nightStart && nightCalendar ? firstBlockedNight(nightCalendar, nightStart, effectiveDuration, effectiveQuantity) : null;
 
   const orderMutation = useMutation({
     mutationFn: () =>
@@ -125,6 +166,7 @@ function CheckoutPage() {
         duration: effectiveDuration,
         compliance_agreed: agreed,
         ...(selectedPrice ? {pricing_mode: selectedPrice.pricingMode} : {}),
+        ...(nightly && nightStart ? {night_start_date: nightStart} : {}),
       }),
     onMutate: () => setOrderConflict(""),
     onSuccess: (result) => {
@@ -141,6 +183,7 @@ function CheckoutPage() {
       if (isBackendRequestError(error) && error.code === 40900) {
         setOrderConflict(message);
         void queryClient.invalidateQueries({queryKey: ["market", "availability", productId]});
+        void queryClient.invalidateQueries({queryKey: ["market", "night-calendar", productId]});
         void queryClient.invalidateQueries({queryKey: ["market", "product", productId]});
         return;
       }
@@ -224,7 +267,8 @@ function CheckoutPage() {
     ? `${money.format(selectedPrice.unitPriceMinor / 100)} / 卡·${rentalPeriodUnits[selectedPrice.pricingMode]}`
     : `${product.unitPrice} / ${product.priceUnit}`;
   const submitBlocked = !agreed || maxQuantity < minOrder || totalMinor === undefined || !policy?.trading_enabled ||
-    policyQuery.isError || product.health === "offline" || unavailable || quoting;
+    policyQuery.isError || product.health === "offline" || unavailable || quoting || nightlyUnsupported || nightPending ||
+    Boolean(blockedNight);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8">
@@ -279,6 +323,13 @@ function CheckoutPage() {
                   <li>付款后平台自动开通，开通完成后经平台 SSH 网关登录使用；开通所用时间不计入租期。</li>
                   <li>开通失败时订单自动取消并全额退款。</li>
                   <li>租期结束后自动结算，无需确认签收。</li>
+                  {nightly && nightWindow ? (
+                    <>
+                      <li>包夜每晚 {formatNightWindow(nightWindow.startMin, nightWindow.endMin)} 可用；白天自动停机，夜间窗口开始时自动开机，容器与数据保留。</li>
+                      <li>仅窗口内可经网关登录；窗口结束前 30 分钟、10 分钟提醒，到点断开会话。</li>
+                      <li>所有夜晚使用同一节点的同一组卡；包夜订单不支持续租，需要更多夜晚请重新下单。</li>
+                    </>
+                  ) : null}
                 </ul>
               </section>
             ) : null}
@@ -311,7 +362,9 @@ function CheckoutPage() {
                 items={splitOptions.map((option) => ({
                   value: option,
                   label: `${option} 卡`,
-                  disabled: option > maxQuantity,
+                  // Nightly: also disabled when no bookable start night has that many free cards on one node.
+                  disabled: option > maxQuantity || Boolean(nightly && nightCalendar && nightBounds &&
+                    !nightCalendar.some((day) => isNightStartSelectable(day, option, nightBounds))),
                 }))}
                 label="卡数（同一台节点内）"
                 onChange={(value) => { setQuantity(value); setOrderConflict(""); }}
@@ -326,6 +379,35 @@ function CheckoutPage() {
                 onChange={(value) => { setQuantity(value); setOrderConflict(""); }}
               />
             )}
+            {nightly && nightWindow && nightBounds ? (
+              <>
+                <p className="rounded-lg bg-surface px-3 py-2 text-xs leading-5 text-muted">
+                  每晚窗口 <span className="font-medium text-foreground">{formatNightWindow(nightWindow.startMin, nightWindow.endMin)}</span>
+                  ，窗口外自动停机；当晚窗口开始 2 小时后不再接受当晚预订。
+                </p>
+                <NightCalendarPicker
+                  bounds={nightBounds}
+                  calendar={nightCalendar}
+                  cards={effectiveQuantity}
+                  nights={effectiveDuration}
+                  onSelect={(date) => { setNightStartChoice(date); setOrderConflict(""); }}
+                  query={{
+                    error: nightCalendarQuery.error,
+                    isError: nightCalendarQuery.isError,
+                    isFetching: nightCalendarQuery.isFetching,
+                    isPending: nightCalendarQuery.isPending,
+                    refetch: nightCalendarQuery.refetch,
+                  }}
+                  start={nightStart}
+                />
+                {blockedNight ? (
+                  <p className="text-sm text-danger" role="alert">{blockedNight} 晚单机空闲卡不足 {effectiveQuantity} 卡，请减少晚数、卡数或更换起始夜晚。</p>
+                ) : null}
+              </>
+            ) : null}
+            {nightlyUnsupported ? (
+              <p className="text-sm text-danger" role="alert">该商品仅提供包夜计费，但不满足包夜下单条件（需平台托管的分卡容器商品并设置夜间窗口），暂不可在线下单。</p>
+            ) : null}
             {isPerpetual ? (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted">计费周期</span>
@@ -418,8 +500,10 @@ function CheckoutPage() {
                 </>
               ) : maxQuantity < minOrder ? (
                 "库存不足"
-              ) : unavailable ? (
+              ) : unavailable || nightlyUnsupported ? (
                 "暂不可下单"
+              ) : nightPending ? (
+                "请选择起始夜晚"
               ) : quoting ? (
                 "正在报价"
               ) : (
@@ -475,7 +559,9 @@ function AvailabilityStatus({
             {preview.start_rule === "on_activation" && preview.start_at
               ? `；若现在支付并立即开通，预计 ${formatDateTime(preview.start_at)}${
                 preview.end_at ? ` 至 ${formatDateTime(preview.end_at)}` : " 起"}`
-              : ""}
+              : preview.start_rule === "night_window" && preview.start_at && preview.end_at
+                ? `；本单租期 ${formatDateTime(preview.start_at)} 至 ${formatDateTime(preview.end_at)}（仅每晚窗口内可用）`
+                : ""}
             。
           </p>
         ) : null}

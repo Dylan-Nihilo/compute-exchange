@@ -595,6 +595,8 @@ export type PlaceOrderInput = {
   compliance_agreed: boolean;
   /** v1.2: required for multi-price rental products; omitted for legacy single-price ones. */
   pricing_mode?: string;
+  /** v1.2 nightly (compute/service.go:1070): first night, YYYY-MM-DD; required when pricing_mode=nightly. */
+  night_start_date?: string;
 };
 
 export type PlaceOrderResult = {
