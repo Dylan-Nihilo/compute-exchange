@@ -24,6 +24,17 @@ it("accepts real node/advice envelopes, preserves null telemetry, and never reta
   }), {list: [], total: 0});
 });
 
+it("supplier node list carries dispatch_hold / dispatch_hold_reason (T-105)", async () => {
+  const [held, plain] = await fetchSupplierNodes(async () => Response.json({code: 0, data: [
+    {...node, id: 7, dispatch_hold: 1, dispatch_hold_reason: "信用分低于阈值"},
+    {...node, id: 8, dispatch_hold: false, dispatch_hold_reason: null},
+  ]}));
+  assert.equal(held?.dispatch_hold, true);
+  assert.equal(held?.dispatch_hold_reason, "信用分低于阈值");
+  assert.equal(plain?.dispatch_hold, false);
+  assert.equal(plain?.dispatch_hold_reason, null);
+});
+
 it("sends validated registration once and rejects false successful deletion or broken envelopes", async () => {
   const input = {product_id: 2, node_name: " gpu-node ", total_cards: 8};
   const registration = await registerNode(input, async (url, init) => {

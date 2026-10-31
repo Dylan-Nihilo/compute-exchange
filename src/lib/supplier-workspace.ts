@@ -156,8 +156,8 @@ const supplierOrderSchema = z.object({
   pricing_mode: z.string().optional(),
   // v1.2 (docs/25 §25.7.6): absent on legacy backends, which keeps the manual-mode UX.
   fulfillment_mode: fulfillmentModeSchema.optional(),
-  // Currently never sent (compute/repository.go:112 `json:"-"`), so the order modal shows the
-  // generic "租期结束后分账" copy; read only if the backend starts exposing it.
+  // compute/repository.go:112 is still `json:"-"` on orders (only settlement rows expose it), so the
+  // order modal shows the generic "租期结束后分账" copy; read only if the backend starts exposing it.
   settle_ready_at: z.string().nullable().optional(),
 });
 
@@ -173,9 +173,12 @@ const settlementSchema = z.object({
   created_at: z.string(),
   // payment/repository.go:27 Settlement (T-106, migration 037). `amount` is already net of
   // refund_deduction; platform_compensation is the part of that deduction the platform bears.
-  // The order's fulfillment_mode / settle_ready_at are NOT exposed here (compute/repository.go:112 json:"-").
   refund_deduction: z.number().int().nonnegative().optional().default(0),
   platform_compensation: z.number().int().nonnegative().optional().default(0),
+  // The order's mode and split-ready time (payment/repository.go:52-53, integ b625305); settle_ready_at
+  // stays null for manual orders and for managed orders until the lease ends and outages are settled.
+  fulfillment_mode: fulfillmentModeSchema.optional(),
+  settle_ready_at: z.string().nullable().optional(),
 });
 
 // 供给方易宝收款账户(分账接收商编)开通状态。
@@ -287,6 +290,11 @@ export type SupplierProduct = z.infer<typeof productSchema>;
 export type SupplierProductGroup = z.infer<typeof productGroupSchema>;
 export type SupplierOrder = z.infer<typeof supplierOrderSchema>;
 export type SupplierSettlement = z.infer<typeof settlementSchema>;
+
+/** Managed row whose split waits for the lease to end (settle_ready_at not yet written). */
+export function awaitsLeaseEndSplit(item: Pick<SupplierSettlement, "fulfillment_mode" | "settle_ready_at">) {
+  return item.fulfillment_mode === "managed" && !item.settle_ready_at;
+}
 
 /**
  * Managed-order recalculation shown under the amount (payment/managed_split.go): the amount locked at

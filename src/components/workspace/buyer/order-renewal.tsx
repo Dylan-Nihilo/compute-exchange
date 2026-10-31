@@ -7,7 +7,9 @@ import {useRouter} from "next/navigation";
 import {useState} from "react";
 
 import {fetchBuyerOrderRenewalQuote, isManagedBuyerOrder, renewBuyerOrder, type BuyerOrderDetail, type BuyerOrderRenewalQuote} from "@/lib/buyer-orders";
+import {managedAccessKey} from "@/components/workspace/buyer/managed/managed-access-card";
 import {formatDateTime} from "@/lib/format/date";
+import {fetchManagedAccess, isBareMetalLease} from "@/lib/managed-orders";
 import {legalHref} from "@/lib/legal";
 
 const units = {hourly: "小时", daily: "天", weekly: "周", monthly: "个月", nightly: "晚"};
@@ -18,7 +20,14 @@ export function OrderRenewal({detail}: {detail: BuyerOrderDetail}) {
   const [duration, setDuration] = useState(String(detail.product.min_duration ?? 1));
   const amount = Number(duration);
   const managed = isManagedBuyerOrder(detail);
-  const bareMetal = managed && detail.product.delivery_mode === "bare_metal";
+  // Shares the access card's query/cache entry; delivery_kind wins, product.delivery_mode is the fallback.
+  const access = useQuery({
+    queryKey: managedAccessKey(detail.order.order_no),
+    queryFn: () => fetchManagedAccess(detail.order.order_no),
+    enabled: managed,
+    retry: false,
+  });
+  const bareMetal = managed && isBareMetalLease(access.data, detail.product.delivery_mode);
   // Renewal is priced by the order's own pricing-mode snapshot (docs/26 §26.9); older orders fall back to the product.
   const pricingMode = detail.order.pricing_mode ?? detail.product.pricing_mode;
   const quote = useQuery({

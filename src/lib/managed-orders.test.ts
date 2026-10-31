@@ -16,6 +16,7 @@ import {
   formatFen,
   formatMinutes,
   inactiveHint,
+  isBareMetalLease,
   outageItemStatus,
   refundThresholdText,
   setOutageRemedy,
@@ -38,6 +39,16 @@ test("fetchManagedAccess parses fleet.OrderAccess exactly", async () => {
   // Fields the backend does not send are not part of the contract.
   assert.equal("resource_alert" in parsed, false);
   assert.equal("outage_remedy" in parsed, false);
+});
+
+test("delivery_kind decides bare metal; product delivery_mode is only the fallback", async () => {
+  const bare = await fetchManagedAccess("ORD20261028001", async () => ok({...access, delivery_kind: "bare_metal"}));
+  assert.equal(isBareMetalLease(bare, "container"), true);
+  assert.equal(isBareMetalLease({delivery_kind: "container"}, "bare_metal"), false);
+  assert.equal(isBareMetalLease({}, "bare_metal"), true);
+  assert.equal(isBareMetalLease(undefined, "bare_metal"), true);
+  assert.equal(isBareMetalLease(undefined, null), false);
+  await assert.rejects(fetchManagedAccess("ORD20261028001", async () => ok({...access, delivery_kind: "vm"})));
 });
 
 test("fetchManagedAccess rejects an unknown lease_state and a string gateway_port", async () => {

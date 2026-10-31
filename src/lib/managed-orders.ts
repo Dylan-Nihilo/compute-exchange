@@ -34,8 +34,20 @@ export const managedAccessSchema = z.object({
   grace_until: z.string().nullable(),
   // Currently always ["publickey","password"].
   auth_methods: z.array(z.string()).nullable().transform((value) => value ?? []),
+  // fleet/access.go:248 (integ 2a97d7c): container = per-card lease container, bare_metal = whole host
+  // (host account omnis-<login>, no one-click deploy). Optional so an older backend still parses.
+  delivery_kind: z.enum(["container", "bare_metal"]).optional(),
 });
 export type ManagedAccess = z.infer<typeof managedAccessSchema>;
+
+/**
+ * Bare-metal detection: the lease's own `delivery_kind` wins; the product's `delivery_mode` is only a
+ * fallback while /access is unavailable or comes from a backend that does not send the field yet.
+ */
+export function isBareMetalLease(access: Pick<ManagedAccess, "delivery_kind"> | undefined | null, productDeliveryMode?: string | null) {
+  if (access?.delivery_kind) return access.delivery_kind === "bare_metal";
+  return productDeliveryMode === "bare_metal";
+}
 
 /** fleet.AccessSession as returned to the buyer (buyer_id is operator-only and omitted). */
 export const accessSessionSchema = z.object({

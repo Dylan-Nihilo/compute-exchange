@@ -3,7 +3,7 @@
 import {useQuery} from "@tanstack/react-query";
 import Link from "next/link";
 
-import {fetchManagedAccess} from "@/lib/managed-orders";
+import {fetchManagedAccess, isBareMetalLease} from "@/lib/managed-orders";
 
 import {ManagedAccessCard, managedAccessKey} from "./managed-access-card";
 import {ManagedOutagesCard} from "./managed-outages-card";
@@ -13,19 +13,20 @@ import {ManagedSessionsCard} from "./managed-sessions-card";
  * Managed-order sections of the buyer order page. Rendered only when the backend marks the
  * order `fulfillment_mode=managed`; manual orders keep the original delivery UI.
  */
-export function ManagedOrderSections({orderNo, provisioning, bareMetal}: {orderNo: string; provisioning: boolean; bareMetal: boolean}) {
+export function ManagedOrderSections({orderNo, provisioning, productDeliveryMode}: {orderNo: string; provisioning: boolean; productDeliveryMode?: string | null}) {
   // Same key as ManagedAccessCard, so this shares one request and cache entry.
   const access = useQuery({
     queryKey: managedAccessKey(orderNo),
     queryFn: () => fetchManagedAccess(orderNo),
     retry: false,
   });
+  const bareMetal = isBareMetalLease(access.data, productDeliveryMode);
   const leaseStarted = access.data ? !["reserved", "pending", "provisioning", "cancelled"].includes(access.data.lease_state) : !provisioning;
 
   return (
     <>
-      <ManagedAccessCard bareMetal={bareMetal} orderNo={orderNo} poll={provisioning} />
-      {/* One-click deploy needs a container lease (backend modeldeploy ErrBareMetalLease). */}
+      <ManagedAccessCard orderNo={orderNo} poll={provisioning} productDeliveryMode={productDeliveryMode} />
+      {/* One-click deploy needs a container lease; bare metal gets 40001 (modeldeploy/lease_source.go:25 ErrBareMetalLease). */}
       {access.data?.lease_state === "active" && !bareMetal ? <DeployEntry orderNo={orderNo} /> : null}
       {leaseStarted ? (
         <>

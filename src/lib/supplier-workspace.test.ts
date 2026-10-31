@@ -5,6 +5,7 @@ import {BackendRequestError} from "./api/envelope.ts";
 import {isManagedDraftAwaitingSubmit, productSubmitErrorMessage} from "./managed-product.ts";
 
 import {
+  awaitsLeaseEndSplit,
   settlementAdjustment,
   createProduct,
   resubmitProduct,
@@ -185,13 +186,20 @@ test("settlements carry T-106 refund_deduction / platform_compensation", async (
   const page = await fetchSupplierSettlements({}, async () => Response.json({code: 0, message: "success", data: {
     list: [
       {id: 2, settlement_id: "ST-2", order_no: "ORD-2", payee_type: "supplier", payee_id: 9, amount: 70000, status: "pending",
-        fail_reason: "", refund_deduction: 14000, platform_compensation: 3000, created_at: "2026-10-30T09:00:00Z", updated_at: null},
+        fail_reason: "", refund_deduction: 14000, platform_compensation: 3000, created_at: "2026-10-30T09:00:00Z", updated_at: null,
+        fulfillment_mode: "managed", settle_ready_at: null},
       {id: 3, settlement_id: "ST-3", order_no: "ORD-3", payee_type: "supplier", payee_id: 9, amount: 84000, status: "success",
-        fail_reason: null, created_at: "2026-10-30T09:00:00Z"},
+        fail_reason: null, created_at: "2026-10-30T09:00:00Z", fulfillment_mode: "managed", settle_ready_at: "2026-10-31T00:00:00Z"},
+      {id: 4, settlement_id: "ST-4", order_no: "ORD-4", payee_type: "supplier", payee_id: 9, amount: 500, status: "pending",
+        fail_reason: "", created_at: "2026-10-30T09:00:00Z", fulfillment_mode: "manual", settle_ready_at: null},
     ],
     total: 2, page: 1, page_size: 20,
   }}));
-  const [adjusted, plain] = page.settlements;
+  const [adjusted, plain, manual] = page.settlements;
+  assert.equal(awaitsLeaseEndSplit(adjusted!), true);
+  assert.equal(awaitsLeaseEndSplit(plain!), false);
+  assert.equal(awaitsLeaseEndSplit(manual!), false);
+  assert.equal(awaitsLeaseEndSplit({}), false);
   assert.deepEqual(settlementAdjustment(adjusted!), {locked: 84000, deduction: 14000, compensation: 3000});
   assert.equal(plain?.refund_deduction, 0);
   assert.equal(settlementAdjustment(plain!), null);

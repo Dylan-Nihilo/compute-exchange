@@ -6,7 +6,7 @@ import Link from "next/link";
 import {SectionQueryState} from "@/components/managed/query-states";
 import {CopyBlock} from "@/components/scheduler/managed-node/copy-block";
 import {formatDateTime} from "@/lib/format/date";
-import {expiryReminder, fetchManagedAccess, inactiveHint, leaseStateCopy, scpCommand, sshCommand, type ManagedAccess} from "@/lib/managed-orders";
+import {expiryReminder, fetchManagedAccess, inactiveHint, isBareMetalLease, leaseStateCopy, scpCommand, sshCommand, type ManagedAccess} from "@/lib/managed-orders";
 
 import {ManagedSection} from "./managed-section";
 
@@ -18,13 +18,14 @@ export function managedAccessKey(orderNo: string) {
  * Gateway connection info for a managed order (GET /orders/:id/access). The node IP,
  * supplier account and container port are never exposed (docs/25 §25.6.1).
  */
-export function ManagedAccessCard({orderNo, poll, bareMetal = false}: {orderNo: string; poll: boolean; bareMetal?: boolean}) {
+export function ManagedAccessCard({orderNo, poll, productDeliveryMode}: {orderNo: string; poll: boolean; productDeliveryMode?: string | null}) {
   const query = useQuery({
     queryKey: managedAccessKey(orderNo),
     queryFn: () => fetchManagedAccess(orderNo),
     refetchInterval: poll ? 5000 : false,
     retry: false,
   });
+  const bareMetal = isBareMetalLease(query.data, productDeliveryMode);
 
   return (
     <ManagedSection
