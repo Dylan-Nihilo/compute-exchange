@@ -10,6 +10,11 @@ omnisline.com, www.omnisline.com {
 		respond 404
 	}
 
+	# Scheduler/gateway internal callbacks are VPC-only (docs/25 §25.10).
+	handle /api/v1/internal/* {
+		respond 404
+	}
+
 	handle /api/v1/* {
 		reverse_proxy wanxiang-backend:8080
 	}

@@ -11,12 +11,12 @@ import {AnimatedNumber} from "@/components/system/animated-number";
 import {ErrorState} from "@/components/system/operation-state";
 import {useCurrentAccount} from "@/lib/auth/queries";
 import {
-  buyerOrderStatusCopy,
+  buyerOrderStatusLabel,
   confirmBuyerOrder,
   fetchBuyerOrders,
+  needsBuyerReceipt,
   summarizeBuyerOrders,
   type BuyerOrder,
-  type OrderStatus,
 } from "@/lib/buyer-orders";
 import {formatDateTime} from "@/lib/format/date";
 import {notify} from "@/lib/notify";
@@ -293,11 +293,11 @@ function OrderRow({onConfirm, order}: {onConfirm: () => void; order: BuyerOrder}
       <div className="min-w-0">
         <p className="truncate text-[13px] font-medium text-[#244b61]">{order.order_no}</p>
         <p className="mt-0.5 truncate text-[11px] text-[#78909c]">
-          算力资源 #{order.product_id} · {order.quantity} 份 · {order.duration} 小时 · {formatDateTime(order.created_at)}
+          算力资源 #{order.product_id} · {order.quantity} 份 · {order.duration} {durationUnit(order.pricing_mode)} · {formatDateTime(order.created_at)}
         </p>
       </div>
       <div>
-        <StatusChip status={order.status} />
+        <StatusChip order={order} />
       </div>
       <div className="flex items-center gap-2 md:justify-end">
         <Button
@@ -307,7 +307,7 @@ function OrderRow({onConfirm, order}: {onConfirm: () => void; order: BuyerOrder}
         >
           资源
         </Button>
-        {order.status === "provisioning" ? (
+        {needsBuyerReceipt(order) ? (
           <Button className={`h-9 rounded-xl px-4 text-xs ${primaryButtonInteraction}`} onPress={onConfirm} variant="primary">
             确认签收
           </Button>
@@ -317,7 +317,14 @@ function OrderRow({onConfirm, order}: {onConfirm: () => void; order: BuyerOrder}
   );
 }
 
-function StatusChip({status}: {status: OrderStatus}) {
+function durationUnit(pricingMode?: string) {
+  const units: Record<string, string> = {daily: "天", hourly: "小时", monthly: "个月", nightly: "晚", weekly: "周"};
+  // Legacy rows without pricing_mode were always shown in hours.
+  return units[pricingMode ?? "hourly"] ?? "期";
+}
+
+function StatusChip({order}: {order: BuyerOrder}) {
+  const {status} = order;
   const color = status === "completed" || status === "active"
     ? "success"
     : status === "pending_payment" || status === "provisioning" || status === "paid"
@@ -325,7 +332,7 @@ function StatusChip({status}: {status: OrderStatus}) {
       : status === "frozen" || status === "refunded"
         ? "danger"
         : "default";
-  return <Chip color={color} size="sm" variant="soft">{buyerOrderStatusCopy[status]}</Chip>;
+  return <Chip color={color} size="sm" variant="soft">{buyerOrderStatusLabel(order)}</Chip>;
 }
 
 function greeting() {

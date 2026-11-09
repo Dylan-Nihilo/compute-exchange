@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import {describe, it} from "node:test";
+import test, {describe, it} from "node:test";
 
 import {
+  canUnfreezeAdminOrder,
+  unfreezeAdminOrder,
   approveQualification,
   bindAdminMerchant,
   executeAdminRefund,
@@ -231,4 +233,21 @@ describe("admin workspace API", () => {
       openRiskAlerts: 1,
     });
   });
+});
+
+test("unfreezeAdminOrder posts wrong_freeze and only managed frozen orders qualify", async () => {
+  const result = await unfreezeAdminOrder("ORD20261101103000123abc", true, async (url, init) => {
+    assert.equal(url, "/api/admin/orders/ORD20261101103000123abc/unfreeze");
+    assert.equal(init?.method, "POST");
+    assert.deepEqual(JSON.parse(String(init?.body)), {wrong_freeze: true});
+    return Response.json({code: 0, message: "success", data: {order_no: "ORD20261101103000123abc", status: "active", wrong_freeze: true}});
+  });
+  assert.equal(result.status, "active");
+  await assert.rejects(
+    unfreezeAdminOrder("ORD1", false, async () => Response.json({code: 40001, message: "人工订单不支持解冻"}, {status: 400})),
+    /人工订单不支持解冻/,
+  );
+  assert.equal(canUnfreezeAdminOrder({status: "frozen", fulfillment_mode: "managed"}), true);
+  assert.equal(canUnfreezeAdminOrder({status: "frozen", fulfillment_mode: "manual"}), false);
+  assert.equal(canUnfreezeAdminOrder({status: "frozen"}), false);
 });

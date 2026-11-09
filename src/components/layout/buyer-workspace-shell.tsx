@@ -24,6 +24,7 @@ const navItems: readonly {
   {label: "账单中心", icon: "credit-card.svg", href: "/console/buyer/billing"},
   {label: "发票管理", icon: "file-check.svg", href: "/console/buyer/invoices"},
   {label: "工单售后", icon: "life-buoy.svg", href: "/console/buyer/tickets"},
+  {label: "SSH 公钥", icon: "order-detail/key.svg", href: "/console/buyer/ssh-keys"},
   {
     label: "个人/企业中心",
     icon: "file-check.svg",

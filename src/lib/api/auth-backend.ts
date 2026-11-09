@@ -75,7 +75,20 @@ export async function requestAuthBackend(path: string, init: RequestInit) {
     ...init,
     cache: "no-store",
   });
-  return {payload: await response.json(), status: response.status};
+  const text = await response.text();
+  try {
+    return {payload: JSON.parse(text), status: response.status};
+  } catch {
+    // The backend router answers unknown paths with a plain-text 404. Surface that as
+    // "not open yet" (501) so pages can tell an unreleased endpoint from an outage.
+    if (response.status === 404 || response.status === 405) {
+      return {
+        payload: {code: 50000, message: "该功能暂未开放"},
+        status: 501,
+      };
+    }
+    throw new Error("Backend returned a non-JSON response");
+  }
 }
 
 // proxyAuthenticatedBackendRaw 与 proxyAuthenticatedBackend 走同一套

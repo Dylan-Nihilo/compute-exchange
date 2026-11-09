@@ -22,9 +22,9 @@
     "heroui:setup": "node scripts/heroui/setup-pro.mjs"
   },
   "dependencies": {
-    "@heroui-pro/react": "1.0.0-beta.7",
-    "@heroui/react": "3.2.2",
-    "@heroui/styles": "3.2.2",
+    "@heroui-pro/react": "1.0.0-beta.11",
+    "@heroui/react": "3.2.7",
+    "@heroui/styles": "3.2.7",
     "@number-flow/react": "0.6.1",
     "@paper-design/shaders-react": "0.0.80",
     "@samasante/liquid-glass": "0.1.1",
@@ -49,7 +49,7 @@
     "next": "15.5.20",
     "next-themes": "0.4.6",
     "react": "19.2.7",
-    "react-aria-components": "1.19.0",
+    "react-aria-components": "1.22.1",
     "react-dom": "19.2.7",
     "react-markdown": "10.1.0",
     "react-resizable-panels": "4.12.1",

@@ -10,6 +10,14 @@ import {
   type MarketSupply,
 } from "../components/market/market-data.ts";
 import {ApiError, createApiClient, type ApiClient} from "./api/client.ts";
+import {BackendRequestError} from "./api/envelope.ts";
+import type {CardSplitOption, FulfillmentMode, ProductAvailability} from "./domain/contracts.ts";
+import {
+  enabledRentalPrices,
+  parseCardSplitOptions,
+  productPriceSchema,
+  type RentalPrice,
+} from "./flexible-pricing.ts";
 
 // 2026-09-21 接口收口: 商品/交易配置读接口需登录, 浏览器经鉴权 BFF(/api/market-proxy)代理,
 // 不再公开直连 /api/v1(SSR 直连同时废弃——市场页改为客户端取数)。
@@ -40,6 +48,15 @@ const productSchema = z.object({
   self_operated: z.boolean().optional(),
   supplier_name: z.string().optional(),
   health: z.enum(["unknown", "healthy", "degraded", "offline"]).optional(),
+  // v1.2 (docs/26 §26.9): absent on backends before the managed rental release.
+  fulfillment_mode: z.enum(["manual", "managed"]).optional(),
+  availability: z.enum(["fulltime", "night_window"]).optional(),
+  night_start_min: z.number().int().min(0).max(1439).nullable().optional(),
+  night_end_min: z.number().int().min(0).max(1439).nullable().optional(),
+  // compute productToJSON: ascending []int for card-split products, null otherwise.
+  card_split_options: z.array(z.number().int()).nullable().optional(),
+  max_free_per_node: z.number().int().nonnegative().nullable().optional(),
+  prices: z.array(productPriceSchema).nullable().optional(),
 });
 
 export {productSchema as computeProductSchema};
@@ -101,6 +118,7 @@ const pricingModeLabels: Record<string, string> = {
   daily: "按天",
   hourly: "按小时",
   monthly: "按月",
+  nightly: "包夜",
   perpetual: "买断",
   weekly: "按周",
 };
@@ -117,6 +135,7 @@ const priceSuffixes: Record<string, string> = {
   daily: "天",
   hourly: "小时",
   monthly: "月",
+  nightly: "晚",
   weekly: "周",
 };
 
@@ -140,7 +159,10 @@ export type MarketQuery = {
   availableHours: string;
   priceMin: number | null;
   priceMax: number | null;
+  /** Product spec filter `card_count_min`: listing has at least N cards in total. */
   cardCountMin: number | null;
+  /** v1.2 `min_cards`: N cards can be rented at once (managed: within one node's free slots). */
+  minCards: number | null;
   sort: MarketSort;
   page: number;
   pageSize: number;
@@ -170,6 +192,7 @@ export const defaultMarketQuery: MarketQuery = {
   priceMin: null,
   priceMax: null,
   cardCountMin: null,
+  minCards: null,
   sort: "price_asc",
   page: 1,
   pageSize: 10,
@@ -177,7 +200,7 @@ export const defaultMarketQuery: MarketQuery = {
 
 const productTypes = ["card_rental", "outright", "center", "colocation"] as const;
 const deliveryModes = ["bare_metal", "container", "rack", "vm"] as const;
-const pricingModes = ["hourly", "daily", "weekly", "monthly", "perpetual"] as const;
+const pricingModes = ["hourly", "daily", "weekly", "monthly", "nightly", "perpetual"] as const;
 const marketSorts: readonly MarketSort[] = [
   "created_at_desc",
   "price_asc",
@@ -212,6 +235,36 @@ export type MarketProductDetail = MarketSupply & {
     totalOrders: number;
   } | null;
 };
+
+/**
+ * v1.2 managed-rental fields. Keys are only present when the backend sends them, so legacy
+ * products keep their exact mapped shape.
+ */
+export type ManagedRentalFields = {
+  fulfillmentMode?: FulfillmentMode;
+  availability?: ProductAvailability;
+  nightWindow?: {startMin: number; endMin: number};
+  cardSplitOptions?: CardSplitOption[];
+  maxFreePerNode?: number;
+  prices?: RentalPrice[];
+};
+
+function mapManagedRentalFields(product: ComputeProduct): ManagedRentalFields {
+  const splitOptions = parseCardSplitOptions(product.card_split_options);
+  const prices = product.prices ? enabledRentalPrices(product.prices) : [];
+  return {
+    ...(product.fulfillment_mode ? {fulfillmentMode: product.fulfillment_mode} : {}),
+    ...(product.availability ? {availability: product.availability} : {}),
+    ...(product.availability === "night_window" &&
+    typeof product.night_start_min === "number" &&
+    typeof product.night_end_min === "number"
+      ? {nightWindow: {startMin: product.night_start_min, endMin: product.night_end_min}}
+      : {}),
+    ...(splitOptions.length ? {cardSplitOptions: splitOptions} : {}),
+    ...(typeof product.max_free_per_node === "number" ? {maxFreePerNode: product.max_free_per_node} : {}),
+    ...(prices.length ? {prices} : {}),
+  };
+}
 
 export function mapComputeProduct(product: ComputeProduct): MarketSupply {
   const unitLabel =
@@ -269,6 +322,7 @@ export function mapComputeProduct(product: ComputeProduct): MarketSupply {
     minimumDuration: product.min_duration,
     selfOperated: product.self_operated,
     totalPflopsApprox: product.total_pflops_approx,
+    ...mapManagedRentalFields(product),
   };
 }
 
@@ -343,6 +397,7 @@ export function parseMarketQuery(params: MarketSearchParams): MarketQuery {
     priceMin: decimalParam(params.price_min),
     priceMax: decimalParam(params.price_max),
     cardCountMin: integerParam(params.card_count_min, null),
+    minCards: integerParam(params.min_cards, null),
     sort: enumParam(params.sort, marketSorts) || defaultMarketQuery.sort,
     page: integerParam(params.page, 1) ?? 1,
     pageSize: enumNumberParam(
@@ -367,6 +422,7 @@ export function buildMarketHref(query: MarketQuery) {
   append(params, "price_min", query.priceMin);
   append(params, "price_max", query.priceMax);
   append(params, "card_count_min", query.cardCountMin);
+  append(params, "min_cards", query.minCards);
   if (query.sort !== defaultMarketQuery.sort) params.set("sort", query.sort);
   if (query.page !== 1) params.set("page", String(query.page));
   if (query.pageSize !== defaultMarketQuery.pageSize) {
@@ -408,6 +464,8 @@ export async function getMarketSupplies(
   append(params, "price_min", toMinorUnits(query.priceMin));
   append(params, "price_max", toMinorUnits(query.priceMax));
   append(params, "card_count_min", query.cardCountMin);
+  // v1.2 (compute ListProducts): separate from card_count_min; older backends ignore it.
+  append(params, "min_cards", query.minCards);
 
   const response = await client.request(
     `/products?${params.toString()}`,
@@ -535,6 +593,10 @@ export type PlaceOrderInput = {
   quantity: number;
   duration: number;
   compliance_agreed: boolean;
+  /** v1.2: required for multi-price rental products; omitted for legacy single-price ones. */
+  pricing_mode?: string;
+  /** v1.2 nightly (compute/service.go:1070): first night, YYYY-MM-DD; required when pricing_mode=nightly. */
+  night_start_date?: string;
 };
 
 export type PlaceOrderResult = {
@@ -575,14 +637,18 @@ export async function placeOrder(
       body: JSON.stringify({...input, compliance_version: LEGAL_VERSION}),
     });
   } catch {
-    throw new Error("订单服务暂不可用");
+    throw new BackendRequestError("订单服务暂不可用", {code: null, status: 0});
   }
   const parsed = placeOrderResponseSchema.safeParse(
     await response.json().catch(() => null),
   );
-  if (!parsed.success) throw new Error("订单服务返回格式错误");
+  if (!parsed.success) throw new BackendRequestError("订单服务返回格式错误", {code: null, status: response.status});
   if (!response.ok || parsed.data.code !== 0 || !parsed.data.data) {
-    throw new Error(parsed.data.message || "下单失败");
+    // Keep the backend code: 40900 (no whole-node capacity for the chosen cards) re-quotes the page.
+    throw new BackendRequestError(parsed.data.message || "下单失败", {
+      code: parsed.data.code,
+      status: response.status,
+    });
   }
   return parsed.data.data;
 }

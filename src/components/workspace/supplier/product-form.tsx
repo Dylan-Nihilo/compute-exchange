@@ -18,8 +18,19 @@ import {
   gpuVendorIcons,
   type GpuCatalogItem,
 } from "@/lib/gpu-catalog";
+import {
+  buildManagedPayload,
+  initialManagedState,
+  managedDeliveryModes,
+  productSubmitErrorMessage,
+  type ManagedErrors,
+  type ManagedProductState,
+} from "@/lib/managed-product";
 import {notify} from "@/lib/notify";
 import {createProduct, resubmitProduct, type SupplierProduct, type CreateProductInput} from "@/lib/supplier-workspace";
+
+import {ManagedProductFields} from "./managed-product-fields";
+import {SubmittedWarnings} from "./submitted-warnings";
 
 const inputClass = (error?: string) =>
   `h-11 w-full rounded-xl border bg-white/80 px-3.5 text-sm text-[#24495d] outline-none placeholder:text-[#9cb0ba] focus-visible:ring-2 focus-visible:ring-[#5f8fa3]/25 focus-visible:ring-offset-1 ${
@@ -141,16 +152,35 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
     region: product?.region ?? "北京", priceNegotiable: product?.price_negotiable ?? initialType === "colocation", complianceAgreed: false,
   }));
   const [errors, setErrors] = useState<FormErrors>({});
+  const [managedState, setManagedState] = useState<ManagedProductState>(() => initialManagedState(product));
+  const [managedErrors, setManagedErrors] = useState<ManagedErrors>({});
+  const managed = productType === "card_rental" && managedState.fulfillmentMode === "managed";
+  // Editing a product from a backend without v1.2 fields keeps the legacy manual-only form.
+  const showFulfillmentChoice = productType === "card_rental" && (!product || product.fulfillment_mode !== undefined);
+  // Price inversion hints (docs/26 §26.3.2) stay on the publish page until the supplier leaves.
+  const [submittedWarnings, setSubmittedWarnings] = useState<string[] | null>(null);
+  const [submitError, setSubmitError] = useState("");
+  // compute initialProductStatus: a new managed product is saved as `draft`; review starts on resubmit.
+  const savesManagedDraft = managed && !product;
 
   const createMutation = useMutation({
     mutationFn: (input: CreateProductInput) => product ? resubmitProduct(product.id, input) : createProduct(input),
-    onSuccess: async () => {
+    onMutate: () => setSubmitError(""),
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({queryKey: ["supplier", "products"]});
-      notify.success("商品已提交, 等待平台审核上架");
-      router.push(returnPath);
+      notify.success(savesManagedDraft
+        ? "托管商品已保存为草稿：请在节点管理接入节点并通过探活，再回到商品列表提交审核"
+        : "商品已提交, 等待平台审核上架");
+      const warnings = (result.data?.warnings ?? []).filter(Boolean);
+      if (warnings.length === 0) {
+        router.push(returnPath);
+        return;
+      }
+      setSubmittedWarnings(warnings);
+      window.scrollTo({behavior: "smooth", top: 0});
     },
-    onError: (error) =>
-      notify.error(error instanceof Error ? error.message : "商品发布失败"),
+    // Managed gate messages can list per-node reasons, so they stay on the page next to the button.
+    onError: (error) => setSubmitError(productSubmitErrorMessage(error, product ? "商品重新提交失败" : "商品发布失败")),
   });
 
   const set = (key: keyof ProductForm, value: string | boolean) => {
@@ -190,18 +220,30 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
     if (productType === "center" && !form.totalPflops.trim()) nextErrors.totalPflops = "请输入中心约算力";
     if (isColocation && int(form.powerCapacityKw) <= 0) nextErrors.powerCapacityKw = "请输入电力容量";
     if (isColocation && int(form.rackCount) <= 0) nextErrors.rackCount = "请输入机柜数";
-    if (!isNegotiable && Number(form.unitPrice) <= 0) nextErrors.unitPrice = "请输入大于 0 的单价";
-    if (int(form.stock) <= 0) nextErrors.stock = "请输入大于 0 的可售库存";
+    // Managed products take prices from the price table and derive stock from verified nodes.
+    if (!managed && !isNegotiable && Number(form.unitPrice) <= 0) nextErrors.unitPrice = "请输入大于 0 的单价";
+    if (!managed && int(form.stock) <= 0) nextErrors.stock = "请输入大于 0 的可售库存";
     if (!form.complianceAgreed) nextErrors.complianceAgreed = "请确认合规承诺";
+    const managedResult = managed
+      ? buildManagedPayload(managedState, {cardCount: int(form.cardCount), deliveryMode: form.deliveryMode})
+      : null;
+    const nextManagedErrors = managedResult && "errors" in managedResult ? managedResult.errors : {};
 
-    if (Object.keys(nextErrors).length > 0) {
+    if (Object.keys(nextErrors).length > 0 || Object.keys(nextManagedErrors).length > 0) {
       setErrors(nextErrors);
-      const firstField = Object.keys(nextErrors)[0];
+      setManagedErrors(nextManagedErrors);
+      const firstField = [
+        ...Object.keys(nextErrors).filter((key) => key !== "complianceAgreed"),
+        ...Object.keys(nextManagedErrors).map((key) => (key === "delivery" ? "deliveryMode" : key)),
+        ...Object.keys(nextErrors).filter((key) => key === "complianceAgreed"),
+      ][0];
       requestAnimationFrame(() => document.getElementById(`product-${firstField}`)?.focus());
       return;
     }
 
     setErrors({});
+    setManagedErrors({});
+    const managedPayload = managedResult && "payload" in managedResult ? managedResult.payload : null;
     createMutation.mutate({
       product_type: productType,
       gpu_model: form.gpuModel.trim() || undefined,
@@ -225,6 +267,7 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
       min_duration: int(form.minDuration) || 1,
       region: form.region,
       compliance_agreed: form.complianceAgreed,
+      ...(managedPayload ? {...managedPayload, stock: 0} : {}),
     });
   };
 
@@ -250,6 +293,10 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
         )}
         title={product ? "修改算力商品" : title}
       />
+
+      {submittedWarnings ? (
+        <SubmittedWarnings onDone={() => router.push(returnPath)} warnings={submittedWarnings} />
+      ) : null}
 
       {product?.rejected_reason ? (
         <p className="rounded-xl border border-[#ecc9c6] bg-[#fff8f7] px-4 py-3 text-sm text-[#b63b35]">驳回原因：{product.rejected_reason}</p>
@@ -277,6 +324,33 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
         </div>
         <p className="mt-2.5 text-xs text-[#5e7786]">{typeOptions.find((option) => option.id === productType)?.hint}</p>
       </fieldset>
+
+      {showFulfillmentChoice ? (
+        <fieldset className="min-w-0">
+          <legend className="mb-3 text-[13px] font-medium text-[#24495d]">履约方式</legend>
+          <div className="flex flex-wrap gap-2">
+            {([["manual", "供给方交付"], ["managed", "平台托管"]] as const).map(([value, label]) => (
+              <ChipButton
+                active={managedState.fulfillmentMode === value}
+                key={value}
+                label={label}
+                onClick={() => {
+                  setManagedState((current) => ({...current, fulfillmentMode: value}));
+                  setManagedErrors({});
+                  if (value === "managed" && !(managedDeliveryModes as readonly string[]).includes(form.deliveryMode)) {
+                    set("deliveryMode", "container");
+                  }
+                }}
+              />
+            ))}
+          </div>
+          <p className="mt-2.5 text-xs text-[#5e7786]">
+            {managed
+              ? "买家付款后由平台自动开通、回收，买家经平台网关登录；租期结束后分账。"
+              : "买家付款后由你开通资源并在订单中回填登录凭证。"}
+          </p>
+        </fieldset>
+      ) : null}
 
       <GlassCard className="px-5 py-5 sm:px-6">
         <h2 className="text-[15px] font-semibold text-[#173447]">规格信息</h2>
@@ -333,14 +407,27 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
             <PresetField id="product-storageSpec" label="本地存储" onChange={(value) => set("storageSpec", value)} options={storageOptions} placeholder="填写存储规格" value={form.storageSpec} />
           </> : null}
           <PresetField id="product-bandwidthSpec" label="网络带宽" onChange={(value) => set("bandwidthSpec", value)} options={bandwidthOptions} placeholder="填写网络带宽" value={form.bandwidthSpec} />
-          {!showColocation ? <Field label="交付方式">
+          {!showColocation ? <Field error={managed ? managedErrors.delivery : undefined} label={managed ? "运行环境 *" : "交付方式"}>
             <div className="flex flex-wrap gap-2 pt-1">
-              {deliveryOptions.map((option) => (
-                <ChipButton active={form.deliveryMode === option.id} key={option.id} label={option.label} onClick={() => set("deliveryMode", option.id)} />
-              ))}
+              {deliveryOptions
+                .filter((option) => !managed || (managedDeliveryModes as readonly string[]).includes(option.id))
+                .map((option, index) => (
+                  <ChipButton
+                    active={form.deliveryMode === option.id}
+                    id={index === 0 ? "product-deliveryMode" : undefined}
+                    key={option.id}
+                    label={option.label}
+                    onClick={() => {
+                      set("deliveryMode", option.id);
+                      setManagedErrors((current) => ({...current, delivery: undefined}));
+                    }}
+                  />
+                ))}
             </div>
           </Field> : null}
-          <PresetField id="product-availableHours" label="可售时段" onChange={(value) => set("availableHours", value)} options={availableHourOptions} placeholder="填写可售时段" value={form.availableHours} />
+          {managed && managedState.availability === "night_window" ? null : (
+            <PresetField id="product-availableHours" label="可售时段" onChange={(value) => set("availableHours", value)} options={availableHourOptions} placeholder="填写可售时段" value={form.availableHours} />
+          )}
           <Field label="地域 *">
             <div className="flex flex-wrap gap-2 pt-1">
               {regionOptions.map((region) => (
@@ -353,6 +440,22 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
 
       <GlassCard className="px-5 py-5 sm:px-6">
         <h2 className="text-[15px] font-semibold text-[#173447]">计费与库存</h2>
+        {managed ? (
+          <div className="mt-4">
+            <ManagedProductFields
+              deliveryMode={form.deliveryMode}
+              derivedStock={product?.fulfillment_mode === "managed"
+                ? {maxFreePerNode: product.max_free_per_node, stock: product.stock}
+                : undefined}
+              errors={managedErrors}
+              onChange={(next) => {
+                setManagedState(next);
+                setManagedErrors({});
+              }}
+              state={managedState}
+            />
+          </div>
+        ) : <>
         <div className={`mt-4 grid gap-x-5 gap-y-4 sm:grid-cols-2 ${supportsNegotiable ? "xl:grid-cols-3" : ""}`}>
           {pricing.length > 0 ? (
             <Field label="计费模式 *">
@@ -416,6 +519,7 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
             </Field>
           ) : null}
         </div>
+        </>}
 
         <div className="mt-5 grid items-center gap-4 border-t border-[#dce9ee] pt-5 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div className={`rounded-xl border px-4 py-3.5 ${errors.complianceAgreed ? "border-[#cf6f67] bg-[#fff8f7]" : "border-[#dce9ee] bg-white/45"}`}>
@@ -436,13 +540,27 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
               <p className="mt-1.5 pl-6 text-xs text-[#b54d45]" role="alert">{errors.complianceAgreed}</p>
             ) : null}
           </div>
+          {savesManagedDraft ? (
+            <p className="text-xs leading-5 text-[#5e7786]">
+              托管商品先保存为草稿；接入至少一台节点并通过探活后，才能提交平台审核。
+            </p>
+          ) : null}
+          {submitError ? (
+            <p className="whitespace-pre-line text-sm text-[#b54d45]" role="alert">{submitError}</p>
+          ) : null}
           <div className="flex justify-end gap-3">
             <Button onPress={() => router.push(returnPath)} variant="tertiary">
               取消
             </Button>
-            <Button isPending={createMutation.isPending} onPress={submit} variant="primary">
+            <Button isDisabled={submittedWarnings !== null} isPending={createMutation.isPending} onPress={submit} variant="primary">
               <InteractiveIcon icon={SendHorizontal} size={16} />
-              {createMutation.isPending ? "正在提交" : product ? "重新提交审核" : "提交审核"}
+              {createMutation.isPending
+                ? "正在提交"
+                : savesManagedDraft
+                  ? "保存草稿"
+                  : product?.status === "draft" && !product.rejected_reason
+                    ? "提交审核"
+                    : product ? "重新提交审核" : "提交审核"}
             </Button>
           </div>
         </div>
@@ -693,10 +811,11 @@ function Field({children, error, errorId, label}: {children: React.ReactNode; er
   );
 }
 
-function ChipButton({active, label, onClick}: {active: boolean; label: string; onClick: () => void}) {
+function ChipButton({active, id, label, onClick}: {active: boolean; id?: string; label: string; onClick: () => void}) {
   return (
     <button
       aria-pressed={active}
+      id={id}
       className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-[color,background-color,border-color,transform] hover:-translate-y-px ${
         active
           ? "bg-[#173447] text-white"

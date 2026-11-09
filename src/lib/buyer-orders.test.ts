@@ -203,11 +203,11 @@ test("fetchBuyerOrders seeds the current local account once when it has no order
 });
 
 test("fetchBuyerOrderDetail validates and reads the dedicated detail endpoint", async () => {
-  let requestedUrl = "";
+  const requestedUrls: string[] = [];
   const detail = await fetchBuyerOrderDetail(
     "ORD20260823120000a1b2c3",
     async (input) => {
-      requestedUrl = String(input);
+      requestedUrls.push(String(input));
       return Response.json({
         code: 0,
         message: "success",
@@ -227,6 +227,11 @@ test("fetchBuyerOrderDetail validates and reads the dedicated detail endpoint", 
             compliance_agreed: true,
             created_at: "2026-08-22T00:00:00Z",
             updated_at: "2026-08-23T00:00:00Z",
+            fulfillment_mode: "manual",
+            pricing_mode: "hourly",
+            night_start_date: null,
+            night_start_min: null,
+            night_end_min: null,
           },
           product: {
             id: 1,
@@ -259,7 +264,11 @@ test("fetchBuyerOrderDetail validates and reads the dedicated detail endpoint", 
     },
   );
 
-  assert.equal(requestedUrl, "/api/buyer/orders/ORD20260823120000a1b2c3");
+  assert.equal(requestedUrls[0], "/api/buyer/orders/ORD20260823120000a1b2c3");
+  assert.equal(requestedUrls.length, 1);
+  assert.equal(detail.order.fulfillment_mode, "manual");
+  assert.equal(detail.order.pricing_mode, "hourly");
+  assert.equal(detail.order.night_start_date, null);
   assert.equal(detail.product.gpu_model, "NVIDIA H100");
   assert.deepEqual(detail.current_lease, {order_no: "RENTEST123", duration: 2, pricing_mode: "hourly"});
   assert.equal(isBuyerOrderNo("ORD" + "a".repeat(30)), false);
@@ -330,4 +339,14 @@ test("fetchBuyerPaymentChannels only offers known channels the platform enabled,
   assert.deepEqual(await fetchBuyerPaymentChannels(async () => Response.json({code: 0, data: {channels: ["bank", "wechat"]}})), ["wechat", "bank"]);
   assert.deepEqual(await fetchBuyerPaymentChannels(async () => Response.json({code: 0, data: {channels: []}})), []);
   await assert.rejects(fetchBuyerPaymentChannels(async () => Response.json({code: 40100, message: "请先登录"}, {status: 401})), /请先登录/);
+});
+
+
+test("fetchBuyerOrderDetail rejects a detail without the order snapshot instead of degrading", async () => {
+  await assert.rejects(fetchBuyerOrderDetail("ORD20260823120000a1b2c3", async () => Response.json({code: 0, message: "success", data: {
+    order: {order_no: "ORD20260823120000a1b2c3", status: "active", quantity: 1, duration: 1, unit_price: 1, total_amount: 1,
+      platform_fee: 0, payment_expires_at: null, lease_start_at: null, lease_end_at: null, compliance_agreed: true,
+      created_at: "2026-08-22T00:00:00Z", updated_at: "2026-08-23T00:00:00Z"},
+    product: {}, supplier: {}, delivery: null, actions: {},
+  }})), /订单服务返回格式错误/);
 });

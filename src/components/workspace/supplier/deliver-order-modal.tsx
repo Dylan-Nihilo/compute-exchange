@@ -5,7 +5,7 @@ import {ScheduleAdvice} from "@/components/scheduler/schedule-advice";
 import {Button, Input, Label, Modal, Spinner, TextArea, TextField} from "@heroui/react";
 import {useEffect, useState} from "react";
 
-import {pricingModeCopy, type DeliverOrderInput, type SupplierOrder} from "@/lib/supplier-workspace";
+import {isManagedOrder, pricingModeCopy, type DeliverOrderInput, type SupplierOrder} from "@/lib/supplier-workspace";
 
 const inputClass =
   "h-10 rounded-xl border border-[#afc4ce]/45 bg-white/80 px-3.5 text-sm text-[#24495d] placeholder:text-[#9cb0ba]";
@@ -47,6 +47,8 @@ export function DeliverOrderModal({
   }, [open]);
 
   const submit = () => {
+    // Defensive: managed orders never take supplier credentials (the backend also rejects them).
+    if (isManagedOrder(order ?? undefined)) return;
     const nextErrors: Partial<Record<FieldKey, string>> = {};
     if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ipAddress.trim())) nextErrors.ipAddress = "请填写正确的 IP 地址";
     const port = Number(sshPort);

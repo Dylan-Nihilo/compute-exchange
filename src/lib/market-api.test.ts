@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {describe, it} from "node:test";
 
 import {ApiError, createApiClient} from "./api/client.ts";
+import {BackendRequestError} from "./api/envelope.ts";
 import {
   buildMarketHref,
   calcOrderPreview,
@@ -108,6 +109,66 @@ describe("compute market API", () => {
         totalPflopsApprox: "约 32P",
       },
     ]);
+  });
+
+  it("maps v1.2 managed rental fields only when the backend sends them", async () => {
+    let requestedUrl = "";
+    const client = createApiClient({
+      baseUrl: "https://api.example.com/api/v1",
+      fetchImplementation: async (input) => {
+        requestedUrl = String(input);
+        return Response.json({
+          code: 0,
+          message: "success",
+          data: {
+            list: [
+              {
+                id: 9, supplier_id: 12, product_type: "card_rental", gpu_model: "H100", card_count: 8,
+                machine_count: null, rack_count: null, memory_spec: "80GB", bandwidth_spec: "100 Gbps",
+                delivery_mode: "container", pricing_mode: "hourly", unit_price: 1860, price_negotiable: false,
+                available_hours: "", stock: 8, region: "乌兰察布", total_pflops_approx: null, cpu_spec: "",
+                storage_spec: "", min_order: 1, min_duration: 1, self_operated: false,
+                fulfillment_mode: "managed", availability: "night_window", night_start_min: 1320, night_end_min: 480,
+                card_split_options: [1, 2, 4], max_free_per_node: 4,
+                prices: [
+                  {pricing_mode: "nightly", unit_price: 9000, min_duration: 1, enabled: true},
+                  {pricing_mode: "hourly", unit_price: 1860, min_duration: 1, enabled: false},
+                ],
+              },
+            ],
+            total: 1, page: 1, page_size: 20,
+          },
+        });
+      },
+    });
+
+    const result = await getMarketSupplies({...defaultMarketQuery}, client);
+    const [item] = result.items;
+    assert.ok(item);
+    assert.doesNotMatch(requestedUrl, /min_cards/);
+    assert.equal(item.fulfillmentMode, "managed");
+    assert.equal(item.availability, "night_window");
+    assert.deepEqual(item.nightWindow, {startMin: 1320, endMin: 480});
+    assert.deepEqual(item.cardSplitOptions, [1, 2, 4]);
+    assert.equal(item.maxFreePerNode, 4);
+    assert.deepEqual(item.prices, [{pricingMode: "nightly", unitPriceMinor: 9000, minDuration: 1}]);
+  });
+
+  it("sends min_cards separately from card_count_min", async () => {
+    let requestedUrl = "";
+    const client = createApiClient({
+      baseUrl: "https://api.example.com/api/v1",
+      fetchImplementation: async (input) => {
+        requestedUrl = String(input);
+        return Response.json({code: 0, message: "success", data: {list: null, total: 0, page: 1, page_size: 10}});
+      },
+    });
+    await getMarketSupplies({...defaultMarketQuery, cardCountMin: 8, minCards: 2}, client);
+    const params = new URL(requestedUrl).searchParams;
+    assert.equal(params.get("card_count_min"), "8");
+    assert.equal(params.get("min_cards"), "2");
+    await getMarketSupplies({...defaultMarketQuery, cardCountMin: 8}, client);
+    assert.equal(new URL(requestedUrl).searchParams.get("min_cards"), null);
   });
 
   it("accepts the backend's null list for an empty market", async () => {
@@ -222,6 +283,7 @@ describe("compute market API", () => {
       price_min: "10.50",
       price_max: "invalid",
       card_count_min: "8",
+      min_cards: "2",
       sort: "stock_desc",
       page: "3",
       page_size: "50",
@@ -231,9 +293,10 @@ describe("compute market API", () => {
     assert.equal(query.priceMin, 10.5);
     assert.equal(query.priceMax, null);
     assert.equal(query.cardCountMin, 8);
+    assert.equal(query.minCards, 2);
     assert.equal(
       buildMarketHref(query),
-      "/market?q=H100&price_min=10.5&card_count_min=8&sort=stock_desc&page=3&page_size=50",
+      "/market?q=H100&price_min=10.5&card_count_min=8&min_cards=2&sort=stock_desc&page=3&page_size=50",
     );
   });
 });
@@ -272,10 +335,17 @@ describe("checkout", () => {
   await assert.rejects(
     placeOrder(
       {product_id: 7, quantity: 999, duration: 1, compliance_agreed: true},
-      async () => Response.json({code: 40900, message: "insufficient stock"}),
+      async () => Response.json({code: 40900, message: "所选卡数暂无整机余量"}),
     ),
-    /insufficient stock/,
+    (error) => error instanceof BackendRequestError && error.code === 40900 && error.message === "所选卡数暂无整机余量",
     );
+  await assert.rejects(
+    placeOrder(
+      {product_id: 7, quantity: 1, duration: 1, compliance_agreed: true, pricing_mode: "nightly"},
+      async () => Response.json({code: 50000, message: "包夜订单尚未开放"}, {status: 500}),
+    ),
+    (error) => error instanceof BackendRequestError && error.code === 50000 && error.status === 500,
+  );
   });
 });
 

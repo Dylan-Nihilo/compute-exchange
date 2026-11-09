@@ -1,4 +1,6 @@
-export type MarketSupply = {
+import type {ManagedRentalFields} from "../../lib/market-api.ts";
+
+export type MarketSupply = ManagedRentalFields & {
   health?: "unknown" | "healthy" | "degraded" | "offline";
   id: string;
   name: string;

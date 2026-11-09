@@ -101,6 +101,7 @@ function productLabel(order: BuyerOrderListItem) {
     daily: "包天",
     hourly: "分时",
     monthly: "包月",
+    nightly: "包夜",
     perpetual: "买断",
     weekly: "包周",
   }[order.pricing_mode ?? ""];
@@ -114,7 +115,7 @@ function productLabel(order: BuyerOrderListItem) {
       : order.gpu_model
         ? "卡"
         : "份";
-  return [product, `${order.quantity}${unit}`, mode]
+  return [product, `${order.quantity}${unit}`, mode, order.fulfillment_mode === "managed" ? "平台托管" : null]
     .filter(Boolean)
     .join(" · ");
 }

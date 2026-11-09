@@ -68,6 +68,7 @@ const pricingModeOptions: readonly FilterOption[] = [
   {label: "按天", value: "daily"},
   {label: "按周", value: "weekly"},
   {label: "按月", value: "monthly"},
+  {label: "包夜", value: "nightly"},
   {label: "买断", value: "perpetual"},
 ];
 const deliveryModeOptions: readonly FilterOption[] = [
@@ -109,7 +110,8 @@ export function MarketView({query}: MarketViewProps) {
     query.query ||
       query.deliveryMode ||
       query.availableHours ||
-      query.cardCountMin !== null,
+      query.cardCountMin !== null ||
+      query.minCards !== null,
   );
   const [advancedOpen, setAdvancedOpen] = useState(hasAdvancedFilters);
   const parsedPriceRange = parseMarketPriceRange(priceRange);
@@ -309,7 +311,7 @@ export function MarketView({query}: MarketViewProps) {
           </div>
 
           {advancedOpen ? (
-            <div className="mt-3 grid gap-3 border-t border-white/70 pt-4 sm:grid-cols-2 xl:grid-cols-[1.35fr_repeat(3,minmax(0,1fr))]">
+            <div className="mt-3 grid gap-3 border-t border-white/70 pt-4 sm:grid-cols-2 xl:grid-cols-[1.35fr_repeat(4,minmax(0,1fr))]">
               <SearchField
                 fullWidth
                 aria-label="搜索算力供给"
@@ -349,11 +351,19 @@ export function MarketView({query}: MarketViewProps) {
                 />
               </TextField>
               <FilterNumberField
-                ariaLabel="最少卡数"
-                placeholder="最少卡数"
+                ariaLabel="整机最少卡数"
+                placeholder="整机最少卡数"
                 value={draft.cardCountMin}
                 onChange={(value) =>
                   setDraft((current) => ({...current, cardCountMin: value}))
+                }
+              />
+              <FilterNumberField
+                ariaLabel="一次可租卡数不少于"
+                placeholder="一次可租 ≥ N 卡"
+                value={draft.minCards}
+                onChange={(value) =>
+                  setDraft((current) => ({...current, minCards: value}))
                 }
               />
             </div>
@@ -653,7 +663,8 @@ function getActiveFilters(query: MarketQuery) {
     query.availableHours ? `时段：${query.availableHours}` : null,
     query.priceMin !== null ? `最低 ¥${query.priceMin}` : null,
     query.priceMax !== null ? `最高 ¥${query.priceMax}` : null,
-    query.cardCountMin !== null ? `至少 ${query.cardCountMin} 卡` : null,
+    query.cardCountMin !== null ? `整机至少 ${query.cardCountMin} 卡` : null,
+    query.minCards !== null ? `一次可租 ≥ ${query.minCards} 卡` : null,
     query.sort !== defaultMarketQuery.sort ? optionLabel(sortOptions, query.sort) : null,
   ].filter((item): item is string => Boolean(item));
 }

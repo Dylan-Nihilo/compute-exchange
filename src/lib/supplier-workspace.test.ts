@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import {BackendRequestError} from "./api/envelope.ts";
+import {buildManagedPayload, initialManagedState, isManagedDraftAwaitingSubmit, productSubmitErrorMessage} from "./managed-product.ts";
+import {nightlyOrderSummary} from "./nightly.ts";
+
 import {
+  awaitsLeaseEndSplit,
+  settlementAdjustment,
   createProduct,
   resubmitProduct,
   deliverOrder,
@@ -9,6 +15,9 @@ import {
   fetchMyQualifications,
   fetchResourceSyncs,
   fetchSupplierOrders,
+  isManagedOrder,
+  managedSettleCopy,
+  isManagedProduct,
   isSupplierOrderStatusFilter,
   fetchSupplierSettlements,
   fetchSupplierSettlementSummary,
@@ -87,6 +96,31 @@ test("createProduct posts and returns id; backend validation errors surface", as
   );
 });
 
+test("createProduct surfaces price warnings as strings and tolerates odd shapes", async () => {
+  const input = {product_type: "card_rental", pricing_mode: "hourly", price_negotiable: false, stock: 0, region: "北京", compliance_agreed: true};
+  const strings = await createProduct(input, async () =>
+    Response.json({code: 0, message: "success", data: {id: 8, warnings: ["日价高于 24 小时价"]}}));
+  assert.deepEqual(strings.data?.warnings, ["日价高于 24 小时价"]);
+
+  const objects = await createProduct(input, async () =>
+    Response.json({code: 0, message: "success", data: {id: 9, warnings: [{code: "daily_gt_hourly", message: "日价高于 24 小时价"}]}}));
+  assert.deepEqual(objects.data?.warnings, ["日价高于 24 小时价"]);
+
+  const malformed = await createProduct(input, async () =>
+    Response.json({code: 0, message: "success", data: {id: 10, warnings: [42]}}));
+  assert.equal(malformed.data?.id, 10);
+  assert.equal(malformed.data?.warnings, null);
+});
+
+test("isManagedProduct and isManagedOrder only trust an explicit managed field", () => {
+  assert.equal(isManagedProduct({fulfillment_mode: "managed"}), true);
+  assert.equal(isManagedProduct({fulfillment_mode: "manual"}), false);
+  assert.equal(isManagedProduct({}), false);
+  assert.equal(isManagedProduct(undefined), false);
+  assert.equal(isManagedOrder({fulfillment_mode: "managed"}), true);
+  assert.equal(isManagedOrder({}), false);
+});
+
 test("fetchSupplierOrders forwards filters and parses page", async () => {
   let requestedUrl = "";
   const page = await fetchSupplierOrders({status: "provisioning", page: 2, pageSize: 10}, async (input) => {
@@ -99,7 +133,7 @@ test("fetchSupplierOrders forwards filters and parses page", async () => {
         status: "provisioning", payment_expires_at: null, lease_start_at: null,
         lease_end_at: null, compliance_agreed: true,
         created_at: "2026-08-26T09:00:00Z", updated_at: "2026-08-26T09:00:00Z",
-        gpu_model: "NVIDIA H100", product_type: "card_rental", pricing_mode: "hourly",
+        gpu_model: "NVIDIA H100", product_type: "card_rental", pricing_mode: "hourly", settle_ready_at: null,
       }],
       total: 11, status_counts: {provisioning: 3, active: 8}, page: 2, page_size: 10,
     }});
@@ -148,6 +182,29 @@ test("settlements list and summary parse correctly", async () => {
   const summary = await fetchSupplierSettlementSummary(async () =>
     Response.json({code: 0, message: "success", data: {total_fen: 100, succeeded_fen: 40, pending_fen: 60}}));
   assert.deepEqual(summary, {total_fen: 100, succeeded_fen: 40, pending_fen: 60});
+});
+
+test("settlements carry T-106 refund_deduction / platform_compensation", async () => {
+  const page = await fetchSupplierSettlements({}, async () => Response.json({code: 0, message: "success", data: {
+    list: [
+      {id: 2, settlement_id: "ST-2", order_no: "ORD-2", payee_type: "supplier", payee_id: 9, amount: 70000, status: "pending",
+        fail_reason: "", refund_deduction: 14000, platform_compensation: 3000, created_at: "2026-10-30T09:00:00Z", updated_at: null,
+        fulfillment_mode: "managed", settle_ready_at: null},
+      {id: 3, settlement_id: "ST-3", order_no: "ORD-3", payee_type: "supplier", payee_id: 9, amount: 84000, status: "success",
+        fail_reason: null, created_at: "2026-10-30T09:00:00Z", fulfillment_mode: "managed", settle_ready_at: "2026-10-31T00:00:00Z"},
+      {id: 4, settlement_id: "ST-4", order_no: "ORD-4", payee_type: "supplier", payee_id: 9, amount: 500, status: "pending",
+        fail_reason: "", created_at: "2026-10-30T09:00:00Z", fulfillment_mode: "manual", settle_ready_at: null},
+    ],
+    total: 2, page: 1, page_size: 20,
+  }}));
+  const [adjusted, plain, manual] = page.settlements;
+  assert.equal(awaitsLeaseEndSplit(adjusted!), true);
+  assert.equal(awaitsLeaseEndSplit(plain!), false);
+  assert.equal(awaitsLeaseEndSplit(manual!), false);
+  assert.equal(awaitsLeaseEndSplit({}), false);
+  assert.deepEqual(settlementAdjustment(adjusted!), {locked: 84000, deduction: 14000, compensation: 3000});
+  assert.equal(plain?.refund_deduction, 0);
+  assert.equal(settlementAdjustment(plain!), null);
 });
 
 test("fetchResourceSyncs forwards filters and parses snapshots", async () => {
@@ -244,4 +301,67 @@ test("supplier payment account reads status and only accepts https onboarding li
   await assert.rejects(startSupplierPaymentAccount(async () =>
     Response.json({code: 0, message: "success", data: {status: "pending", application_status: "WAIT_SIGN", merchant_no: null, audit_opinion: "", netin_url: "javascript:alert(1)"}})), /返回格式错误/);
   await assert.rejects(startSupplierPaymentAccount(async () => Response.json({code: 50000, message: "易宝支付未接入"})), /易宝支付未接入/);
+});
+
+test("managed products: []int split options, draft state and submit-gate messages", async () => {
+  let body: Record<string, unknown> = {};
+  const input = {
+    product_type: "card_rental" as const, pricing_mode: "hourly" as const, price_negotiable: false, stock: 0, region: "北京",
+    compliance_agreed: true, fulfillment_mode: "managed" as const, delivery_mode: "container", card_count: 8, card_split_options: [1, 2, 4],
+  };
+  await createProduct(input, async (_url, init) => {
+    body = JSON.parse(String(init?.body));
+    return Response.json({code: 0, message: "success", data: {id: 7, warnings: []}});
+  });
+  assert.deepEqual(body.card_split_options, [1, 2, 4]);
+
+  const gate = "托管商品提交审核前须至少接入一个 ssh 托管节点并通过探活";
+  await assert.rejects(resubmitProduct(7, input, async () => Response.json({code: 40001, message: gate})), (error) => {
+    assert.ok(error instanceof BackendRequestError);
+    assert.equal(error.code, 40001);
+    assert.equal(productSubmitErrorMessage(error, "x"), gate);
+    return true;
+  });
+  await assert.rejects(resubmitProduct(7, input, async () => Response.json({code: 40900, message: "product review conflict"})), (error) => {
+    assert.match(productSubmitErrorMessage(error, "x"), /只有草稿或已下架的商品可以提交审核/);
+    return true;
+  });
+
+  assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: "managed", status: "draft", rejected_reason: ""}), true);
+  assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: "managed", status: "draft", rejected_reason: "规格不符"}), false);
+  assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: "manual", status: "draft", rejected_reason: ""}), false);
+  assert.equal(isManagedDraftAwaitingSubmit({fulfillment_mode: undefined, status: "draft", rejected_reason: ""}), false);
+});
+
+test("fetchSupplierOrders keeps the nightly snapshot and rows show the nightly mode", async () => {
+  const page = await fetchSupplierOrders({page: 1, pageSize: 10}, async () => Response.json({code: 0, message: "success", data: {
+    list: [{
+      id: 2, order_no: "ORD-N", buyer_id: 3, product_id: 7, quantity: 2,
+      duration: 3, unit_price: 9000, total_amount: 54000, platform_fee: 2700,
+      status: "active", payment_expires_at: null, lease_start_at: "2026-11-01T21:50:00+08:00",
+      lease_end_at: "2026-11-05T08:00:00+08:00", compliance_agreed: true,
+      created_at: "2026-10-30T09:00:00Z", updated_at: "2026-10-30T09:00:00Z",
+      gpu_model: "NVIDIA H100", product_type: "card_rental", pricing_mode: "nightly", fulfillment_mode: "managed",
+      night_start_date: "2026-11-01T00:00:00+08:00", night_start_min: 1320, night_end_min: 480,
+      settle_ready_at: "2026-11-05T09:00:00+08:00",
+    }],
+    total: 1, status_counts: {active: 1}, page: 1, page_size: 10,
+  }}));
+  const order = page.orders[0];
+  assert.equal(order.night_start_min, 1320);
+  assert.equal(nightlyOrderSummary(order), "包夜 · 2026-11-01 晚起 · 每晚 22:00–次日 08:00（北京时间） · 3 晚");
+  assert.equal(nightlyOrderSummary({...order, night_start_date: null}), "包夜 · 3 晚");
+  assert.equal(nightlyOrderSummary({...order, pricing_mode: "daily"}), null);
+  assert.equal(managedSettleCopy(order, (value) => value.slice(0, 10)), "已于 2026-11-05 满足分账条件，将随下一批分账处理。");
+  assert.match(managedSettleCopy({settle_ready_at: null}, String), /^平台托管 · 租期结束后分账/);
+});
+
+test("buildManagedPayload rejects a night window without container delivery", () => {
+  const state = {...initialManagedState(), fulfillmentMode: "managed" as const, availability: "night_window" as const};
+  state.prices = {...state.prices, nightly: {enabled: true, price: "90", minDuration: "1"}};
+  const bare = buildManagedPayload(state, {cardCount: 8, deliveryMode: "bare_metal"});
+  assert.ok("errors" in bare);
+  assert.match(bare.errors.night ?? "", /仅支持分卡容器交付/);
+  const container = buildManagedPayload(state, {cardCount: 8, deliveryMode: "container"});
+  assert.ok(!("errors" in container) || !container.errors.night, JSON.stringify(container));
 });

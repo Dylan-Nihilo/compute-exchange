@@ -1,4 +1,7 @@
+import {BackendRequestError} from "./api/envelope.ts";
 import {buyerOrderStatuses, currentLeaseSchema} from "./buyer-orders.ts";
+import {fulfillmentModeSchema} from "./domain/contracts.ts";
+import {productPriceSchema} from "./flexible-pricing.ts";
 import {LEGAL_VERSION} from "./legal.ts";
 import {z} from "zod";
 
@@ -21,6 +24,7 @@ export const pricingModeCopy: Record<string, string> = {
   weekly: "按周",
   monthly: "按月",
   perpetual: "买断",
+  nightly: "包夜",
 };
 
 export const productStatusCopy: Record<string, string> = {
@@ -108,6 +112,14 @@ const productSchema = z.object({
   status: z.string(),
   self_operated: z.boolean(),
   rejected_reason: z.string().default(""),
+  // v1.2 managed rental (docs/26 §26.9); absent on legacy backends and manual products.
+  fulfillment_mode: fulfillmentModeSchema.optional(),
+  availability: z.enum(["fulltime", "night_window"]).optional(),
+  night_start_min: z.number().int().min(0).max(1439).nullable().optional(),
+  night_end_min: z.number().int().min(0).max(1439).nullable().optional(),
+  card_split_options: z.array(z.number().int()).nullable().optional(),
+  max_free_per_node: z.number().int().nonnegative().nullable().optional(),
+  prices: z.array(productPriceSchema).nullable().optional(),
 });
 
 const productGroupSchema = z.object({
@@ -142,6 +154,15 @@ const supplierOrderSchema = z.object({
   gpu_model: z.string().optional(),
   product_type: z.string().optional(),
   pricing_mode: z.string().optional(),
+  // v1.2 (docs/25 §25.7.6): absent on legacy backends, which keeps the manual-mode UX.
+  fulfillment_mode: fulfillmentModeSchema.optional(),
+  // v1.2 包夜 snapshot (SupplierOrder embeds Order, compute/repository.go); null for non-nightly orders.
+  night_start_date: z.string().nullable().optional(),
+  night_start_min: z.number().int().nullable().optional(),
+  night_end_min: z.number().int().nullable().optional(),
+  // Managed split-ready time (integ 03a67c9, SupplierOrder.SettleReadyAt): null until the lease ends and outage
+  // compensation settles; always null for manual orders.
+  settle_ready_at: z.string().nullable(),
 });
 
 const settlementSchema = z.object({
@@ -152,8 +173,16 @@ const settlementSchema = z.object({
   payee_id: z.number().int().nonnegative(),
   amount: z.number().int().nonnegative(),
   status: z.string(),
-  fail_reason: z.string().optional(),
+  fail_reason: z.string().nullable().optional(),
   created_at: z.string(),
+  // payment/repository.go:27 Settlement (T-106, migration 037). `amount` is already net of
+  // refund_deduction; platform_compensation is the part of that deduction the platform bears.
+  refund_deduction: z.number().int().nonnegative().optional().default(0),
+  platform_compensation: z.number().int().nonnegative().optional().default(0),
+  // The order's mode and split-ready time (payment/repository.go:52-53, integ b625305); settle_ready_at
+  // stays null for manual orders and for managed orders until the lease ends and outages are settled.
+  fulfillment_mode: fulfillmentModeSchema.optional(),
+  settle_ready_at: z.string().nullable().optional(),
 });
 
 // 供给方易宝收款账户(分账接收商编)开通状态。
@@ -236,7 +265,16 @@ const actionEnvelopeSchema = z.object({
 const createProductEnvelopeSchema = z.object({
   code: z.number().int(),
   message: z.string(),
-  data: z.object({id: z.number().int()}).optional(),
+  data: z.object({
+    id: z.number().int(),
+    // v1.2: non-blocking price inversion hints (docs/26 §26.3.2). The element shape is not pinned
+    // in the doc, so accept plain strings or {message} objects; a malformed hint never fails a
+    // submit that the backend already accepted.
+    warnings: z.array(z.union([
+      z.string(),
+      z.object({message: z.string()}).passthrough().transform((warning) => warning.message),
+    ])).nullable().optional().catch(null),
+  }).optional(),
 });
 
 const deliverEnvelopeSchema = z.object({
@@ -256,9 +294,44 @@ export type SupplierProduct = z.infer<typeof productSchema>;
 export type SupplierProductGroup = z.infer<typeof productGroupSchema>;
 export type SupplierOrder = z.infer<typeof supplierOrderSchema>;
 export type SupplierSettlement = z.infer<typeof settlementSchema>;
+
+/** Managed row whose split waits for the lease to end (settle_ready_at not yet written). */
+export function awaitsLeaseEndSplit(item: Pick<SupplierSettlement, "fulfillment_mode" | "settle_ready_at">) {
+  return item.fulfillment_mode === "managed" && !item.settle_ready_at;
+}
+
+/**
+ * Managed-order recalculation shown under the amount (payment/managed_split.go): the amount locked at
+ * collection is `amount + refund_deduction`; `platform_compensation` is the platform-liable part of the
+ * deduction that the platform makes good separately. Null when nothing was deducted.
+ */
+export function settlementAdjustment(item: Pick<SupplierSettlement, "amount" | "refund_deduction" | "platform_compensation">) {
+  if (!item.refund_deduction && !item.platform_compensation) return null;
+  return {
+    locked: item.amount + item.refund_deduction,
+    deduction: item.refund_deduction,
+    compensation: item.platform_compensation,
+  };
+}
 export type SupplierPaymentAccount = z.infer<typeof paymentAccountSchema>;
 export type SupplierSettlementSummary = z.infer<typeof settlementSummarySchema>;
 export type SupplierResourceSync = z.infer<typeof resourceSyncSchema>;
+
+// Managed (platform-fulfilled) listings and orders; only an explicit backend field turns this on.
+export function isManagedProduct(product: Pick<SupplierProduct, "fulfillment_mode"> | undefined) {
+  return product?.fulfillment_mode === "managed";
+}
+
+/** Split wording of a managed supplier order (docs/api/compute-api.md supplier orders, settle_ready_at). */
+export function managedSettleCopy(order: Pick<SupplierOrder, "settle_ready_at">, formatTime: (value: string) => string) {
+  return order.settle_ready_at
+    ? `已于 ${formatTime(order.settle_ready_at)} 满足分账条件，将随下一批分账处理。`
+    : "平台托管 · 租期结束后分账：租期结束且停机记录全部结清后一次性分账（续租订单随整条租期一并结算）。";
+}
+
+export function isManagedOrder(order: Pick<SupplierOrder, "fulfillment_mode"> | undefined) {
+  return order?.fulfillment_mode === "managed";
+}
 
 export type CreateProductInput = {
   product_type: string;
@@ -282,6 +355,14 @@ export type CreateProductInput = {
   min_duration?: number;
   region: string;
   compliance_agreed: boolean;
+  // v1.2 managed rental fields; only sent for managed card rental products.
+  fulfillment_mode?: "manual" | "managed";
+  availability?: "fulltime" | "night_window";
+  night_start_min?: number;
+  night_end_min?: number;
+  // compute CreateProductReq.CardSplitOptions []int (values from {1,2,4,6,8}, ≤ card_count).
+  card_split_options?: number[];
+  prices?: {pricing_mode: string; unit_price: number; min_duration: number; enabled: boolean}[];
 };
 
 export type SubmitQualificationInput = {
@@ -311,12 +392,13 @@ async function request<T extends {code: number; message: string}>(
   try {
     response = await fetchImplementation(url, init);
   } catch {
-    throw new Error("卖家工作台服务暂不可用");
+    throw new BackendRequestError("卖家工作台服务暂不可用", {code: null, status: 0});
   }
   const parsed = schema.safeParse(await response.json().catch(() => null));
-  if (!parsed.success || !parsed.data) throw new Error("服务返回格式错误");
+  if (!parsed.success || !parsed.data) throw new BackendRequestError("服务返回格式错误", {code: null, status: response.status});
   if (!response.ok || parsed.data.code !== 0) {
-    throw new Error(parsed.data.message || fallbackMessage);
+    // Keeps the backend code (e.g. 40900 on a product submit) for callers that branch on it.
+    throw new BackendRequestError(parsed.data.message || fallbackMessage, {code: parsed.data.code, status: response.status});
   }
   return parsed.data;
 }

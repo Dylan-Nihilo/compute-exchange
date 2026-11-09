@@ -81,6 +81,8 @@ const orderSchema = z.object({
   platform_fee: z.number().int().nonnegative(),
   status: z.string(),
   allowed_actions: z.array(z.enum(["cancelled", "frozen"])).default([]),
+  // compute.Order fulfillment snapshot (migration 026); absent on older backends → manual behaviour.
+  fulfillment_mode: z.string().optional(),
   payment_expires_at: z.string().nullable(),
   lease_start_at: z.string().nullable(),
   lease_end_at: z.string().nullable(),
@@ -343,6 +345,27 @@ export function updateAdminOrderStatus(id: number, status: "cancelled" | "frozen
     {method: "PATCH", headers: {"content-type": "application/json"}, body: JSON.stringify({status})},
     fetchImplementation,
   );
+}
+
+/** Managed frozen orders can be unfrozen (T-088); manual orders are not eligible (backend 40001). */
+export function canUnfreezeAdminOrder(order: {status: string; fulfillment_mode?: string}) {
+  return order.status === "frozen" && order.fulfillment_mode === "managed";
+}
+
+/**
+ * POST /admin/orders/:id/unfreeze `{wrong_freeze}` → `{order_no, status, wrong_freeze}`. The resulting status is
+ * decided by the lease (active/paid/pending_payment/completed); `wrong_freeze` records a platform-liable outage.
+ */
+export async function unfreezeAdminOrder(orderNo: string, wrongFreeze: boolean, fetchImplementation: typeof fetch = fetch) {
+  const {data} = await request(
+    `/api/admin/orders/${encodeURIComponent(orderNo)}/unfreeze`,
+    envelope(z.object({order_no: z.string(), status: z.string(), wrong_freeze: z.boolean()})),
+    "订单解冻失败",
+    {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({wrong_freeze: wrongFreeze})},
+    fetchImplementation,
+  );
+  if (!data) throw new Error("订单解冻失败");
+  return data;
 }
 
 export function fetchAdminInvoices(query: FetchPage & {status?: string} = {}, fetchImplementation: typeof fetch = fetch) {
