@@ -48,6 +48,9 @@ const stringList = z.array(z.string()).nullable().transform((value) => value ?? 
 /** GET /supplier/nodes/:id/onboarding (managed-rental-api.md, fleet.Onboarding). */
 const onboardingSchema = z.object({
   node_id: z.number().int().positive(),
+  // fleet.access_mode: direct = buyers connect straight to the lease port range (open to the public, no
+  // source-restriction scripts); gateway = the range only accepts the gateway egress IPs. Absent on older backends.
+  access_mode: z.enum(["direct", "gateway"]).optional(),
   verify_status: z.enum(nodeVerifyStatuses),
   authorized_keys_line: z.string().min(1),
   controller_egress_ips: stringList,

@@ -6,7 +6,20 @@ import Link from "next/link";
 import {SectionQueryState} from "@/components/managed/query-states";
 import {CopyBlock} from "@/components/scheduler/managed-node/copy-block";
 import {formatDateTime} from "@/lib/format/date";
-import {expiryReminder, fetchManagedAccess, inactiveHint, isBareMetalLease, leaseStateCopy, scpCommand, sshCommand, type ManagedAccess} from "@/lib/managed-orders";
+import {
+  accessEndpoint,
+  accessModeOf,
+  bareMetalAccount,
+  expiryReminder,
+  fetchManagedAccess,
+  inactiveHint,
+  isBareMetalLease,
+  leaseStateCopy,
+  scpCommand,
+  sshCommand,
+  type AccessMode,
+  type ManagedAccess,
+} from "@/lib/managed-orders";
 
 import {ManagedSection} from "./managed-section";
 
@@ -15,8 +28,9 @@ export function managedAccessKey(orderNo: string) {
 }
 
 /**
- * Gateway connection info for a managed order (GET /orders/:id/access). The node IP,
- * supplier account and container port are never exposed (docs/25 §25.6.1).
+ * Connection info for a managed order (GET /orders/:id/access). Gateway mode exposes only the platform
+ * gateway; direct mode exposes the node address and the lease's mapped port (public key only), never the
+ * supplier's management account.
  */
 export function ManagedAccessCard({orderNo, poll, productDeliveryMode, nightly = false}: {orderNo: string; poll: boolean; productDeliveryMode?: string | null; nightly?: boolean}) {
   const query = useQuery({
@@ -28,12 +42,7 @@ export function ManagedAccessCard({orderNo, poll, productDeliveryMode, nightly =
   const bareMetal = isBareMetalLease(query.data, productDeliveryMode);
 
   return (
-    <ManagedSection
-      title="连接信息"
-      description={nightly
-        ? "包夜：仅在每晚窗口内可经平台访问网关登录，窗口外网关拒绝连接。"
-        : bareMetal ? "经平台访问网关登录整机，到期即断开并清除，没有宽限期。" : "经平台访问网关登录，租期结束后网关自动拒绝新连接。"}
-    >
+    <ManagedSection title="连接信息" description={accessDescription(accessModeOf(query.data), bareMetal, nightly)}>
       <SectionQueryState
         error={query.error}
         isError={query.isError}
@@ -54,28 +63,35 @@ function AccessBody({access, bareMetal, nightly}: {access: ManagedAccess; bareMe
   const expiry = expiryReminder(access, bareMetal);
   const allowsKey = access.auth_methods.includes("publickey");
   const allowsPassword = access.auth_methods.includes("password");
+  const direct = accessModeOf(access) === "direct";
+  const endpoint = accessEndpoint(access);
+  const ssh = sshCommand(access);
+  const scp = scpCommand(access, bareMetal);
   return (
     <div className="space-y-4">
       <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
         <Item label="租约状态" value={leaseStateCopy[access.lease_state] ?? access.lease_state} />
         <Item label="登录名" value={access.login} />
-        <Item label="网关地址" value={`${access.gateway_host}:${access.gateway_port}`} />
+        <Item label={direct ? "连接地址" : "网关地址"} value={endpoint ? `${endpoint.host}:${endpoint.port}` : "开通完成后显示"} />
         <Item label={nightly ? "最后一晚结束" : "可登录至"} value={access.access_until ? formatDateTime(access.access_until) : "—"} />
         {access.grace_until && !bareMetal ? <Item label="数据保留至" value={formatDateTime(access.grace_until)} /> : null}
         <Item label="认证方式" value={authMethodsLabel(access.auth_methods)} />
+        {access.host_key_fingerprint ? <Item label="主机指纹（首次连接时核对）" value={access.host_key_fingerprint} /> : null}
       </dl>
       {bareMetal ? (
         <p className="rounded-xl border border-warning px-4 py-3 text-xs leading-5" role="note">
-          整机租用：登录后为宿主机账户 <code className="font-mono">omnis-{access.login}</code>，可使用 sudo。
+          整机租用：登录后为宿主机账户 <code className="font-mono">{bareMetalAccount(access)}</code>，可使用 sudo。
           <strong className="font-semibold">没有宽限期</strong>，到期即断开并清除整机数据，请在到期前自行导出。
         </p>
       ) : null}
       {expiry ? <p className="text-sm text-warning" role="status">{expiry}</p> : null}
-      {canLogin ? (
+      {canLogin && ssh && scp ? (
         <div className="grid gap-3">
-          <CopyBlock label="SSH 登录" value={sshCommand(access)} />
-          <CopyBlock label="上传文件" value={scpCommand(access)} />
+          <CopyBlock label="SSH 登录" value={ssh} />
+          <CopyBlock label="上传文件" value={scp} />
         </div>
+      ) : canLogin ? (
+        <p className="text-sm text-muted">连接地址尚未就绪，请稍后刷新。</p>
       ) : (
         <p className="text-sm text-muted">{inactiveHint(access, bareMetal)}</p>
       )}
@@ -89,6 +105,17 @@ function AccessBody({access, bareMetal, nightly}: {access: ManagedAccess; bareMe
       </ul>
     </div>
   );
+}
+
+function accessDescription(mode: AccessMode, bareMetal: boolean, nightly: boolean) {
+  if (mode === "direct") {
+    if (nightly) return "包夜：仅在每晚窗口内开机，可用 SSH 公钥直接登录；窗口外机器停机、无法连接。";
+    return bareMetal
+      ? "使用 SSH 公钥直接登录整机，到期即断开并清除，没有宽限期。"
+      : "使用 SSH 公钥直接登录租约环境（独立容器，不含宿主机账户）；租期结束或冻结时平台断开连接并停机。";
+  }
+  if (nightly) return "包夜：仅在每晚窗口内可经平台访问网关登录，窗口外网关拒绝连接。";
+  return bareMetal ? "经平台访问网关登录整机，到期即断开并清除，没有宽限期。" : "经平台访问网关登录，租期结束后网关自动拒绝新连接。";
 }
 
 function Item({label, value}: {label: string; value: string}) {

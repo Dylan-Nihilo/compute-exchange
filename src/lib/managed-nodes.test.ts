@@ -38,6 +38,17 @@ test("onboarding parses fleet.Onboarding exactly, normalising null lists", async
   assert.equal(onboardingStage(data), "ssh");
 });
 
+test("onboarding parses direct access mode (no gateway IPs, no scripts)", async () => {
+  const data = await fetchNodeOnboarding(3, async () => ok({
+    node_id: 3, access_mode: "direct", verify_status: "unverified", authorized_keys_line: 'from="1.2.3.4" ssh-ed25519 AAAA omnis-node-3',
+    controller_egress_ips: ["1.2.3.4"], gateway_egress_ips: [], lease_port_start: 40000, lease_port_end: 40099,
+    ssh_host: null, ssh_port: null, ssh_user: null, host_key: hostKey, firewall_scripts: {}, requirements: ["40000-40099 对公网(买家)开放入方向"],
+  }));
+  assert.equal(data.access_mode, "direct");
+  assert.deepEqual(data.firewall_scripts, {});
+  await assert.rejects(fetchNodeOnboarding(3, async () => ok({...data, access_mode: "jump"})));
+});
+
 test("onboarding surfaces the backend 50000 when egress IPs are not configured", async () => {
   const error = await fetchNodeOnboarding(3, async () =>
     Response.json({code: 50000, message: "平台出口 IP 未配置(accessgw.egress_ips)"}, {status: 500})).catch((caught) => caught);

@@ -109,7 +109,7 @@ function ManagedOrderNote({order}: {order: SupplierOrder}) {
       <p>
         {provisioning
           ? "平台托管订单：平台正在自动分配卡槽并开通，无需你回填凭证。"
-          : "平台托管订单：由平台开通、回收，买家经平台网关登录。"}
+          : "平台托管订单：由平台开通、回收，买家使用 SSH 公钥登录，到期由平台断开并回收。"}
       </p>
       <p className="mt-1">
         {managedSettleCopy(order, formatDateTime)}

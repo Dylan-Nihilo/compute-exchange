@@ -346,7 +346,7 @@ export function SupplierProductForm({product, category}: {product?: SupplierProd
           </div>
           <p className="mt-2.5 text-xs text-[#5e7786]">
             {managed
-              ? "买家付款后由平台自动开通、回收，买家经平台网关登录；租期结束后分账。"
+              ? "买家付款后由平台自动开通、回收，买家使用 SSH 公钥登录；租期结束后分账。"
               : "买家付款后由你开通资源并在订单中回填登录凭证。"}
           </p>
         </fieldset>

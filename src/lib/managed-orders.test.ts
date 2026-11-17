@@ -8,6 +8,9 @@ import {
   needsBuyerReceipt,
 } from "./buyer-orders.ts";
 import {
+  accessEndpoint,
+  accessModeOf,
+  bareMetalAccount,
   expiryReminder,
   fetchAccessSessions,
   fetchManagedAccess,
@@ -23,6 +26,7 @@ import {
   outageItemStatus,
   remedyLabel,
   refundThresholdText,
+  scpCommand,
   setOutageRemedy,
   sshCommand,
 } from "./managed-orders.ts";
@@ -58,6 +62,40 @@ test("delivery_kind decides bare metal; product delivery_mode is only the fallba
 test("fetchManagedAccess rejects an unknown lease_state and a string gateway_port", async () => {
   await assert.rejects(fetchManagedAccess("ORD20261028001", async () => ok({...access, lease_state: "running"})));
   await assert.rejects(fetchManagedAccess("ORD20261028001", async () => ok({...access, gateway_port: "2222"})));
+  // Gateway mode (explicit or a backend without access_mode) needs the gateway address.
+  await assert.rejects(fetchManagedAccess("ORD20261028001", async () => ok({...access, gateway_host: "", gateway_port: 0})));
+  await assert.rejects(fetchManagedAccess("ORD20261028001", async () => ok({...access, access_mode: "gateway", gateway_host: ""})));
+});
+
+// fleet/access.go OrderAccess with fleet.access_mode=direct (integ feat/fleet-images-gateway).
+const direct = {access_mode: "direct", gateway_host: "", gateway_port: 0, host: "203.0.113.10", port: 40001,
+  host_key_fingerprint: "SHA256:abc", login: "root", lease_state: "active", delivery_kind: "container",
+  access_until: "2026-10-29T10:00:00+08:00", grace_until: null, auth_methods: ["publickey"]};
+
+test("direct mode connects to the node address and mapped port", async () => {
+  const parsed = await fetchManagedAccess("ORD20261028001", async () => ok(direct));
+  assert.equal(accessModeOf(parsed), "direct");
+  assert.deepEqual(accessEndpoint(parsed), {host: "203.0.113.10", port: 40001});
+  assert.equal(sshCommand(parsed), "ssh -p 40001 root@203.0.113.10");
+  assert.equal(scpCommand(parsed), "scp -P 40001 <本地文件> root@203.0.113.10:/root/workspace/");
+  assert.equal(parsed.host_key_fingerprint, "SHA256:abc");
+
+  const bare = await fetchManagedAccess("ORD20261028001", async () => ok({...direct, login: "omnis-l-7f3k9q2a", delivery_kind: "bare_metal"}));
+  assert.equal(bareMetalAccount(bare), "omnis-l-7f3k9q2a");
+  assert.equal(scpCommand(bare, true), "scp -P 40001 <本地文件> omnis-l-7f3k9q2a@203.0.113.10:~/");
+  assert.equal(bareMetalAccount({login: "l-7f3k9q2a"}), "omnis-l-7f3k9q2a", "gateway maps the lease login to the host account");
+});
+
+test("direct mode before provisioning has no endpoint and no commands", async () => {
+  const pending: Record<string, unknown> = {...direct, lease_state: "provisioning"};
+  delete pending.host;
+  delete pending.port;
+  delete pending.host_key_fingerprint;
+  const parsed = await fetchManagedAccess("ORD20261028001", async () => ok(pending));
+  assert.equal(accessEndpoint(parsed), null);
+  assert.equal(sshCommand(parsed), null);
+  assert.equal(scpCommand(parsed), null);
+  assert.equal(accessModeOf(undefined), "gateway");
 });
 
 test("fetchManagedAccess surfaces the manual-order 40400 message unchanged", async () => {

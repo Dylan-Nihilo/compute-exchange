@@ -122,12 +122,12 @@ export function renewalHint(mode: BuyerOrderRenewalQuote["mode"], managed: boole
   // T-089: bare-metal leases have no grace period — extend only before expiry, restart only after purge.
   if (bareMetal) {
     return mode === "extend"
-      ? "支付确认后网关放行时间随租期自动延长，宿主机账户与数据不变。请务必在当前租期结束前完成支付，到期即清除整机数据。"
+      ? "支付确认后可登录时间随租期自动延长，宿主机账户与数据不变。请务必在当前租期结束前完成支付，到期即清除整机数据。"
       : "原租期已结束，整机数据已清除。支付后平台重新分配整机并开通，原数据无法恢复。";
   }
   if (mode === "extend") {
     return managed
-      ? "支付确认后网关放行时间随租期自动延长，登录名与连接方式不变。请在当前租期结束前完成支付。"
+      ? "支付确认后可登录时间随租期自动延长，登录名与连接方式不变。请在当前租期结束前完成支付。"
       : "支付确认后延长当前租期，原访问凭证继续使用。请在当前租期结束前完成支付。";
   }
   return managed

@@ -88,7 +88,7 @@ function NightlyBody({data, now}: {data: OrderNights; now: number}) {
         ))}
       </ul>
       <ul className="list-disc space-y-1 pl-5 text-xs text-muted">
-        <li>仅在每晚窗口内可经网关登录；窗口结束前 30 分钟、10 分钟提醒，到点断开会话，容器停机但数据保留。</li>
+        <li>仅在每晚窗口内可登录；窗口结束前 30 分钟、10 分钟提醒，到点断开会话，容器停机但数据保留。</li>
         <li>窗口内因平台或供给方原因未能开机的时段计入停机；默认补偿为补加一晚（同一组卡已被预订时改为按比例退费）。</li>
       </ul>
     </div>

@@ -477,7 +477,7 @@ function credentialSteps(detail: BuyerOrderDetail) {
       {done: detail.order.status !== "pending_payment", label: "支付确认"},
       {done: Boolean(detail.delivery) || running, label: "平台开通"},
       {done: Boolean(detail.delivery?.selftest_passed_at) || running, label: "自检通过"},
-      {done: running, label: "网关登录"},
+      {done: running, label: "SSH 登录"},
     ];
   }
   return [
