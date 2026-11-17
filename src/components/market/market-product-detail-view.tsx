@@ -63,7 +63,7 @@ export function MarketProductDetailView({
         ? `每晚 ${formatNightWindow(product.nightWindow.startMin, product.nightWindow.endMin)}`
         : product.availableHours || "—",
     },
-    ...(managed ? [{label: "交付方式", value: "平台托管：付款后自动开通，经平台 SSH 网关登录"}] : []),
+    ...(managed ? [{label: "交付方式", value: "平台托管：付款后自动开通，使用 SSH 公钥登录"}] : []),
     ...(product.cardSplitOptions?.length
       ? [{label: "可选卡数（单台节点内）", value: product.cardSplitOptions.map((count) => `${count} 卡`).join(" / ")}]
       : []),

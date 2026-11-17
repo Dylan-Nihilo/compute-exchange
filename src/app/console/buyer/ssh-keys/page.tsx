@@ -35,7 +35,7 @@ export default function BuyerSshKeysPage() {
     <section className="mx-auto w-full max-w-[1228px] space-y-5 px-4 pt-8 pb-10 sm:px-6 xl:px-8">
       <WorkspacePageHeader title="SSH 公钥" />
       <p className="text-sm text-muted">
-        用于登录平台托管的算力租约（经平台访问网关）。公钥对名下全部托管租约生效，最多 {MAX_SSH_KEYS} 把。
+        用于 SSH 登录平台托管的算力租约（仅支持公钥登录）。公钥对名下全部托管租约生效，最多 {MAX_SSH_KEYS} 把。
       </p>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <GlassCard className="p-5">

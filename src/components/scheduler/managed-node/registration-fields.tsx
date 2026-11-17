@@ -43,7 +43,7 @@ export function ManagedNodeFields({containerDelivery, disabled, error, onChange,
         </span>
       </label>
       <p className={`text-xs ${error ? "text-danger" : "text-muted"}`}>
-        {error ?? "租约端口段只对平台网关出口 IP 开放，至少需要 卡数+1 个端口（含探活自检端口），最多 1000 个；探活会核实磁盘与端口。"}
+        {error ?? "租约端口段供买家 SSH 登录与探活自检使用（放行要求见接入信息），至少需要 卡数+1 个端口（含探活自检端口），最多 1000 个；探活会核实磁盘与端口。"}
       </p>
     </div>
   );

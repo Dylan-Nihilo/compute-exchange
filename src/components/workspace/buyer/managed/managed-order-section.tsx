@@ -3,7 +3,7 @@
 import {useQuery} from "@tanstack/react-query";
 import Link from "next/link";
 
-import {fetchManagedAccess, isBareMetalLease} from "@/lib/managed-orders";
+import {accessModeOf, fetchManagedAccess, isBareMetalLease} from "@/lib/managed-orders";
 
 import {ManagedAccessCard, managedAccessKey} from "./managed-access-card";
 import {ManagedNightlyCard} from "./managed-nightly-card";
@@ -28,6 +28,8 @@ export function ManagedOrderSections({orderNo, provisioning, productDeliveryMode
     retry: false,
   });
   const bareMetal = isBareMetalLease(access.data, productDeliveryMode);
+  // Session audit is recorded by the access gateway; direct mode has no gateway, so there is nothing to list.
+  const gatewaySessions = access.data !== undefined && accessModeOf(access.data) === "gateway";
   const leaseStarted = access.data ? !["reserved", "pending", "provisioning", "cancelled"].includes(access.data.lease_state) : !provisioning;
 
   return (
@@ -38,8 +40,8 @@ export function ManagedOrderSections({orderNo, provisioning, productDeliveryMode
       {access.data?.lease_state === "active" && !bareMetal ? <DeployEntry orderNo={orderNo} /> : null}
       {leaseStarted ? (
         <>
-<ManagedOutagesCard nightly={nightly} orderNo={orderNo} />
-          <ManagedSessionsCard orderNo={orderNo} />
+          <ManagedOutagesCard nightly={nightly} orderNo={orderNo} />
+          {gatewaySessions ? <ManagedSessionsCard orderNo={orderNo} /> : null}
         </>
       ) : null}
     </>

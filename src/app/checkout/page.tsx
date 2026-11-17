@@ -320,13 +320,13 @@ function CheckoutPage() {
               <section aria-labelledby="managed-terms-title" className="rounded-xl border border-border px-4 py-3 text-sm">
                 <h2 className="font-medium text-foreground" id="managed-terms-title">托管租用须知</h2>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
-                  <li>付款后平台自动开通，开通完成后经平台 SSH 网关登录使用；开通所用时间不计入租期。</li>
+                  <li>付款后平台自动开通，开通完成后使用 SSH 公钥登录使用；开通所用时间不计入租期。</li>
                   <li>开通失败时订单自动取消并全额退款。</li>
                   <li>租期结束后自动结算，无需确认签收。</li>
                   {nightly && nightWindow ? (
                     <>
                       <li>包夜每晚 {formatNightWindow(nightWindow.startMin, nightWindow.endMin)} 可用；白天自动停机，夜间窗口开始时自动开机，容器与数据保留。</li>
-                      <li>仅窗口内可经网关登录；窗口结束前 30 分钟、10 分钟提醒，到点断开会话。</li>
+                      <li>仅窗口内可登录；窗口结束前 30 分钟、10 分钟提醒，到点断开会话。</li>
                       <li>所有夜晚使用同一节点的同一组卡；包夜订单不支持续租，需要更多夜晚请重新下单。</li>
                     </>
                   ) : null}

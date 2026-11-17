@@ -23,21 +23,40 @@ export const leaseStateCopy: Record<string, string> = {
   cancelled: "已取消",
 };
 
-/** fleet.OrderAccess (GET /orders/:id/access). Never includes the node IP or container port. */
-export const managedAccessSchema = z.object({
-  gateway_host: z.string().min(1),
-  gateway_port: z.number().int().positive(),
-  // Login name = lease number (l-xxxxxxxx).
-  login: z.string().min(1),
-  lease_state: z.enum(leaseStates),
-  access_until: z.string().nullable(),
-  grace_until: z.string().nullable(),
-  // Currently always ["publickey","password"].
-  auth_methods: z.array(z.string()).nullable().transform((value) => value ?? []),
-  // fleet/access.go:248 (integ 2a97d7c): container = per-card lease container, bare_metal = whole host
-  // (host account omnis-<login>, no one-click deploy). Optional so an older backend still parses.
-  delivery_kind: z.enum(["container", "bare_metal"]).optional(),
-});
+export const accessModes = ["direct", "gateway"] as const;
+export type AccessMode = (typeof accessModes)[number];
+
+/**
+ * fleet.OrderAccess (GET /orders/:id/access). `access_mode` follows the backend `fleet.access_mode`:
+ * - direct: the buyer connects straight to `host:port` (node address + the lease's mapped port, set once
+ *   provisioned) with a public key; `gateway_host`/`gateway_port` are empty.
+ * - gateway: the buyer connects through the platform SSH gateway (`gateway_host:gateway_port`).
+ * A backend that predates `access_mode` is gateway-only.
+ */
+export const managedAccessSchema = z
+  .object({
+    access_mode: z.enum(accessModes).optional(),
+    gateway_host: z.string(),
+    gateway_port: z.number().int().nonnegative(),
+    host: z.string().optional(),
+    port: z.number().int().positive().optional(),
+    // SHA256:… of the lease sshd host key (direct mode); lets the buyer verify the first connection.
+    host_key_fingerprint: z.string().optional(),
+    // Gateway: lease number (l-xxxxxxxx). Direct: "root" in the lease container, omnis-<lease> on bare metal.
+    login: z.string().min(1),
+    lease_state: z.enum(leaseStates),
+    access_until: z.string().nullable(),
+    grace_until: z.string().nullable(),
+    // Gateway: ["publickey","password"]; direct: ["publickey"].
+    auth_methods: z.array(z.string()).nullable().transform((value) => value ?? []),
+    // fleet/access.go:248 (integ 2a97d7c): container = per-card lease container, bare_metal = whole host
+    // (no one-click deploy). Optional so an older backend still parses.
+    delivery_kind: z.enum(["container", "bare_metal"]).optional(),
+  })
+  .refine((value) => accessModeOf(value) === "direct" || (value.gateway_host.length > 0 && value.gateway_port > 0), {
+    message: "网关模式缺少网关地址",
+    path: ["gateway_host"],
+  });
 export type ManagedAccess = z.infer<typeof managedAccessSchema>;
 
 /**
@@ -253,14 +272,36 @@ export function fetchAccessSessions(
   });
 }
 
-export function sshCommand(access: Pick<ManagedAccess, "gateway_host" | "gateway_port" | "login">) {
-  const port = access.gateway_port === 22 ? "" : `-p ${access.gateway_port} `;
-  return `ssh ${port}${access.login}@${access.gateway_host}`;
+export function accessModeOf(access: {access_mode?: string} | undefined | null): AccessMode {
+  return access?.access_mode === "direct" ? "direct" : "gateway";
 }
 
-export function scpCommand(access: Pick<ManagedAccess, "gateway_host" | "gateway_port" | "login">) {
-  const port = access.gateway_port === 22 ? "" : `-P ${access.gateway_port} `;
-  return `scp ${port}<本地文件> ${access.login}@${access.gateway_host}:/root/workspace/`;
+type AccessTarget = Pick<ManagedAccess, "access_mode" | "gateway_host" | "gateway_port" | "host" | "port">;
+
+/** Where the buyer's SSH client connects; null while a direct lease has no mapped port yet. */
+export function accessEndpoint(access: AccessTarget): {host: string; port: number} | null {
+  if (accessModeOf(access) === "direct") return access.host && access.port ? {host: access.host, port: access.port} : null;
+  return access.gateway_host && access.gateway_port ? {host: access.gateway_host, port: access.gateway_port} : null;
+}
+
+/** Bare-metal host account: direct mode already returns omnis-<lease>; the gateway maps l-xxx → omnis-l-xxx. */
+export function bareMetalAccount(access: Pick<ManagedAccess, "access_mode" | "login">) {
+  return accessModeOf(access) === "direct" ? access.login : `omnis-${access.login}`;
+}
+
+export function sshCommand(access: AccessTarget & Pick<ManagedAccess, "login">) {
+  const endpoint = accessEndpoint(access);
+  if (!endpoint) return null;
+  const port = endpoint.port === 22 ? "" : `-p ${endpoint.port} `;
+  return `ssh ${port}${access.login}@${endpoint.host}`;
+}
+
+/** Container leases upload into the persistent /root/workspace volume; bare metal into the account's home. */
+export function scpCommand(access: AccessTarget & Pick<ManagedAccess, "login">, bareMetal = false) {
+  const endpoint = accessEndpoint(access);
+  if (!endpoint) return null;
+  const port = endpoint.port === 22 ? "" : `-P ${endpoint.port} `;
+  return `scp ${port}<本地文件> ${access.login}@${endpoint.host}:${bareMetal ? "~/" : "/root/workspace/"}`;
 }
 
 export function formatBytes(value: number) {
