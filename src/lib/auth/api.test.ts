@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {describe, it} from "node:test";
 
+import {isBackendRequestError} from "../api/envelope.ts";
 import {
   currentAccountApi,
   registerSmsApi,
@@ -65,8 +66,17 @@ describe("authentication API adapter", () => {
     );
   });
 
-  it("shows the registration prompt returned for an unregistered login phone", async () => {
-    await assert.rejects(requestSmsCodeApi({phoneNumber: "13900139000", purpose: "login", captchaToken: "cap-token"}, async () => Response.json({code: 40400, message: "该手机号尚未注册，请先注册"})), /该手机号尚未注册，请先注册/);
+  it("preserves the business code and registration prompt for an unregistered login phone", async () => {
+    await assert.rejects(
+      requestSmsCodeApi(
+        {phoneNumber: "13900139000", purpose: "login", captchaToken: "cap-token"},
+        async () => Response.json({code: 40400, message: "该手机号尚未注册，请先注册"}),
+      ),
+      (error: unknown) =>
+        isBackendRequestError(error) &&
+        error.code === 40400 &&
+        error.message === "该手机号尚未注册，请先注册",
+    );
   });
 
   it("maps SMS login without exposing backend tokens to application state", async () => {
