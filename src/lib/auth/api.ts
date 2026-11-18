@@ -2,6 +2,7 @@ import {z} from "zod";
 
 import {LEGAL_VERSION} from "../legal.ts";
 
+import {BackendRequestError} from "../api/envelope.ts";
 import {roleSchema, type VerificationStatus} from "../domain/contracts.ts";
 import {
   verificationInputSchema,
@@ -255,7 +256,10 @@ async function post<T extends {code: number; message: string}>(
   const parsed = schema.safeParse(await response.json().catch(() => null));
   if (!parsed.success) throw new Error("认证服务返回格式错误");
   if (!response.ok || parsed.data.code !== 0) {
-    throw new Error(parsed.data.message || "操作未完成，请重试");
+    throw new BackendRequestError(parsed.data.message || "操作未完成，请重试", {
+      code: parsed.data.code,
+      status: response.status,
+    });
   }
   return parsed.data;
 }

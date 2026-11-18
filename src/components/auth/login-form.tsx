@@ -19,6 +19,7 @@ import {useSearchParams} from "next/navigation";
 import {useMutation, useQuery} from "@tanstack/react-query";
 import {useEffect, useState} from "react";
 
+import {isBackendRequestError} from "@/lib/api/envelope";
 import {useLogin, useRequestSmsCode} from "@/lib/auth/queries";
 import {resolvePostAuthDestination, safeNextPath} from "@/lib/auth/session";
 import {useAuthStore} from "@/lib/auth/store";
@@ -45,6 +46,11 @@ export function LoginForm({wechatBinding = false}: {wechatBinding?: boolean} = {
   const [remember, setRemember] = useState(true);
   const [resendSeconds, setResendSeconds] = useState(0);
   const nextPath = safeNextPath(searchParams.get("next"));
+  const registerParams = new URLSearchParams();
+  if (wechatBinding) registerParams.set("mode", "register");
+  if (nextPath) registerParams.set("next", nextPath);
+  const registerPath = wechatBinding ? "/auth/wechat/bind" : "/auth/register";
+  const registerHref = registerParams.size ? `${registerPath}?${registerParams}` : registerPath;
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
@@ -84,7 +90,9 @@ export function LoginForm({wechatBinding = false}: {wechatBinding?: boolean} = {
   }
 
   const identifierIsValid = /^1[3-9]\d{9}$/.test(identifier);
-  const canSubmit = identifierIsValid && /^[0-9]{6}$/.test(verificationCode);
+  const smsError = smsMutation.variables?.phoneNumber === identifier ? smsMutation.error : null;
+  const phoneNotRegistered = isBackendRequestError(smsError) && smsError.code === 40400;
+  const canSubmit = identifierIsValid && !phoneNotRegistered && /^[0-9]{6}$/.test(verificationCode);
 
   return (
     <>
@@ -106,14 +114,17 @@ export function LoginForm({wechatBinding = false}: {wechatBinding?: boolean} = {
       </Segment>
 
       <Form className="space-y-3" onSubmit={submit}>
-        <FormError error={mutation.error ?? smsMutation.error ?? wechatLogin.error ?? (searchParams.get("wechat_error") ? new Error("微信授权未完成或已失效，请重新扫码") : null)} />
+        <FormError error={mutation.error ?? wechatLogin.error ?? (searchParams.get("wechat_error") ? new Error("微信授权未完成或已失效，请重新扫码") : null)} />
         <TextField
           fullWidth
           inputMode="numeric"
           isRequired
           maxLength={11}
           name="identifier"
-          onChange={setIdentifier}
+          onChange={(value) => {
+            setIdentifier(value);
+            smsMutation.reset();
+          }}
           type="tel"
           validate={(value) =>
             /^1[3-9][0-9]{9}$/.test(value) ? null : "请输入正确的 11 位手机号"
@@ -132,7 +143,7 @@ export function LoginForm({wechatBinding = false}: {wechatBinding?: boolean} = {
         </TextField>
 
         <VerificationCodeField
-          canSend={identifierIsValid}
+          canSend={identifierIsValid && !phoneNotRegistered}
           id="login-code"
           isPending={smsMutation.isPending}
           onChange={setVerificationCode}
@@ -140,6 +151,16 @@ export function LoginForm({wechatBinding = false}: {wechatBinding?: boolean} = {
           resendSeconds={resendSeconds}
           value={verificationCode}
         />
+        {phoneNotRegistered ? (
+          <p className="text-sm leading-5 text-danger" role="alert">
+            该手机号尚未注册。{" "}
+            <Link className="font-medium text-danger underline" href={registerHref}>
+              注册
+            </Link>
+          </p>
+        ) : (
+          <FormError error={smsError} />
+        )}
 
         <Checkbox
           className="text-[13px] text-[#4e6c7c]"
@@ -174,15 +195,14 @@ export function LoginForm({wechatBinding = false}: {wechatBinding?: boolean} = {
         </Button>
       </Form>
 
-      <p className="mt-3 text-center text-[13px] leading-5 text-[#526f7f]">
-        还没有账号？{" "}
-        <Link
-          className="font-medium text-[#2c6b88]"
-          href={wechatBinding ? `/auth/wechat/bind?mode=register${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}` : nextPath ? `/auth/register?next=${encodeURIComponent(nextPath)}` : "/auth/register"}
-        >
-          注册
-        </Link>
-      </p>
+      {!phoneNotRegistered && (
+        <p className="mt-3 text-center text-[13px] leading-5 text-[#526f7f]">
+          还没有账号？{" "}
+          <Link className="font-medium text-[#2c6b88]" href={registerHref}>
+            注册
+          </Link>
+        </p>
+      )}
 
       {!wechatBinding && <>
       <div className="my-3 flex items-center gap-2" aria-hidden="true">
