@@ -37,7 +37,16 @@ export function BuyerDashboard() {
   const queryClient = useQueryClient();
   const {data: account} = useCurrentAccount();
   const [confirmingOrder, setConfirmingOrder] = useState<BuyerOrder | null>(null);
-  const ordersQuery = useQuery({queryKey: ordersKey, queryFn: () => fetchBuyerOrders()});
+  const ordersQuery = useQuery({
+    queryKey: ordersKey,
+    queryFn: () => fetchBuyerOrders(),
+    // 首页要跟上支付/交付进度: 进入即刷新, 有进行中的订单时轮询。
+    staleTime: 0,
+    refetchInterval: (query) =>
+      query.state.data?.orders.some(({status}) => status === "pending_payment" || status === "paid" || status === "provisioning")
+        ? 10_000
+        : false,
+  });
   const confirmMutation = useMutation({
     mutationFn: (orderNo: string) => confirmBuyerOrder(orderNo),
     onSuccess: async () => {
@@ -68,7 +77,7 @@ export function BuyerDashboard() {
     );
   }
 
-  const todoCount = summary.pendingPayment + summary.pendingReceipt;
+  const todoCount = summary.pendingPayment + summary.pendingReceipt + summary.pendingDelivery;
 
   return (
     <section className="mx-auto flex w-full max-w-[1228px] flex-col gap-5 px-4 pt-6 pb-5 sm:px-6 lg:px-8">
@@ -111,7 +120,7 @@ export function BuyerDashboard() {
           </div>
 
           {todoCount ? (
-            <div className="grid gap-2.5 sm:grid-cols-2">
+            <div className="grid gap-2.5 sm:grid-cols-3">
               <TaskLink
                 count={summary.pendingPayment}
                 detail="请在有效期内完成支付"
@@ -123,6 +132,12 @@ export function BuyerDashboard() {
                 detail="核验资源后确认签收"
                 icon="status-delivery.svg"
                 label="待确认签收"
+              />
+              <TaskLink
+                count={summary.pendingDelivery}
+                detail="已付款，等待供给方交付"
+                icon="status-delivery.svg"
+                label="待供给方交付"
               />
             </div>
           ) : (
@@ -288,6 +303,7 @@ function Metric({
 }
 
 function OrderRow({onConfirm, order}: {onConfirm: () => void; order: BuyerOrder}) {
+  const router = useRouter();
   return (
     <article className="grid gap-3 border-b border-[#b0c9d6]/15 px-3.5 py-3.5 last:border-0 md:grid-cols-[minmax(280px,460px)_160px_1fr] md:items-center">
       <div className="min-w-0">
@@ -302,10 +318,10 @@ function OrderRow({onConfirm, order}: {onConfirm: () => void; order: BuyerOrder}
       <div className="flex items-center gap-2 md:justify-end">
         <Button
           className={`h-9 min-w-16 rounded-xl border-[#afc4ce]/45 px-3 text-xs ${secondaryButtonInteraction}`}
-          onPress={() => window.location.assign(`/market/${order.product_id}`)}
+          onPress={() => router.push(`/console/buyer/orders/${order.order_no}`)}
           variant="outline"
         >
-          资源
+          详情
         </Button>
         {needsBuyerReceipt(order) ? (
           <Button className={`h-9 rounded-xl px-4 text-xs ${primaryButtonInteraction}`} onPress={onConfirm} variant="primary">

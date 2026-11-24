@@ -145,8 +145,23 @@
     .search-field__group,
     .number-field__group
   ) {
-  height: 2.5rem;
+  /* 只设下限: 强制 height 会压过组件自身的 h-* 类, 把多行输入框和加高的控件挤变形。 */
   min-height: 2.5rem;
+}
+
+/* 原生下拉框统一外观: 各浏览器默认样式叠加圆角/边框类后高矮、箭头位置都不一致。 */
+@layer base {
+  select:not([multiple]):not([size]) {
+    appearance: none;
+    min-height: 2.5rem;
+    padding-inline: 0.75rem 2.25rem;
+    border-radius: 0.75rem;
+    line-height: 1.25rem;
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 0.75rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%235f7888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
+  }
 }
 
 .omnis-auth-controls
@@ -216,7 +231,6 @@
       .search-field__group,
       .number-field__group
     ) {
-    height: 2.75rem;
     min-height: 2.75rem;
   }
 }

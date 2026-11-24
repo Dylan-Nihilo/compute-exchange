@@ -77,6 +77,11 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
                     平台自营
                   </Chip>
                 ) : null}
+                {supply.status === "sold_out" ? (
+                  <Chip className="bg-[#eef1f3] text-[#5f7888]" size="sm" variant="soft">
+                    {supply.pricingMode === "perpetual" ? "已售出" : "已租满"}
+                  </Chip>
+                ) : null}
                 {supply.fulfillmentMode === "managed" ? (
                   <Chip className="bg-[#e3f1f5] text-[#1c526b]" size="sm" variant="soft">
                     平台托管
@@ -138,7 +143,9 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
             ) : null}
           </div>
           <Button
-            className="mt-2 h-11 w-full rounded-xl border border-[#ddf3a8]/70 bg-[#c4ec68] text-[#112b31] shadow-[0_6px_14px_rgba(125,171,54,0.16)] hover:bg-[#b9e35c]"
+            className={supply.status === "sold_out"
+              ? "mt-2 h-11 w-full rounded-xl border border-[#d5e0e5] bg-white/70 text-[#5f7888] hover:bg-white"
+              : "mt-2 h-11 w-full rounded-xl border border-[#ddf3a8]/70 bg-[#c4ec68] text-[#112b31] shadow-[0_6px_14px_rgba(125,171,54,0.16)] hover:bg-[#b9e35c]"}
             onPress={() => router.push(`/market/${encodeURIComponent(supply.id)}`)}
           >
             查看详情

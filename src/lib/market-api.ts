@@ -25,6 +25,7 @@ const marketProxyClient = createApiClient({baseUrl: "/api/market-proxy"});
 
 const productSchema = z.object({
   id: z.number().int(),
+  status: z.string().optional(),
   supplier_id: z.number().int().optional(),
   product_type: z.string(),
   gpu_model: z.string(),
@@ -128,7 +129,7 @@ const statusLabels: Record<string, string> = {
   offline: "已下架",
   pending: "审核中",
   rejected: "未通过",
-  sold_out: "已售罄",
+  sold_out: "已售出 / 已租满",
 };
 
 const priceSuffixes: Record<string, string> = {
@@ -292,6 +293,7 @@ export function mapComputeProduct(product: ComputeProduct): MarketSupply {
     region: product.region,
     totalUnits: Math.max(listedUnits ?? 0, product.stock),
     availableUnits: product.stock,
+    ...(product.status ? {status: product.status} : {}),
     health: product.health ?? "unknown",
     unitLabel,
     deliveryMode:

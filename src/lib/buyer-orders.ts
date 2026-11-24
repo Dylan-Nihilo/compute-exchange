@@ -158,6 +158,14 @@ const accessCredentialSchema = z.object({
   access_expires_at: z.string().nullable(),
   revoked_at: z.string().nullable(),
   masked: z.boolean(),
+  // 供给方回填的交付/交割信息, 仅在 reveal(留审计)时下发。
+  delivery: z.object({
+    ip_address: z.string().optional(),
+    ssh_port: z.number().optional(),
+    username: z.string().optional(),
+    password: z.string().optional(),
+    credential_note: z.string().optional(),
+  }).nullish(),
 });
 
 const accessCredentialEnvelopeSchema = z.object({
@@ -203,8 +211,20 @@ export function needsBuyerReceipt(order: {status: OrderStatus; fulfillment_mode?
   return order.status === "provisioning" && !isManagedBuyerOrder(order);
 }
 
-export function buyerOrderStatusLabel(order: {status: OrderStatus; fulfillment_mode?: string}) {
+/** 买断(永久使用权)订单: 交付的是设备本身, 没有租期与登录凭证。 */
+export function isOutrightOrder(order: {pricing_mode?: string}) {
+  return order.pricing_mode === "perpetual";
+}
+
+const outrightStatusCopy: Partial<Record<OrderStatus, string>> = {
+  paid: "待供给方交割",
+  provisioning: "待确认验收",
+  active: "已交割",
+};
+
+export function buyerOrderStatusLabel(order: {status: OrderStatus; fulfillment_mode?: string; pricing_mode?: string}) {
   if (isManagedBuyerOrder(order) && (order.status === "paid" || order.status === "provisioning")) return "平台开通中";
+  if (isOutrightOrder(order)) return outrightStatusCopy[order.status] ?? buyerOrderStatusCopy[order.status];
   return buyerOrderStatusCopy[order.status];
 }
 
@@ -481,6 +501,8 @@ export function summarizeBuyerOrders(
   return {
     pendingPayment: orders.filter(({status}) => status === "pending_payment").length,
     pendingReceipt: orders.filter(needsBuyerReceipt).length,
+    // 已付款、等供给方交付: 之前不计入待办, 买家付完款在首页看不到任何进展。
+    pendingDelivery: orders.filter((order) => order.status === "paid" && !isManagedBuyerOrder(order)).length,
     inProgress: orders.filter(({status}) => inProgressStatuses.has(status)).length,
     monthSpendMinor: orders.reduce(
       (sum, order) =>
@@ -489,7 +511,7 @@ export function summarizeBuyerOrders(
           : sum,
       0,
     ),
-    recentOrders: orders.slice(0, 3),
+    recentOrders: orders.slice(0, 5),
     isTruncated: total > orders.length,
   };
 }

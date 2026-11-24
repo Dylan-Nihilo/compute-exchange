@@ -12,7 +12,7 @@ const inputClass =
 const inputErrorClass =
   "h-10 rounded-xl border border-[#e5484d]/60 bg-[#fff7f7] px-3.5 text-sm text-[#24495d] placeholder:text-[#9cb0ba]";
 
-type FieldKey = "ipAddress" | "sshPort" | "username" | "password";
+type FieldKey = "ipAddress" | "sshPort" | "username" | "password" | "note";
 
 // 履约交付弹窗: 供给方回填实例访问凭证, 平台加密存储 (C-06)。
 export function DeliverOrderModal({
@@ -46,10 +46,20 @@ export function DeliverOrderModal({
     }
   }, [open]);
 
+  const outright = order?.pricing_mode === "perpetual" || order?.product_type === "outright";
+
   const submit = () => {
     // Defensive: managed orders never take supplier credentials (the backend also rejects them).
     if (isManagedOrder(order ?? undefined)) return;
     const nextErrors: Partial<Record<FieldKey, string>> = {};
+    if (outright) {
+      // 买断交付的是设备本身: 只需交割说明, 不收集登录信息。
+      if (note.trim().length < 4) nextErrors.note = "请填写交割说明";
+      setErrors(nextErrors);
+      if (nextErrors.note) return;
+      onSubmit({credential_note: note.trim()});
+      return;
+    }
     if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ipAddress.trim())) nextErrors.ipAddress = "请填写正确的 IP 地址";
     const port = Number(sshPort);
     if (!Number.isInteger(port) || port < 1 || port > 65535) nextErrors.sshPort = "端口 1-65535";
@@ -73,7 +83,7 @@ export function DeliverOrderModal({
           <Modal.Dialog className="sm:max-w-xl">
             <Modal.Header>
               <Modal.Heading className="text-base font-semibold text-[#173447]">
-                回填交付凭证
+                {outright ? "回填交割信息" : "回填交付凭证"}
               </Modal.Heading>
             </Modal.Header>
             <Modal.Body className="gap-4">
@@ -83,7 +93,7 @@ export function DeliverOrderModal({
                   订单 {order.order_no} · 数量 {order.quantity} · {order.current_lease ? `本次交付 ${order.current_lease.duration} 个周期（${pricingModeCopy[order.current_lease.pricing_mode] ?? order.current_lease.pricing_mode}），续租订单 ${order.current_lease.order_no}` : `金额 ¥${(order.total_amount / 100).toFixed(2)}`}
                 </p>
               ) : null}
-              <div className="grid gap-4 sm:grid-cols-2">
+              {outright ? null : <div className="grid gap-4 sm:grid-cols-2">
                 <TextField fullWidth className="gap-1.5" value={ipAddress} variant="secondary" onChange={setIpAddress}>
                   <Label className="text-[13px] font-medium text-[#24495d]">实例 IP *</Label>
                   <Input className={errors.ipAddress ? inputErrorClass : inputClass} placeholder="例如: 10.20.30.40" />
@@ -104,17 +114,22 @@ export function DeliverOrderModal({
                   <Input autoComplete="new-password" className={errors.password ? inputErrorClass : inputClass} placeholder="实例登录密码" type="password" />
                   {errors.password ? <p className="text-xs text-[#c4392f]" role="alert">{errors.password}</p> : null}
                 </TextField>
-              </div>
+              </div>}
               <TextField fullWidth className="gap-1.5" value={note} variant="secondary" onChange={setNote}>
-                <Label className="text-[13px] font-medium text-[#24495d]">凭证备注</Label>
+                <Label className="text-[13px] font-medium text-[#24495d]">{outright ? "交割说明 *" : "凭证备注"}</Label>
                 <TextArea
                   className="rounded-xl border border-[#afc4ce]/45 bg-white/80 px-3.5 py-2.5 text-sm text-[#24495d] placeholder:text-[#9cb0ba]"
-                  placeholder="控制台链接、密钥使用说明等补充信息(可选)"
-                  rows={3}
+                  placeholder={outright
+                    ? "交付方式(物流单号/上门交接时间地点)、设备序列号、交接联系人与电话等"
+                    : "控制台链接、密钥使用说明等补充信息(可选)"}
+                  rows={outright ? 5 : 3}
                 />
+                {errors.note ? <p className="text-xs text-[#c4392f]" role="alert">{errors.note}</p> : null}
               </TextField>
               <p className="text-xs leading-5 text-[#9cb0ba]">
-                凭证将加密存储, 仅在买家本人查看时脱敏/按需解密下发, 平台不留明文。
+                {outright
+                  ? "买断订单交付的是设备本身, 无需填写登录信息。交割说明加密存储, 仅买家本人可查看; 买家收到设备后确认验收。"
+                  : "凭证将加密存储, 仅在买家本人查看时脱敏/按需解密下发, 平台不留明文。"}
               </p>
             </Modal.Body>
             <Modal.Footer>
