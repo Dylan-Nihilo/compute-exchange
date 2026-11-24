@@ -129,7 +129,7 @@ const statusLabels: Record<string, string> = {
   offline: "已下架",
   pending: "审核中",
   rejected: "未通过",
-  sold_out: "已售出 / 已租满",
+  sold_out: "交易进行中",
 };
 
 const priceSuffixes: Record<string, string> = {

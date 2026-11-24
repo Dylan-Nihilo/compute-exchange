@@ -309,7 +309,7 @@ function OrderRow({onConfirm, order}: {onConfirm: () => void; order: BuyerOrder}
       <div className="min-w-0">
         <p className="truncate text-[13px] font-medium text-[#244b61]">{order.order_no}</p>
         <p className="mt-0.5 truncate text-[11px] text-[#78909c]">
-          算力资源 #{order.product_id} · {order.quantity} 份 · {order.duration} {durationUnit(order.pricing_mode)} · {formatDateTime(order.created_at)}
+          {(order.gpu_model || "算力资源").replace(/^NVIDIA\s+/i, "")} · {order.quantity} 份 · {order.duration} {durationUnit(order.pricing_mode)} · {formatDateTime(order.created_at)}
         </p>
       </div>
       <div>

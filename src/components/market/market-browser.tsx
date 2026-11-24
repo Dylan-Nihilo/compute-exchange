@@ -79,7 +79,7 @@ function MarketOfferCard({supply}: {supply: MarketSupply}) {
                 ) : null}
                 {supply.status === "sold_out" ? (
                   <Chip className="bg-[#eef1f3] text-[#5f7888]" size="sm" variant="soft">
-                    {supply.pricingMode === "perpetual" ? "已售出" : "已租满"}
+                    {supply.pricingMode === "perpetual" ? "交易中" : "租用中"}
                   </Chip>
                 ) : null}
                 {supply.fulfillmentMode === "managed" ? (
