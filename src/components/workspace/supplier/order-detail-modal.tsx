@@ -55,7 +55,7 @@ export function OrderDetailModal({
               <div className="rounded-xl border border-[#dce9ee] bg-white/55 px-4 py-3">
                 <p className="text-sm font-medium text-[#173447]">{productName}</p>
                 <p className="mt-0.5 text-xs text-[#78909c]">
-                  PRD-#{order.product_id} · {productTypeCopy[order.product_type ?? ""] ?? order.product_type}
+                  订单 {order.order_no} · {productTypeCopy[order.product_type ?? ""] ?? order.product_type}
                   {" · "}{pricingModeCopy[order.pricing_mode ?? ""] ?? order.pricing_mode}
                   {managed ? " · 平台托管" : ""}
                 </p>

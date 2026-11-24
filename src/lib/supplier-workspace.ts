@@ -374,10 +374,11 @@ export type SubmitQualificationInput = {
 };
 
 export type DeliverOrderInput = {
-  ip_address: string;
-  ssh_port: number;
-  username: string;
-  password: string;
+  // 租赁订单必填; 买断订单只提交 credential_note(交割说明)。
+  ip_address?: string;
+  ssh_port?: number;
+  username?: string;
+  password?: string;
   credential_note?: string;
 };
 

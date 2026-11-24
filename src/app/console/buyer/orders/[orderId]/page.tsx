@@ -15,6 +15,7 @@ import {ConfirmDialog} from "@/components/system/confirm-dialog";
 import {
   buyerOrderStatusCopy,
   buyerOrderStatusLabel,
+  isOutrightOrder,
   buyerPaymentChannelCopy,
   confirmBuyerOrder,
   cancelBuyerOrder,
@@ -112,7 +113,8 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
   const supplierName = supplier.name || (supplier.self_operated ? "平台自营" : "—");
   const productName = product.gpu_model || productTypeCopy(product.product_type);
   const managed = isManagedBuyerOrder(detail);
-  const statusCopy = buyerOrderStatusLabel({status: order.status, fulfillment_mode: managed ? "managed" : undefined});
+  const outright = isOutrightOrder(order);
+  const statusCopy = buyerOrderStatusLabel({status: order.status, fulfillment_mode: managed ? "managed" : undefined, pricing_mode: order.pricing_mode});
   const showManagedSections = managed && !detail.renewal && !["pending_payment", "cancelled"].includes(order.status);
   const nightly = nightlyOrderSnapshot(order);
   const progress = orderProgress(detail);
@@ -174,15 +176,17 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
         confirmLabel={orderAction === "cancel" ? "确认取消订单" : "提交退款申请"} open={orderAction !== null} isPending={action.isPending}
         description={orderAction === "cancel" ? "取消后无法继续支付，本订单预留的资源将释放。" : "提交后订单进入退款处理中，实际到账以平台处理结果为准。续租仅支持尚未使用且未被后续租期覆盖的部分。"}
         onCancel={() => setOrderAction(null)} onConfirm={() => action.mutate()} />
-      <ConfirmDialog title="确认签收资源" confirmLabel="确认签收" open={confirming} isPending={confirmation.isPending}
-        description={`请确认已核验订单 ${order.order_no} 的资源与访问凭证，确认后开始履约计时。`}
+      <ConfirmDialog title={outright ? "确认验收设备" : "确认签收资源"} confirmLabel={outright ? "确认验收" : "确认签收"} open={confirming} isPending={confirmation.isPending}
+        description={outright
+          ? `请确认已收到订单 ${order.order_no} 的设备并完成核验。确认后交易完成交割，款项将结算给供给方。`
+          : `请确认已核验订单 ${order.order_no} 的资源与访问凭证，确认后开始履约计时。`}
         onCancel={() => setConfirming(false)} onConfirm={() => confirmation.mutate()} />
 
       <section className={`${cardClass} mt-5 grid gap-5 px-5 py-5 sm:grid-cols-[minmax(0,1.65fr)_repeat(3,minmax(110px,1fr))] sm:items-center sm:px-6`}>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusTone(order.status)}`}>{statusCopy}</span>
-            <h2 className="truncate text-lg font-semibold text-[#173447]">{detail.renewal && order.status === "completed" ? "续租订单已支付" : managed && isProvisioning(order.status) ? "平台开通中" : statusHeadline(order.status)}</h2>
+            <h2 className="truncate text-lg font-semibold text-[#173447]">{detail.renewal && order.status === "completed" ? "续租订单已支付" : managed && isProvisioning(order.status) ? "平台开通中" : (outright ? outrightHeadline(order.status) : undefined) ?? statusHeadline(order.status)}</h2>
           </div>
           <p className="mt-2 text-xs text-[#7b929e]">{statusDescription(detail)}</p>
         </div>
@@ -248,7 +252,7 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
             <InfoItem label="访问状态" value={delivery ? accessStatusCopy(delivery.access_status) : "尚未生成"} />
             <InfoItem label="买家确认" value={delivery?.confirmed_by_buyer ? "已确认" : "待确认"} />
             <InfoItem label="确认时间" value={dateOrDash(delivery?.buyer_confirmed_at)} />
-            <InfoItem label="凭证有效期" value={dateOrDash(delivery?.access_expires_at)} />
+            {outright ? null : <InfoItem label="凭证有效期" value={dateOrDash(delivery?.access_expires_at)} />}
           </InfoCard>
 
           <AccessCredentialCard detail={detail} /></> : null}
@@ -278,6 +282,27 @@ function OrderDetail({detail, onBack}: {detail: BuyerOrderDetail; onBack: () => 
   );
 }
 
+// 供给方回填的交付信息(实例地址/账号/密码/说明, 买断为交割说明); 只在买家点"显示"后随明文凭证下发。
+function SupplierDeliveryInfo({delivery, outright}: {delivery: NonNullable<BuyerOrderAccessCredential["delivery"]>; outright: boolean}) {
+  const rows = [
+    ["实例地址", delivery.ip_address ? `${delivery.ip_address}${delivery.ssh_port ? `:${delivery.ssh_port}` : ""}` : ""],
+    ["登录用户名", delivery.username ?? ""],
+    ["登录密码", delivery.password ?? ""],
+    [outright ? "交割说明" : "供给方备注", delivery.credential_note ?? ""],
+  ].filter(([, value]) => value);
+  if (!rows.length) return null;
+  return (
+    <dl className="rounded-xl border border-[#dce9ee] bg-white/60 px-4 py-3 text-sm">
+      {rows.map(([label, value]) => (
+        <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 py-1.5" key={label}>
+          <dt className="text-xs leading-6 text-[#7b929e]">{label}</dt>
+          <dd className="whitespace-pre-wrap break-words text-[#244b61]">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function AccessCredentialCard({detail}: {detail: BuyerOrderDetail}) {
   const {order} = detail;
   const [revealed, setRevealed] = useState<BuyerOrderAccessCredential | null>(null);
@@ -303,7 +328,7 @@ function AccessCredentialCard({detail}: {detail: BuyerOrderDetail}) {
   return (
     <section className={`${cardClass} min-h-[376px] p-5`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <CardTitle icon="key.svg" title="访问凭证" />
+        <CardTitle icon="key.svg" title={isOutrightOrder(order) ? "交割信息与凭证" : "访问凭证"} />
         <span className="rounded-full bg-[#edf4dc] px-2.5 py-1 text-[11px] font-medium text-[#718827]">
           {detail.delivery ? accessStatusCopy(detail.delivery.access_status) : "尚未生成"}
         </span>
@@ -340,6 +365,7 @@ function AccessCredentialCard({detail}: {detail: BuyerOrderDetail}) {
             onCopy={showSecret && visibleValue ? () => copyText(visibleValue) : undefined}
             value={visibleValue || (credential ? "••••••••••••••••" : "尚未生成")}
           />
+          {showSecret && revealed?.delivery ? <SupplierDeliveryInfo delivery={revealed.delivery} outright={isOutrightOrder(order)} /> : null}
         </div>
       )}
 
@@ -488,6 +514,10 @@ function credentialSteps(detail: BuyerOrderDetail) {
   ];
 }
 
+function outrightHeadline(status: BuyerOrderDetail["order"]["status"]) {
+  return ({active: "设备已交割", paid: "订单已支付", provisioning: "等待确认验收"} as Partial<Record<typeof status, string>>)[status];
+}
+
 function statusHeadline(status: BuyerOrderDetail["order"]["status"]) {
   return {
     active: "算力已开通",
@@ -508,6 +538,14 @@ function isProvisioning(status: BuyerOrderDetail["order"]["status"]) {
 
 function statusDescription(detail: BuyerOrderDetail) {
   const {order} = detail;
+  if (isOutrightOrder(order)) {
+    const copy: Partial<Record<typeof order.status, string>> = {
+      paid: "已付款，供给方正在准备设备交割",
+      provisioning: "供给方已提交交割信息，收到设备并核验后请确认验收",
+      active: "设备已交割完成",
+    };
+    if (copy[order.status]) return copy[order.status]!;
+  }
   if (isManagedBuyerOrder(detail) && isProvisioning(order.status)) return "支付成功，平台正在自动开通资源；开通耗时不计入租期，自检通过后即可登录";
   if (detail.renewal && order.status === "completed") return detail.renewal.mode === "extend" ? "续租已生效，请在原订单查看当前租期与访问凭证" : "请在原订单查看重新交付与当前租期";
   if (order.status === "active" && order.lease_end_at) return `履约至 ${formatDateTime(order.lease_end_at)}`;

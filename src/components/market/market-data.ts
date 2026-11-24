@@ -16,6 +16,8 @@ export type MarketSupply = ManagedRentalFields & {
   unitPrice: string;
   priceUnit: string;
   productType?: string;
+  /** 后端商品状态; sold_out = 已售出/已租满, 列表仍展示但不可下单。 */
+  status?: string;
   pricingMode?: string;
   availableHours?: string;
   unitPriceMinor?: number;

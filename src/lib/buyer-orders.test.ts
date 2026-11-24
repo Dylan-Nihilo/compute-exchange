@@ -42,6 +42,7 @@ test("payment uses the order identity and rejects unsafe cashier URLs", async ()
 });
 
 import {
+  buyerOrderStatusLabel,
   confirmBuyerOrder,
   fetchAllBuyerOrders,
   fetchBuyerOrderDetail,
@@ -87,9 +88,10 @@ test("summarizeBuyerOrders derives actionable buyer metrics", () => {
     {
       pendingPayment: 1,
       pendingReceipt: 1,
+      pendingDelivery: 0,
       inProgress: 2,
       monthSpendMinor: 2400,
-      recentOrders: orders.slice(0, 3),
+      recentOrders: orders.slice(0, 5),
       isTruncated: true,
     },
   );
@@ -349,4 +351,13 @@ test("fetchBuyerOrderDetail rejects a detail without the order snapshot instead 
       created_at: "2026-08-22T00:00:00Z", updated_at: "2026-08-23T00:00:00Z"},
     product: {}, supplier: {}, delivery: null, actions: {},
   }})), /订单服务返回格式错误/);
+});
+
+test("a paid order waiting for the supplier counts as a buyer to-do and outright orders use sale wording", () => {
+  const paid: BuyerOrder = {...baseOrder, id: 9, order_no: "ORD-9", status: "paid", pricing_mode: "perpetual"};
+  assert.equal(summarizeBuyerOrders([paid], 1).pendingDelivery, 1);
+  assert.equal(buyerOrderStatusLabel(paid), "待供给方交割");
+  assert.equal(buyerOrderStatusLabel({...paid, status: "provisioning"}), "待确认验收");
+  assert.equal(buyerOrderStatusLabel({...paid, status: "active"}), "已交割");
+  assert.equal(buyerOrderStatusLabel({...paid, pricing_mode: "hourly", status: "active"}), "履约中");
 });

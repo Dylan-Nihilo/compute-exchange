@@ -21,6 +21,7 @@ import {
   isManagedOrder,
   type DeliverOrderInput,
   type SupplierOrder,
+  productTypeCopy,
 } from "@/lib/supplier-workspace";
 
 const pageSize = 10;
@@ -163,7 +164,7 @@ export default function SupplierOrdersPage() {
                         <p className="truncate text-[13px] font-medium text-[#24495d]">
                           {(order.gpu_model || "算力资源").replace(/^NVIDIA\s+/i, "")}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-[#8aa0ab]">PRD-#{order.product_id}{isManagedOrder(order) ? " · 平台托管" : ""}</p>
+                        <p className="mt-0.5 text-[11px] text-[#8aa0ab]">{productTypeCopy[order.product_type ?? ""] ?? "算力商品"}{isManagedOrder(order) ? " · 平台托管" : ""}</p>
                         {nightlyOrderSummary(order) ? <p className="mt-0.5 text-[11px] text-[#24495d]">{nightlyOrderSummary(order)}</p> : null}
                       </td>
                       <td className="px-4 py-3.5 text-[13px] text-[#24495d]">{order.quantity}</td>
