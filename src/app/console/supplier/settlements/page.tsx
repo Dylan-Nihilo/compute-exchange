@@ -7,6 +7,7 @@ import {useState} from "react";
 
 import {ErrorState} from "@/components/system/operation-state";
 import {EmptyState} from "@/components/workspace/ui/empty-state";
+import {PaymentAccountModal} from "@/components/workspace/supplier/payment-account-modal";
 import {GlassCard} from "@/components/workspace/ui/glass-card";
 import {ListPagination} from "@/components/workspace/ui/list-pagination";
 import {WorkspacePageHeader} from "@/components/workspace/ui/workspace-page-header";
@@ -20,7 +21,8 @@ import {
   awaitsLeaseEndSplit,
   settlementAdjustment,
   settlementStatusCopy,
-  startSupplierPaymentAccount,
+  submitSupplierPaymentAccount,
+  type PaymentAccountApplication,
   type SupplierSettlement,
 } from "@/lib/supplier-workspace";
 
@@ -220,25 +222,32 @@ function SettlementAdjustmentNote({item}: {item: SupplierSettlement}) {
 
 function PaymentAccountCard() {
   const client = useQueryClient();
-  const query = useQuery({queryKey: ["supplier", "payment-account"], queryFn: () => fetchSupplierPaymentAccount()});
-  const start = useMutation({
-    mutationFn: () => startSupplierPaymentAccount(),
+  const [open, setOpen] = useState(false);
+  const query = useQuery({
+    queryKey: ["supplier", "payment-account"],
+    queryFn: () => fetchSupplierPaymentAccount(),
+    // 审核中时定期向易宝核对进度。
+    refetchInterval: (current) => (current.state.data?.status === "pending" ? 30_000 : false),
+  });
+  const submit = useMutation({
+    mutationFn: (input: PaymentAccountApplication) => submitSupplierPaymentAccount(input),
     onSuccess: async (account) => {
-      await client.invalidateQueries({queryKey: ["supplier", "payment-account"]});
-      if (account.netin_url) window.location.assign(account.netin_url);
-      else notify.error("暂未获取到开通链接，请稍后重试或联系平台运营");
+      client.setQueryData(["supplier", "payment-account"], account);
+      setOpen(false);
+      notify.success(account.status === "completed" ? "收款账户已开通" : "开通申请已提交，易宝审核结果将在此处更新");
     },
     onError: (error) => notify.error(error.message),
   });
   const account = query.data;
   const completed = account?.status === "completed";
+  const pending = account?.status === "pending";
   return (
     <GlassCard className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-[#173447]">易宝收款账户</p>
           {account ? (
-            <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${completed ? statusTone.success : account.status === "pending" ? statusTone.processing : statusTone.pending}`}>
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${completed ? statusTone.success : pending ? statusTone.processing : account.status === "rejected" ? statusTone.failed : statusTone.pending}`}>
               {paymentAccountStatusCopy[account.status]}
             </span>
           ) : null}
@@ -248,15 +257,18 @@ function PaymentAccountCard() {
             ? "收款账户状态暂时无法读取。"
             : completed
               ? `商户编号 ${account?.merchant_no ?? "—"}。订单交付确认且款项清算后, 你的应得金额将经易宝自动分账至该账户。`
-              : "订单款项由易宝支付托管, 开通易宝收款账户后才能接收分账。开通需提交企业资料并完成易宝审核与签约。"}
+              : pending
+                ? "开通申请已提交, 易宝正在审核企业资料, 结果会在这里更新。"
+                : "订单款项由易宝支付托管, 开通易宝收款账户后才能接收分账。在线填写企业资料并上传证照, 由平台代为提交易宝审核。"}
         </p>
         {account?.audit_opinion && !completed ? <p className="mt-1 text-xs text-[#c4392f]">审核意见：{account.audit_opinion}</p> : null}
       </div>
-      {account && !completed ? (
-        <Button className="shrink-0" isPending={start.isPending} onPress={() => start.mutate()}>
-          {account.status === "pending" ? "继续开通" : "开通收款账户"}
+      {account && !completed && !pending ? (
+        <Button className="shrink-0" onPress={() => setOpen(true)}>
+          {account.status === "rejected" ? "修改并重新提交" : "开通收款账户"}
         </Button>
       ) : null}
+      <PaymentAccountModal account={account} isPending={submit.isPending} onCancel={() => setOpen(false)} onSubmit={(input) => submit.mutate(input)} open={open} />
     </GlassCard>
   );
 }
