@@ -56,7 +56,8 @@ export const settlementStatusCopy: Record<string, string> = {
 
 export const paymentAccountStatusCopy: Record<string, string> = {
   not_started: "未开通",
-  pending: "开通中",
+  pending: "审核中",
+  rejected: "已驳回",
   completed: "已开通",
 };
 
@@ -187,11 +188,12 @@ const settlementSchema = z.object({
 
 // 供给方易宝收款账户(分账接收商编)开通状态。
 const paymentAccountSchema = z.object({
-  status: z.enum(["not_started", "pending", "completed"]),
+  status: z.enum(["not_started", "pending", "rejected", "completed"]),
   application_status: z.string(),
   merchant_no: z.string().nullable(),
   audit_opinion: z.string(),
-  netin_url: z.string().url().refine((value) => new URL(value).protocol === "https:").optional(),
+  // 平台已登记的企业资料, 用于开通表单预填。
+  prefill: z.object({sign_name: z.string(), licence_no: z.string(), legal_name: z.string()}).nullish(),
 });
 
 const settlementSummarySchema = z.object({
@@ -515,9 +517,79 @@ export function fetchSupplierPaymentAccount(fetchImplementation: typeof fetch = 
   return paymentAccountRequest(undefined, "收款账户状态读取失败", fetchImplementation);
 }
 
-// startSupplierPaymentAccount 获取易宝入网(开通收款商编)链接; 已有申请时复用同一申请单。
-export function startSupplierPaymentAccount(fetchImplementation: typeof fetch = fetch) {
-  return paymentAccountRequest({method: "POST"}, "收款账户开通链接获取失败", fetchImplementation);
+/** 收款账户开通资料(企业 → 易宝分账接收方)。*_url 为 uploadSupplierPaymentAccountFile 返回的地址。 */
+export type PaymentAccountApplication = {
+  sign_name: string;
+  short_name: string;
+  licence_no: string;
+  licence_url: string;
+  open_account_licence_url?: string;
+  legal_name: string;
+  legal_licence_no: string;
+  legal_front_url: string;
+  legal_back_url: string;
+  contact_name: string;
+  contact_mobile: string;
+  contact_email: string;
+  province: string;
+  city: string;
+  district: string;
+  address: string;
+  bank_card_no: string;
+  cnaps_code: string;
+  share_certificate_url?: string;
+};
+
+export const paymentAccountFileMaxBytes = 6 * 1024 * 1024;
+const paymentAccountFileTypes = ["image/jpeg", "image/png", "application/pdf"];
+
+/** 与后端同口径的表单校验; 返回 字段 → 错误文案。 */
+export function validatePaymentAccountApplication(input: PaymentAccountApplication) {
+  const errors: Partial<Record<keyof PaymentAccountApplication, string>> = {};
+  const text = (value: string | undefined) => (value ?? "").trim();
+  const length = (value: string | undefined) => [...text(value)].length;
+  if (length(input.sign_name) < 2) errors.sign_name = "请填写与营业执照一致的企业全称";
+  if (length(input.short_name) < 2 || length(input.short_name) > 20 || /^\d+$/.test(text(input.short_name))) errors.short_name = "2-20 个字, 不能是纯数字";
+  if (!/^[0-9A-Za-z]{18}$/.test(text(input.licence_no))) errors.licence_no = "统一社会信用代码应为 18 位";
+  if (length(input.legal_name) < 2) errors.legal_name = "请填写法定代表人姓名";
+  if (!/^\d{17}[\dXx]$/.test(text(input.legal_licence_no))) errors.legal_licence_no = "身份证号应为 18 位";
+  if (length(input.contact_name) < 2) errors.contact_name = "请填写联系人真实姓名";
+  if (!/^1\d{10}$/.test(text(input.contact_mobile))) errors.contact_mobile = "请填写 11 位手机号";
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(text(input.contact_email))) errors.contact_email = "邮箱格式不正确";
+  if (!text(input.province) || !text(input.city) || !text(input.district)) errors.district = "请选择省市区";
+  if (length(input.address) < 5) errors.address = "至少 5 个字, 不含省市区";
+  if (!/^\d{8,32}$/.test(text(input.bank_card_no))) errors.bank_card_no = "请填写对公账户账号";
+  if (!/^\d{12}$/.test(text(input.cnaps_code))) errors.cnaps_code = "联行号为 12 位数字";
+  if (!text(input.licence_url)) errors.licence_url = "请上传营业执照";
+  if (!text(input.legal_front_url)) errors.legal_front_url = "请上传身份证人像面";
+  if (!text(input.legal_back_url)) errors.legal_back_url = "请上传身份证国徽面";
+  return errors;
+}
+
+// submitSupplierPaymentAccount 提交开通资料; 平台代向易宝进件, 返回最新开通状态。
+export function submitSupplierPaymentAccount(input: PaymentAccountApplication, fetchImplementation: typeof fetch = fetch) {
+  return paymentAccountRequest(
+    {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(input)},
+    "收款账户开通申请提交失败",
+    fetchImplementation,
+  );
+}
+
+const paymentAccountUploadSchema = z.object({
+  code: z.number().int(),
+  message: z.string(),
+  data: z.object({url: z.string().min(1)}).optional(),
+});
+
+// uploadSupplierPaymentAccountFile 上传一份资质文件(JPG/PNG/PDF, ≤6MB), 返回提交时引用的地址。
+export async function uploadSupplierPaymentAccountFile(file: File, fetchImplementation: typeof fetch = fetch) {
+  if (!paymentAccountFileTypes.includes(file.type)) throw new Error("仅支持 JPG、PNG 图片或 PDF 文件");
+  if (file.size === 0 || file.size > paymentAccountFileMaxBytes) throw new Error("文件大小须在 6MB 以内");
+  const body = new FormData();
+  body.set("file", file);
+  const result = await request("/api/supplier/payment-account/upload", paymentAccountUploadSchema, "文件上传失败", {method: "POST", body}, fetchImplementation);
+  if (!result.data) throw new Error("文件上传失败");
+  return result.data.url;
 }
 
 export function fetchSupplierSettlementSummary(fetchImplementation: typeof fetch = fetch) {

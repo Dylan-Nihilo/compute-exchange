@@ -22,7 +22,11 @@ import {
   fetchSupplierSettlements,
   fetchSupplierSettlementSummary,
   fetchSupplierPaymentAccount,
-  startSupplierPaymentAccount,
+  paymentAccountFileMaxBytes,
+  submitSupplierPaymentAccount,
+  uploadSupplierPaymentAccountFile,
+  validatePaymentAccountApplication,
+  type PaymentAccountApplication,
   submitPassiveResourceSync,
   submitQualification,
 } from "./supplier-workspace.ts";
@@ -286,21 +290,72 @@ test("qualification expiry status follows server calendar days and preserves rev
   assert.deepEqual(list.map((q) => q.status), cases.map((c) => c[2]));
 });
 
-test("supplier payment account reads status and only accepts https onboarding links", async () => {
+const validPaymentAccountApplication: PaymentAccountApplication = {
+  sign_name: "北京测试科技有限公司", short_name: "测试科技", licence_no: "91110000MA00000000", licence_url: "u-lic",
+  legal_name: "张三", legal_licence_no: "11010119900101123X", legal_front_url: "u-front", legal_back_url: "u-back",
+  contact_name: "李四", contact_mobile: "13800000000", contact_email: "a@b.cn",
+  province: "110000", city: "110100", district: "110105", address: "某某路 1 号院",
+  bank_card_no: "1234567890123", cnaps_code: "102100099996",
+};
+
+test("supplier payment account reads status, prefill and submits the application as JSON", async () => {
   const account = await fetchSupplierPaymentAccount(async (input, init) => {
     assert.equal(String(input), "/api/supplier/payment-account");
     assert.equal(init?.method, undefined);
-    return Response.json({code: 0, message: "success", data: {status: "completed", application_status: "COMPLETED", merchant_no: "10089000101", audit_opinion: ""}});
+    return Response.json({code: 0, message: "success", data: {status: "rejected", application_status: "REVIEW_BACK", merchant_no: null, audit_opinion: "营业执照不清晰", prefill: {sign_name: "北京测试科技有限公司", licence_no: "91110000MA00000000", legal_name: "张三"}}});
   });
-  assert.equal(account.merchant_no, "10089000101");
-  const started = await startSupplierPaymentAccount(async (_input, init) => {
+  assert.equal(account.status, "rejected");
+  assert.equal(account.prefill?.sign_name, "北京测试科技有限公司");
+  const submitted = await submitSupplierPaymentAccount(validPaymentAccountApplication, async (input, init) => {
+    assert.equal(String(input), "/api/supplier/payment-account");
     assert.equal(init?.method, "POST");
-    return Response.json({code: 0, message: "success", data: {status: "pending", application_status: "WAIT_SIGN", merchant_no: null, audit_opinion: "", netin_url: "https://netin.yeepay.com/h5?token=1"}});
+    assert.deepEqual(JSON.parse(String(init?.body)), validPaymentAccountApplication);
+    return Response.json({code: 0, message: "success", data: {status: "pending", application_status: "REVIEWING", merchant_no: null, audit_opinion: ""}});
   });
-  assert.equal(started.netin_url, "https://netin.yeepay.com/h5?token=1");
-  await assert.rejects(startSupplierPaymentAccount(async () =>
-    Response.json({code: 0, message: "success", data: {status: "pending", application_status: "WAIT_SIGN", merchant_no: null, audit_opinion: "", netin_url: "javascript:alert(1)"}})), /返回格式错误/);
-  await assert.rejects(startSupplierPaymentAccount(async () => Response.json({code: 50000, message: "易宝支付未接入"})), /易宝支付未接入/);
+  assert.equal(submitted.status, "pending");
+  await assert.rejects(submitSupplierPaymentAccount(validPaymentAccountApplication, async () =>
+    Response.json({code: 40900, message: "收款账户开通申请正在审核中, 请等待结果"}, {status: 409})), /审核中/);
+});
+
+test("payment account application validation matches the backend rules", () => {
+  assert.deepEqual(validatePaymentAccountApplication(validPaymentAccountApplication), {});
+  const errors = validatePaymentAccountApplication({
+    ...validPaymentAccountApplication, licence_no: "123", short_name: "800", legal_licence_no: "1101", contact_mobile: "010-1",
+    contact_email: "nope", district: "", address: "1号", bank_card_no: "abc", cnaps_code: "1021", licence_url: "", legal_back_url: "",
+  });
+  assert.deepEqual(Object.keys(errors).sort(), ["address", "bank_card_no", "cnaps_code", "contact_email", "contact_mobile", "district", "legal_back_url", "legal_licence_no", "licence_no", "licence_url", "short_name"]);
+});
+
+test("payment account file upload rejects wrong type or size before any request and returns the stored url", async () => {
+  const never = async () => { throw new Error("must not be called"); };
+  await assert.rejects(uploadSupplierPaymentAccountFile(new File(["x"], "a.exe", {type: "application/x-msdownload"}), never), /仅支持/);
+  await assert.rejects(uploadSupplierPaymentAccountFile(new File([], "a.png", {type: "image/png"}), never), /6MB/);
+  await assert.rejects(uploadSupplierPaymentAccountFile(new File([new Uint8Array(paymentAccountFileMaxBytes + 1)], "a.png", {type: "image/png"}), never), /6MB/);
+  const url = await uploadSupplierPaymentAccountFile(new File(["png"], "执照.png", {type: "image/png"}), async (input, init) => {
+    assert.equal(String(input), "/api/supplier/payment-account/upload");
+    assert.equal(init?.method, "POST");
+    assert.ok(init?.body instanceof FormData && (init.body.get("file") as File).name === "执照.png");
+    return Response.json({code: 0, message: "success", data: {url: "https://staticres.yeepay.com/abc.png"}});
+  });
+  assert.equal(url, "https://staticres.yeepay.com/abc.png");
+  await assert.rejects(uploadSupplierPaymentAccountFile(new File(["png"], "a.png", {type: "image/png"}), async () =>
+    Response.json({code: 50000, message: "易宝上传资质文件失败: REG30901 文件上传异常"}, {status: 500})), /REG30901/);
+});
+
+test("region data is province → city → district with 6-digit codes", async () => {
+  const regions = (await import("../data/cn-regions.json", {with: {type: "json"}})).default as unknown as [string, string, [string, string, [string, string][]][]][];
+  assert.equal(regions.length, 31);
+  const beijing = regions.find(([code]) => code === "110000");
+  assert.equal(beijing?.[1], "北京市");
+  assert.equal(beijing?.[2][0][0], "110100");
+  assert.deepEqual(beijing?.[2][0][2][0], ["110101", "东城区"]);
+  for (const [province, , cities] of regions) {
+    assert.match(province, /^\d{6}$/);
+    for (const [city, , districts] of cities) {
+      assert.match(city, /^\d{6}$/);
+      for (const [district] of districts) assert.match(district, /^\d{6}$/);
+    }
+  }
 });
 
 test("managed products: []int split options, draft state and submit-gate messages", async () => {
